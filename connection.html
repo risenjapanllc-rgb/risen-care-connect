@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>接続設定</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>接続設定</h1>
+    <form>
+
+    <label>ホスト</label><br>
+    <input type="text" placeholder="localhost">
+
+    <br><br>
+
+    <label>ポート</label><br>
+    <input type="text" value="3306">
+
+    <br><br>
+
+    <label>データベース名</label><br>
+    <input type="text">
+
+    <br><br>
+
+    <label>ユーザー名</label><br>
+    <input type="text">
+
+    <br><br>
+
+    <label>パスワード</label><br>
+    <input type="password">
+
+    <br><br>
+
+    <button type="button" id="connectButton">
+    接続を確認
+</button>
+
+    <p id="connectionStatus"></p>
+
+<h3>取得したテーブル</h3>
+<ul id="tableList"></ul>
+
+<h3>カラム一覧</h3>
+<ul id="columnList"></ul>
+
+</form>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>

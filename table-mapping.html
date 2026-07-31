@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>RISEN CARE Connect - テーブル分類</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-inner">
+            <div>
+                <h1>RISEN CARE Connect</h1>
+
+                <p class="subtitle">
+                    テーブル分類設定
+                </p>
+            </div>
+
+            <div class="table-badge">
+                STEP 2
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="mapping-card">
+            <div class="section-header">
+                <div>
+                    <h2>MySQLテーブルの分類</h2>
+
+                    <p>
+                        各テーブルがどの種類の情報を保持しているかを設定します。
+                    </p>
+                </div>
+
+                <button
+                    id="saveButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    分類を保存
+                </button>
+            </div>
+
+            <div
+                id="statusMessage"
+                class="mapping-status"
+                aria-live="polite"
+            ></div>
+
+            <div class="table-wrapper">
+                <table id="tableMappingTable">
+                    <thead>
+                        <tr>
+                            <th>施設MySQLテーブル</th>
+                            <th>RISEN CARE分類</th>
+                            <th>カラム設定</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td
+                                colspan="3"
+                                class="loading-cell"
+                            >
+                                テーブル情報を読み込んでいます...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bottom-actions">
+                <button
+                    id="bottomSaveButton"
+                    class="primary-button large-button"
+                    type="button"
+                >
+                    分類を保存
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="table-mapping.js"></script>
+</body>
+</html>

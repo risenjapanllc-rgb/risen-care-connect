@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 
@@ -6,6 +7,7 @@ const app = express();
 const PORT = 3001;
 
 // ミドルウェア
+app.use(cors());         
 app.use(express.static("."));
 app.use(express.json());
 
@@ -75,7 +77,20 @@ app.get("/api/tables", async (req, res) => {
     try {
         connection = await mysql.createConnection(getDatabaseConfig());
 
-        const [rows] = await connection.query("SHOW TABLES");
+        const [rows] = await connection.query(
+            `
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = ?
+              AND table_name NOT IN (
+                  'mapping_settings',
+                  'standard_fields',
+                  'table_mappings'
+              )
+            ORDER BY table_name
+            `,
+            [process.env.DB_NAME]
+        );
 
         res.json(rows);
     } catch (error) {

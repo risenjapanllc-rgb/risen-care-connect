@@ -1,6 +1,15 @@
 "use strict";
 
-const SOURCE_TABLE = "care_records";
+const API_BASE = "http://localhost:3001/api";
+
+// URLパラメータ取得
+const params = new URLSearchParams(window.location.search);
+const selectedTable = params.get("table");
+
+// URLにtableがない場合はcare_recordsを使用
+const SOURCE_TABLE = selectedTable || "care_records";
+
+console.log("Selected Table:", SOURCE_TABLE);
 
 const mappingTableBody = document.querySelector(
     "#mappingTable tbody"
@@ -67,33 +76,49 @@ async function initializeMappingPage() {
 
     try {
         const [
-            columnData,
-            standardFieldData,
-            mappingData
-        ] = await Promise.all([
-            fetchJson(
-                `/api/columns/${
-                    encodeURIComponent(SOURCE_TABLE)
-                }`
-            ),
-            fetchJson("/api/standard-fields"),
-            fetchJson("/api/mappings")
-        ]);
+    columnsData,
+    standardFieldsData,
+    mappingsData,
+    tableMappingsData
+] = await Promise.all([
+    fetchJson(
+        `${API_BASE}/columns/${
+            encodeURIComponent(SOURCE_TABLE)
+        }`
+    ),
+    fetchJson(`${API_BASE}/standard-fields`),
+    fetchJson(`${API_BASE}/mappings`),
+    fetchJson(`${API_BASE}/table-mappings`)
+]);
 
-        columns = Array.isArray(columnData)
-            ? columnData
-            : [];
+const currentTableMapping = Array.isArray(tableMappingsData)
+    ? tableMappingsData.find(
+        item => item.source_table === SOURCE_TABLE
+    )
+    : null;
 
-        standardFields = Array.isArray(
-            standardFieldData
-        )
-            ? standardFieldData
-            : [];
+const currentEntity =
+    currentTableMapping?.standard_entity || null;
 
-        savedMappings = createSavedMappingIndex(
-            mappingData
-        );
+console.log("Current Entity:", currentEntity);
 
+columns = Array.isArray(columnsData)
+    ? columnsData
+    : [];
+
+standardFields = Array.isArray(standardFieldsData)
+    ? standardFieldsData
+    : [];
+
+if (currentEntity) {
+    standardFields = standardFields.filter(
+        field => field.entity_name === currentEntity
+    );
+}
+
+savedMappings = createSavedMappingIndex(
+    mappingsData
+);
         renderMappingTable();
 
         setStatus(

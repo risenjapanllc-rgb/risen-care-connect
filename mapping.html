@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>RISEN CARE Connect</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-inner">
+            <div>
+                <h1>RISEN CARE Connect</h1>
+                <p class="subtitle">
+                    標準データモデル・マッピング
+                </p>
+            </div>
+
+            <div class="table-badge">
+                テーブル：
+                <strong id="sourceTableName">
+                    care_records
+                </strong>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="mapping-card">
+            <div class="section-header">
+                <div>
+                    <h2>カラムマッピング</h2>
+
+                    <p>
+                        MySQLカラムをRISEN CARE標準項目へ
+                        対応付けます。
+                    </p>
+                </div>
+
+                <button
+                    id="saveButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    マッピングを保存
+                </button>
+            </div>
+
+            <div
+                id="mappingStatus"
+                class="mapping-status"
+                aria-live="polite"
+            ></div>
+
+            <div class="table-wrapper">
+                <table id="mappingTable">
+                    <thead>
+                        <tr>
+                            <th>MySQLカラム</th>
+                            <th>データ型</th>
+                            <th>RISEN CARE標準項目</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td
+                                colspan="3"
+                                class="loading-cell"
+                            >
+                                データを読み込んでいます...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bottom-actions">
+                <button
+                    id="bottomSaveButton"
+                    class="primary-button large-button"
+                    type="button"
+                >
+                    マッピングを保存
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="mapping.js"></script>
+</body>
+</html>

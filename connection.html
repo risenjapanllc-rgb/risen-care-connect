@@ -2,56 +2,190 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>接続設定</title>
-    <link rel="stylesheet" href="style.css">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>接続設定 | RISEN CARE Connect</title>
+    <link rel="stylesheet" href="/style.css?v=20260731-1">
 </head>
+
 <body>
 
-<div class="container">
-    <h1>接続設定</h1>
-    <form>
+    <div id="main-navigation"></div>
 
-    <label>ホスト</label><br>
-    <input type="text" placeholder="localhost">
+    <main class="connection-page">
 
-    <br><br>
+        <section class="connection-card">
 
-    <label>ポート</label><br>
-    <input type="text" value="3306">
+            <div class="connection-heading">
+                <span class="page-step">STEP 1</span>
 
-    <br><br>
+                <h1>接続設定</h1>
 
-    <label>データベース名</label><br>
-    <input type="text">
+                <p>
+                    接続先となるMySQLデータベースの情報を入力し、
+                    接続状態を確認します。
+                </p>
+            </div>
 
-    <br><br>
+            <form
+                id="connectionForm"
+                class="connection-form"
+            >
 
-    <label>ユーザー名</label><br>
-    <input type="text">
+                <div class="form-group">
+                    <label for="host">
+                        ホスト
+                    </label>
 
-    <br><br>
+                    <input
+                        id="host"
+                        name="host"
+                        type="text"
+                        value="localhost"
+                        autocomplete="off"
+                    >
+                </div>
 
-    <label>パスワード</label><br>
-    <input type="password">
+                <div class="form-group">
+                    <label for="port">
+                        ポート
+                    </label>
 
-    <br><br>
+                    <input
+                        id="port"
+                        name="port"
+                        type="number"
+                        value="3306"
+                        min="1"
+                        max="65535"
+                    >
+                </div>
 
-    <button type="button" id="connectButton">
-    接続を確認
-</button>
+                <div class="form-group">
+                    <label for="database">
+                        データベース名
+                    </label>
 
-    <p id="connectionStatus"></p>
+                    <input
+                        id="database"
+                        name="database"
+                        type="text"
+                        value="risen_care_connect"
+                        autocomplete="off"
+                    >
+                </div>
 
-<h3>取得したテーブル</h3>
-<ul id="tableList"></ul>
+                <div class="form-group">
+                    <label for="username">
+                        ユーザー名
+                    </label>
 
-<h3>カラム一覧</h3>
-<ul id="columnList"></ul>
+                    <input
+                        id="username"
+                        name="username"
+                        type="text"
+                        value="root"
+                        autocomplete="username"
+                    >
+                </div>
 
-</form>
+                <div class="form-group form-group--full">
+                    <label for="password">
+                        パスワード
+                    </label>
+
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autocomplete="current-password"
+                    >
+
+                    <p class="form-help">
+                        パスワードを設定していない場合は、空欄のままで構いません。
+                    </p>
+                </div>
+
+                <div class="connection-form__actions">
+                    <button
+                        id="connectButton"
+                        class="connection-button"
+                        type="button"
+                    >
+                        接続を確認
+                    </button>
+                </div>
+
+            </form>
+
+            <p
+                id="connectionStatus"
+                class="connection-status"
+                aria-live="polite"
+            ></p>
+
+            <div
+                id="tableGuide"
+                class="guide-message"
+                hidden
+            >
+                次に、取得したテーブル名をクリックしてください。
+                選択したテーブルのカラム一覧が表示されます。
+            </div>
+
+            <section class="connection-result">
+
+                <div class="result-block">
+                    <div class="result-heading">
+                        <span class="result-step">STEP 2</span>
+                        <h2>取得したテーブル</h2>
+                    </div>
+
+                    <ul
+                        id="tableList"
+                        class="result-list table-list"
+                    ></ul>
+                </div>
+
+                <div class="result-block">
+                    <div class="result-heading">
+                        <span class="result-step">STEP 3</span>
+                        <h2>カラム一覧</h2>
+                    </div>
+
+                    <ul
+                        id="columnList"
+                        class="result-list column-list"
+                    ></ul>
+                </div>
+
+            </section>
+
+            <div
+    id="nextStepArea"
+    class="page-actions"
+>
+    <a
+        id="nextStepButton"
+        href="table-mapping.html"
+        class="button-primary is-disabled"
+        aria-disabled="true"
+    >
+        次へ：テーブル分類
+    </a>
 </div>
+        </section>
 
-<script src="app.js"></script>
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="/js/common.js?v=20260731-1"></script>
+    <script src="/js/app.js?v=20260731-1"></script>
 
 </body>
 </html>

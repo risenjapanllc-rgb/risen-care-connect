@@ -230,14 +230,9 @@ async function saveTableMappings() {
 }
 
 function setSaveButtonsDisabled(disabled) {
-    const buttons = [
-        document.getElementById("saveButton"),
-        document.getElementById("bottomSaveButton")
-    ];
+    const button = document.getElementById("saveButton");
 
-    buttons.forEach((button) => {
-        if (button) {
-            button.disabled = disabled;
-        }
-    });
+    if (button) {
+        button.disabled = disabled;
+    }
 }

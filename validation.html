@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>設定内容を確認 | RISEN CARE Connect</title>
+
+    <link
+        rel="stylesheet"
+        href="/style.css?v=20260801-1"
+    >
+</head>
+
+<body>
+
+    <div id="main-navigation"></div>
+
+    <main class="main-container">
+
+        <section class="mapping-card">
+
+            <div class="section-header">
+
+                <div>
+                    <span class="page-step">
+                        STEP 4
+                    </span>
+
+                    <h1>
+                        設定内容を確認
+                    </h1>
+
+                    <p>
+                        AIKOで利用する前に、
+                        接続・テーブル分類・カラムマッピングの内容を確認します。
+                    </p>
+                </div>
+
+            </div>
+
+            <div
+                id="validationStatus"
+                class="mapping-status"
+                aria-live="polite"
+            >
+                設定内容を読み込んでいます...
+            </div>
+
+            <section class="validation-section">
+                <div class="validation-heading">
+                    <h2>接続状態</h2>
+                </div>
+
+                <div
+                    id="connectionCheck"
+                    class="validation-card"
+                >
+                    確認中...
+                </div>
+            </section>
+
+            <section class="validation-section">
+                <div class="validation-heading">
+                    <h2>テーブル分類</h2>
+                </div>
+
+                <div
+                    id="tableMappingSummary"
+                    class="validation-card"
+                >
+                    読み込み中...
+                </div>
+            </section>
+
+            <section class="validation-section">
+                <div class="validation-heading">
+                    <h2>カラムマッピング</h2>
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="validationTable">
+                        <thead>
+                            <tr>
+                                <th>施設テーブル</th>
+                                <th>施設カラム</th>
+                                <th>AIKO標準項目</th>
+                                <th>状態</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <tr>
+                                <td
+                                    colspan="4"
+                                    class="loading-cell"
+                                >
+                                    マッピング情報を読み込んでいます...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="validation-section">
+                <div class="validation-heading">
+                    <h2>品質チェック</h2>
+                </div>
+
+                <div
+                    id="qualityCheck"
+                    class="validation-card"
+                >
+                    確認中...
+                </div>
+            </section>
+
+            <div class="bottom-actions">
+
+                <a
+                    href="mapping.html?table=care_records"
+                    class="secondary-button"
+                >
+                    ← 前へ：カラム分類
+                </a>
+
+                <button
+                    id="registerButton"
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    AIKOへ登録
+                </button>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="/js/common.js?v=20260801-1"></script>
+    <script src="/js/validation.js?v=20260801-1"></script>
+
+</body>
+</html>

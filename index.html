@@ -2,29 +2,115 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>RISEN CARE Connect</title>
 
-    <link rel="stylesheet" href="style.css">
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
 </head>
+
 <body>
 
-    <div class="container">
+    <div id="main-navigation"></div>
 
-        <h1>RISEN CARE Connect</h1>
+    <main class="container">
 
-        <p>
-            介護システムとRISEN CAREを<br>
-            安全に接続します。
-        </p>
+        <section class="hero">
 
-        <button id="startButton">
-            接続を開始する
-        </button>
+            <p class="hero-label">
+                AIKO Data Foundation
+            </p>
 
-    </div>
+            <h1>
+                RISEN CARE Connect
+            </h1>
 
-    <script src="app.js"></script>
+            <p class="hero-description">
+                施設システムとRISEN CAREを接続し、<br>
+                AIKOが検索・分析・活用できる<br>
+                標準データ基盤を構築します。
+            </p>
+
+            <button id="startButton" type="button">
+    接続を開始する
+</button>
+
+        </section>
+
+        <section class="home-menu">
+
+            <h2>
+                設定メニュー
+            </h2>
+
+            <div class="home-menu-grid">
+
+                <a
+                    href="connection.html"
+                    class="home-menu-card"
+                >
+                    <span class="home-menu-step">
+                        STEP 1
+                    </span>
+
+                    <strong>
+                        データベース接続
+                    </strong>
+
+                    <span>
+                        MySQLへの接続を確認します。
+                    </span>
+                </a>
+
+                <a
+                    href="table-mapping.html"
+                    class="home-menu-card"
+                >
+                    <span class="home-menu-step">
+                        STEP 2
+                    </span>
+
+                    <strong>
+                        テーブル分類
+                    </strong>
+
+                    <span>
+                        施設側テーブルの意味を分類します。
+                    </span>
+                </a>
+
+                <a
+                    href="mapping.html"
+                    class="home-menu-card"
+                >
+                    <span class="home-menu-step">
+                        STEP 3
+                    </span>
+
+                    <strong>
+                        カラム分類
+                    </strong>
+
+                    <span>
+                        各カラムを標準項目へ対応付けます。
+                    </span>
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="js/common.js"></script>
+    <script src="js/app.js"></script>
 
 </body>
 </html>

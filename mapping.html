@@ -8,40 +8,43 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>RISEN CARE Connect</title>
+    <title>標準項目を設定 | RISEN CARE Connect</title>
 
-    <link rel="stylesheet" href="style.css">
+    <link
+        rel="stylesheet"
+        href="/style.css?v=20260731-3"
+    >
 </head>
 
 <body>
-    <div id="main-navigation"></div>
-    
-        <div class="header-inner">
-            <div>
-                <h1>RISEN CARE Connect</h1>
-                <p class="subtitle">
-                    標準データモデル・マッピング
-                </p>
-            </div>
 
-            <div class="table-badge">
-                テーブル：
-                <strong id="sourceTableName">
-                    care_records
-                </strong>
-            </div>
-        </div>
-    </header>
+    <div id="main-navigation"></div>
 
     <main class="main-container">
+
         <section class="mapping-card">
+
             <div class="section-header">
+
                 <div>
-                    <h2>カラムマッピング</h2>
+                    <span class="page-step">
+                        STEP 3
+                    </span>
+
+                    <h1>
+                        標準項目を設定
+                    </h1>
 
                     <p>
-                        MySQLカラムをRISEN CARE標準項目へ
-                        対応付けます。
+                        施設データベースのカラムを、
+                        AIKO標準項目へ対応付けます。
+                    </p>
+
+                    <p class="source-table-label">
+                        対象テーブル：
+                        <strong id="sourceTableName">
+                            care_records
+                        </strong>
                     </p>
                 </div>
 
@@ -50,8 +53,9 @@
                     class="primary-button"
                     type="button"
                 >
-                    マッピングを保存
+                    カラムマッピングを保存
                 </button>
+
             </div>
 
             <div
@@ -61,46 +65,72 @@
             ></div>
 
             <div class="table-wrapper">
+
                 <table id="mappingTable">
+
                     <thead>
                         <tr>
-                            <th>MySQLカラム</th>
-                            <th>データ型</th>
-                            <th>RISEN CARE標準項目</th>
+                            <th>
+                                施設カラム
+                            </th>
+
+                            <th>
+                                データ型
+                            </th>
+
+                            <th>
+                                サンプル値
+                            </th>
+
+                            <th>
+                                AIKO標準項目
+                            </th>
                         </tr>
                     </thead>
 
                     <tbody>
                         <tr>
                             <td
-                                colspan="3"
+                                colspan="4"
                                 class="loading-cell"
                             >
                                 データを読み込んでいます...
                             </td>
                         </tr>
                     </tbody>
+
                 </table>
+
             </div>
 
             <div class="bottom-actions">
-                <button
-                    id="bottomSaveButton"
-                    class="primary-button large-button"
-                    type="button"
-                >
-                    マッピングを保存
-                </button>
-            </div>
+
+    <a
+        href="table-mapping.html"
+        class="secondary-button"
+    >
+        前へ：テーブル分類
+    </a>
+
+    <a
+        href="validation.html"
+        class="button-primary"
+    >
+        次へ：検証
+    </a>
+
+</div>
+
         </section>
+
     </main>
 
     <footer class="app-footer">
         © 2026 RISEN CARE Connect
     </footer>
 
-    <script src="/js/common.js"></script>
-    <script src="mapping.js"></script>
-    
+    <script src="/js/common.js?v=20260731-3"></script>
+    <script src="/js/mapping.js?v=20260731-3"></script>
+
 </body>
 </html>

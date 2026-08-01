@@ -18,6 +18,24 @@ const tableList =
 const columnList =
     document.getElementById("columnList");
 
+const tableGuide =
+    document.getElementById("tableGuide");
+
+const nextStepArea =
+    document.getElementById("nextStepArea");
+
+const nextStepButton =
+    document.getElementById("nextStepButton");
+
+if (nextStepButton) {
+    nextStepButton.addEventListener("click", (event) => {
+        if (nextStepButton.classList.contains("is-disabled")) {
+            event.preventDefault();
+        }
+    });
+}
+
+
 
 if (connectButton && connectionStatus) {
     connectButton.addEventListener("click", async () => {
@@ -54,11 +72,14 @@ if (connectButton && connectionStatus) {
             }
 
             connectionStatus.textContent =
-                "✓ MySQLへの接続に成功しました";
+              "✓ MySQLへの接続に成功しました";
 
             connectionStatus.className =
-                "status-success";
+              "status-success";
 
+            if (tableGuide) {
+              tableGuide.hidden = false;
+            }
 
             const tablesResponse =
                 await fetch("/api/tables");
@@ -184,14 +205,19 @@ async function loadColumns(tableName) {
         }
 
         result.forEach((column) => {
-            const li =
-                document.createElement("li");
+    const li =
+        document.createElement("li");
 
-            li.textContent =
-                `📝 ${column.Field} (${column.Type})`;
+    li.textContent =
+        `📝 ${column.Field} (${column.Type})`;
 
-            columnList.appendChild(li);
-        });
+    columnList.appendChild(li);
+});
+
+if (nextStepButton) {
+    nextStepButton.classList.remove("is-disabled");
+    nextStepButton.setAttribute("aria-disabled", "false");
+}
 
     } catch (error) {
         columnList.innerHTML = "";

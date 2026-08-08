@@ -83,3 +83,16 @@ AIKOは、その標準化されたデータを利用して、
 - サービス提供記録
 - 支援記録
 - バイタル情報
+
+## Development Workflow
+
+Before ending development:
+
+1. git status
+2. git add .
+3. git commit
+4. git push
+
+GitHub is the source of recovery.
+
+Local files should never be the only source of truth.

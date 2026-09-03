@@ -52,6 +52,43 @@ app.get('/status', async (req, res) => {
     }
 });
 
+app.get('/files', async (req, res) => {
+    try {
+        const result =
+            await service.getRegisteredFolderStatus();
+
+        if (result.status !== 'ready') {
+            return res.json({
+                success: true,
+                status: result.status,
+                folderName: result.folderName,
+                fileCount: 0,
+                files: []
+            });
+        }
+
+        return res.json({
+            success: true,
+            status: result.status,
+            folderName: result.folderName,
+            fileCount: result.fileCount,
+            files: result.files.map(file => ({
+                fileName: file.fileName,
+                extension: file.extension,
+                size: file.size,
+                updatedAt: file.updatedAt
+            }))
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message:
+                '対象ファイル一覧の取得に失敗しました'
+        });
+    }
+});
+
 app.use((req, res) => {
     return res.status(404).json({
         success: false,

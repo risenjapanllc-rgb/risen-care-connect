@@ -29,9 +29,33 @@ class LocalConnectorService {
             };
         }
 
-        return this.getFolderStatus(
-            allowedFolder
-        );
+        try {
+            return await this.getFolderStatus(
+                allowedFolder
+            );
+        } catch (error) {
+            if (
+                error &&
+                (
+                    error.code === 'ENOENT' ||
+                    error.code === 'ENOTDIR'
+                )
+            ) {
+                return {
+                    status:
+                        'folder_unavailable',
+                    folderName: null,
+                    fileCount: 0,
+                    wordCount: 0,
+                    excelCount: 0,
+                    checkedAt:
+                        new Date().toISOString(),
+                    files: []
+                };
+            }
+
+            throw error;
+        }
     }
 
     async getFolderStatus(folderPath) {

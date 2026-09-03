@@ -44,7 +44,10 @@ class LocalConnectorService {
                 return {
                     status:
                         'folder_unavailable',
-                    folderName: null,
+                    folderName:
+                        require('path').basename(
+                            allowedFolder
+                        ),
                     fileCount: 0,
                     wordCount: 0,
                     excelCount: 0,

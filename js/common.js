@@ -23,6 +23,10 @@ function getCurrentPage() {
         return "validation";
     }
 
+    if (path.endsWith("/csv-poc.html")) {
+        return "csv-poc";
+    }
+
     return "";
 }
 
@@ -91,6 +95,11 @@ function renderNavigation() {
             href: "/validation.html",
             label: "検証結果",
             pageName: "validation"
+        },
+        {
+            href: "/csv-poc.html",
+            label: "CSV取込PoC",
+            pageName: "csv-poc"
         }
     ];
 

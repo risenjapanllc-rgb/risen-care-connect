@@ -20,9 +20,32 @@ const qualityCheck =
 const registerButton =
     document.getElementById("registerButton");
 
+const connectionId =
+    sessionStorage.getItem(
+        "risenMysqlConnectionId"
+    ) || "";
+
 
 async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
+    if (!connectionId) {
+        throw new Error(
+            "MySQL接続セッションがありません。接続設定からやり直してください"
+        );
+    }
+
+    const headers = {
+        ...(options.headers || {}),
+        "x-risen-connection-id":
+            connectionId
+    };
+
+    const response = await fetch(
+        url,
+        {
+            ...options,
+            headers
+        }
+    );
 
     let data;
 
@@ -58,10 +81,41 @@ async function initializeValidationPage() {
             mappings,
             standardFields
         ] = await Promise.all([
-            fetchJson(`${API_BASE}/mysql-test`),
-            fetchJson(`${API_BASE}/table-mappings`),
-            fetchJson(`${API_BASE}/mappings`),
-            fetchJson(`${API_BASE}/standard-fields`)
+            fetchJson(
+                `${API_BASE}/mysql-session-test`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
+            ),
+
+            fetchJson(
+                `${API_BASE}/table-mappings/list`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
+            ),
+
+            fetchJson(
+                `${API_BASE}/mappings`
+            ),
+
+            fetchJson(
+                `${API_BASE}/standard-fields`
+            )
         ]);
 
         const columnsByTable =
@@ -136,7 +190,17 @@ async function loadColumnsForMappedTables(
                 await fetchJson(
                     `${API_BASE}/columns/${
                         encodeURIComponent(tableName)
-                    }`
+                    }`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body: JSON.stringify({
+                            connectionId
+                        })
+                    }
                 );
 
             result[tableName] =
@@ -785,10 +849,99 @@ function escapeHtml(value) {
 if (registerButton) {
     registerButton.addEventListener(
         "click",
-        () => {
-            window.alert(
-                "AIKO登録機能は次の実装で接続します。"
-            );
+        async () => {
+            if (!connectionId) {
+                setValidationStatus(
+                    "MySQL接続セッションがありません。接続設定からやり直してください",
+                    "error"
+                );
+                return;
+            }
+
+            const originalText =
+                registerButton.textContent;
+
+            registerButton.disabled = true;
+            registerButton.textContent =
+                "AIKOデータソースとして登録しています...";
+
+            try {
+                const result =
+                    await fetchJson(
+                        `${API_BASE}/data-sources/register`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+                            body: JSON.stringify({
+                                connectionId,
+                                displayName:
+                                    "RISEN CARE Connect MySQL"
+                            })
+                        }
+                    );
+
+                const dataSourceId =
+                    Number(
+                        result.dataSourceId
+                    );
+
+                if (
+                    !Number.isInteger(dataSourceId) ||
+                    dataSourceId <= 0
+                ) {
+                    throw new Error(
+                        "dataSourceIdを取得できませんでした"
+                    );
+                }
+
+                sessionStorage.setItem(
+                    "risenDataSourceId",
+                    String(dataSourceId)
+                );
+
+                setValidationStatus(
+                    "AIKOデータソースとして登録しました",
+                    "success"
+                );
+
+                const completeMessage =
+                    document.createElement("div");
+
+                completeMessage.className =
+                    "registration-complete";
+
+                completeMessage.innerHTML = `
+                    <strong>
+                        ✓ AIKOデータソースとして登録しました
+                    </strong>
+                    <span>
+                        AIKOで利用する準備が完了しました。
+                    </span>
+                `;
+
+                registerButton.replaceWith(
+                    completeMessage
+                );
+
+            } catch (error) {
+                console.error(
+                    "AIKOデータソース登録エラー:",
+                    error
+                );
+
+                setValidationStatus(
+                    `登録に失敗しました：${error.message}`,
+                    "error"
+                );
+
+                registerButton.textContent =
+                    originalText;
+
+                registerButton.disabled = false;
+            }
         }
     );
 }

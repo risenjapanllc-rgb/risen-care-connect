@@ -3,6 +3,12 @@
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
+const path = require("path");
+const crypto = require("crypto");
+const CsvDataSourceAdapter =
+    require("./adapters/csv/CsvDataSourceAdapter");
+const CsvDataTypeDetector =
+    require("./adapters/csv/CsvDataTypeDetector");
 require("dotenv").config();
 
 const app = express();
@@ -10,12 +16,72 @@ const PORT = Number(process.env.PORT) || 3001;
 
 
 // ==========================================
+// MySQL一時接続セッション
+// パスワードはブラウザへ返さない
+// ==========================================
+
+const mysqlConnectionSessions = new Map();
+
+const MYSQL_SESSION_TTL_MS =
+    60 * 60 * 1000;
+
+function createMysqlConnectionSession(config) {
+    const connectionId =
+        crypto.randomUUID();
+
+    mysqlConnectionSessions.set(
+        connectionId,
+        {
+            config: {
+                ...config
+            },
+            expiresAt:
+                Date.now() +
+                MYSQL_SESSION_TTL_MS
+        }
+    );
+
+    return connectionId;
+}
+
+function getMysqlConnectionSession(connectionId) {
+    const id =
+        String(connectionId || "").trim();
+
+    if (!id) {
+        return null;
+    }
+
+    const session =
+        mysqlConnectionSessions.get(id);
+
+    if (!session) {
+        return null;
+    }
+
+    if (Date.now() > session.expiresAt) {
+        mysqlConnectionSessions.delete(id);
+        return null;
+    }
+
+    // 使用するたび有効期限を延長
+    session.expiresAt =
+        Date.now() +
+        MYSQL_SESSION_TTL_MS;
+
+    return session;
+}
+
+
+// ==========================================
 // ミドルウェア
 // ==========================================
 
 app.use(cors());
-app.use(express.json());
-app.use(express.static("."));
+app.use(express.json({
+    limit: "50mb"
+}));
+app.use(express.static(__dirname));
 
 
 // ==========================================
@@ -29,6 +95,42 @@ function getDatabaseConfig() {
         database: process.env.DB_NAME,
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD
+    };
+}
+
+function getRequestDatabaseConfig(req) {
+    const connectionId =
+        String(
+            req.body?.connectionId ||
+            req.headers["x-risen-connection-id"] ||
+            ""
+        ).trim();
+
+    if (connectionId) {
+        const session =
+            getMysqlConnectionSession(
+                connectionId
+            );
+
+        if (session?.config) {
+            return {
+                ...session.config
+            };
+        }
+    }
+
+    // 既存フローとの互換用
+    return {
+        host:
+            String(req.body?.host || "").trim(),
+        port:
+            Number(req.body?.port) || 3306,
+        database:
+            String(req.body?.database || "").trim(),
+        user:
+            String(req.body?.user || "").trim(),
+        password:
+            String(req.body?.password || "")
     };
 }
 
@@ -78,22 +180,110 @@ app.get("/api/config", (req, res) => {
 
 
 // ==========================================
-// MySQL接続確認
+// 既存MySQL接続セッション確認
 // ==========================================
 
-app.get("/api/mysql-test", async (req, res) => {
+app.post("/api/mysql-session-test", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getRequestDatabaseConfig(req);
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         await connection.query("SELECT 1");
 
         return res.json({
             success: true,
-            message: "MySQLへの接続に成功しました"
+            message:
+                "MySQL接続セッションは正常です"
+        });
+
+    } catch (error) {
+        console.error(
+            "MySQL接続セッション確認エラー:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "MySQL接続セッションの確認に失敗しました",
+            error:
+                error.message ||
+                "詳細メッセージなし"
+        });
+
+    } finally {
+        await closeConnection(connection);
+    }
+});
+
+
+// ==========================================
+// MySQL接続確認
+// ==========================================
+
+app.post("/api/mysql-test", async (req, res) => {
+    let connection;
+
+    try {
+        const config = {
+            host:
+                String(req.body?.host || "").trim(),
+            port:
+                Number(req.body?.port) || 3306,
+            database:
+                String(req.body?.database || "").trim(),
+            user:
+                String(req.body?.user || "").trim(),
+            password:
+                String(req.body?.password || "")
+        };
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "ホスト、データベース名、ユーザー名を入力してください"
+            });
+        }
+
+        connection = await mysql.createConnection(
+            config
+        );
+
+        await connection.query("SELECT 1");
+
+        const connectionId =
+            createMysqlConnectionSession(
+                config
+            );
+
+        return res.json({
+            success: true,
+            message:
+                "MySQLへの接続に成功しました",
+            connectionId
         });
 
     } catch (error) {
@@ -118,12 +308,27 @@ app.get("/api/mysql-test", async (req, res) => {
 // テーブル一覧取得
 // ==========================================
 
-app.get("/api/tables", async (req, res) => {
+app.post("/api/tables", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getRequestDatabaseConfig(req);
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続情報が不足しています"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.query(
@@ -135,11 +340,12 @@ app.get("/api/tables", async (req, res) => {
               AND table_name NOT IN (
                   'mapping_settings',
                   'standard_fields',
-                  'table_mappings'
+                  'table_mappings',
+                  'data_sources'
               )
             ORDER BY table_name
             `,
-            [process.env.DB_NAME]
+            [config.database]
         );
 
         return res.json(rows);
@@ -163,10 +369,13 @@ app.get("/api/tables", async (req, res) => {
 // 指定テーブルのカラム一覧取得
 // ==========================================
 
-app.get("/api/columns/:table", async (req, res) => {
+app.post("/api/columns/:table", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getRequestDatabaseConfig(req);
+
         const tableName = String(
             req.params.table || ""
         ).trim();
@@ -178,8 +387,20 @@ app.get("/api/columns/:table", async (req, res) => {
             });
         }
 
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続情報が不足しています"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.query(
@@ -223,8 +444,23 @@ app.get("/api/sample/:table", async (req, res) => {
             });
         }
 
+        const config =
+            getRequestDatabaseConfig(req);
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.query(
@@ -261,8 +497,23 @@ app.get("/api/standard-fields", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getDatabaseConfig();
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.query(
@@ -307,8 +558,23 @@ app.get("/api/mappings", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getDatabaseConfig();
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.query(
@@ -397,8 +663,23 @@ app.post("/api/mappings", async (req, res) => {
             });
         }
 
+        const config =
+            getDatabaseConfig();
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [existingRows] = await connection.execute(
@@ -490,12 +771,27 @@ app.post("/api/mappings", async (req, res) => {
 // テーブル分類一覧取得
 // ==========================================
 
-app.get("/api/table-mappings", async (req, res) => {
+app.post("/api/table-mappings/list", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getDatabaseConfig();
+
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続情報が不足しています"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [rows] = await connection.execute(
@@ -537,6 +833,9 @@ app.post("/api/table-mappings", async (req, res) => {
     let connection;
 
     try {
+        const config =
+            getDatabaseConfig();
+
         const {
             source_table,
             standard_entity,
@@ -551,8 +850,20 @@ app.post("/api/table-mappings", async (req, res) => {
             });
         }
 
+        if (
+            !config.host ||
+            !config.database ||
+            !config.user
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続情報が不足しています"
+            });
+        }
+
         connection = await mysql.createConnection(
-            getDatabaseConfig()
+            config
         );
 
         const [result] = await connection.execute(
@@ -595,6 +906,257 @@ app.post("/api/table-mappings", async (req, res) => {
 
     } finally {
         await closeConnection(connection);
+    }
+});
+
+
+// ==========================================
+// Data Source 登録
+// 一時MySQL接続をAIKOの永続データソースへ登録
+// ==========================================
+
+app.post("/api/data-sources/register", async (req, res) => {
+    let connection;
+
+    try {
+        const connectionId =
+            String(
+                req.body?.connectionId || ""
+            ).trim();
+
+        const displayName =
+            String(
+                req.body?.displayName ||
+                "MySQL Data Source"
+            ).trim();
+
+        if (!connectionId) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "connectionId は必須です"
+            });
+        }
+
+        const session =
+            getMysqlConnectionSession(
+                connectionId
+            );
+
+        if (!session?.config) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "MySQL接続セッションが無効です。接続設定からやり直してください"
+            });
+        }
+
+        const config = session.config;
+
+        connection = await mysql.createConnection(
+            config
+        );
+
+        await connection.query("SELECT 1");
+
+        const safeConfig = {
+            host:
+                config.host,
+            port:
+                Number(config.port) || 3306,
+            database:
+                config.database,
+            user:
+                config.user
+        };
+
+        const [result] =
+            await connection.execute(
+                `
+                INSERT INTO data_sources (
+                    source_type,
+                    display_name,
+                    status,
+                    config_json,
+                    secret_ref,
+                    last_verified_at
+                )
+                VALUES (
+                    'mysql',
+                    ?,
+                    'verified',
+                    ?,
+                    NULL,
+                    NOW()
+                )
+                `,
+                [
+                    displayName,
+                    JSON.stringify(safeConfig)
+                ]
+            );
+
+        const dataSourceId =
+            result.insertId;
+
+        session.dataSourceId =
+            dataSourceId;
+
+        return res.status(201).json({
+            success: true,
+            message:
+                "AIKOデータソースとして登録しました",
+            dataSourceId,
+            sourceType:
+                "mysql",
+            displayName
+        });
+
+    } catch (error) {
+        console.error(
+            "データソース登録エラー:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "データソースの登録に失敗しました",
+            error:
+                error.message ||
+                "詳細メッセージなし"
+        });
+
+    } finally {
+        await closeConnection(connection);
+    }
+});
+
+
+// ==========================================
+// CSV PoC: 利用者基本情報の読み込み処理
+// Metadata -> Mapping -> Validation
+// ==========================================
+
+app.post("/api/csv/poc/process", async (req, res) => {
+    const csvText = String(req.body?.csvText || "");
+
+    const answers =
+        req.body &&
+        typeof req.body.answers === "object" &&
+        req.body.answers !== null
+            ? req.body.answers
+            : {};
+
+    const dataTypeMode =
+        String(req.body?.dataTypeMode || "auto");
+
+    if (!csvText.trim()) {
+        return res.status(400).json({
+            success: false,
+            message: "CSV内容が空です"
+        });
+    }
+
+    const adapter = new CsvDataSourceAdapter({
+        csvText
+    });
+
+    try {
+        const connectionResult =
+            await adapter.validateConnection({
+                csvText
+            });
+
+        if (!connectionResult.success) {
+            return res.status(400).json({
+                success: false,
+                message: connectionResult.message,
+                metadata: connectionResult.metadata || {}
+            });
+        }
+
+        const metadata =
+            await adapter.buildMetadata({
+                csvText
+            });
+
+        // CSV全体の構造からデータ種別を判定
+        const detector =
+            new CsvDataTypeDetector();
+
+        const detectedDataType =
+            detector.detect(metadata);
+
+        const manualDataTypes = {
+            resident_basic_info: "利用者基本情報",
+            support_record: "支援記録"
+        };
+
+        const manualTypeLabel =
+            manualDataTypes[dataTypeMode] || null;
+
+        const dataType =
+            manualTypeLabel
+                ? {
+                    ...detectedDataType,
+                    type: dataTypeMode,
+                    label: manualTypeLabel,
+                    source: "manual",
+                    detectedType: detectedDataType.type,
+                    detectedLabel: detectedDataType.label,
+                    detectedConfidence:
+                        detectedDataType.confidence,
+                    matchesDetection:
+                        detectedDataType.type === dataTypeMode
+                }
+                : {
+                    ...detectedDataType,
+                    source: "auto",
+                    detectedType: detectedDataType.type,
+                    detectedLabel: detectedDataType.label,
+                    detectedConfidence:
+                        detectedDataType.confidence,
+                    matchesDetection: true
+                };
+
+        // 採用されたデータ種類に対応する
+        // 標準フィールドセットを metadata に設定
+        metadata.standardFields =
+            adapter.getStandardFields(
+                dataType.type
+            );
+
+        const mapping =
+            adapter.buildMapping(
+                metadata,
+                answers
+            );
+
+        const validation =
+            adapter.buildValidation(
+                metadata,
+                mapping
+            );
+
+        return res.json({
+            success: true,
+            sourceType: "csv",
+            dataType,
+            metadata,
+            mapping,
+            validation
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "CSV処理中にエラーが発生しました",
+            error: error.message || "詳細メッセージなし"
+        });
+
+    } finally {
+        await adapter.disconnect();
     }
 });
 

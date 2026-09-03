@@ -14,6 +14,11 @@ const ENTITY_TYPES = [
 let tables = [];
 let mappings = [];
 
+const connectionId =
+    sessionStorage.getItem(
+        "risenMysqlConnectionId"
+    ) || "";
+
 document.addEventListener("DOMContentLoaded", async () => {
     document
         .getElementById("saveButton")
@@ -28,9 +33,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadData() {
     try {
+        if (!connectionId) {
+            throw new Error(
+                "MySQL接続セッションがありません。接続設定からやり直してください"
+            );
+        }
+
         const [tablesRes, mappingsRes] = await Promise.all([
-            fetch(`${API_BASE}/tables`),
-            fetch(`${API_BASE}/table-mappings`)
+            fetch(
+                `${API_BASE}/tables`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
+            ),
+            fetch(
+                `${API_BASE}/table-mappings/list`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
+            )
         ]);
 
         if (!tablesRes.ok || !mappingsRes.ok) {
@@ -192,7 +225,11 @@ async function saveTableMappings() {
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify(setting)
+                        body: JSON.stringify({
+                            ...setting,
+                            connectionId,
+                            action: "save"
+                        })
                     }
                 );
 

@@ -1337,3 +1337,325 @@ td{
     color: #667085;
     font-size: 13px;
 }
+
+/* ==========================================
+   CSV PoC
+========================================== */
+
+/* ==========================================
+   RISEN CARE Connect
+   CSV PoC - Recovered CSS
+========================================== */
+
+.csv-poc-card {
+    max-width: 1080px;
+    margin: 0 auto;
+    min-width: 0;
+}
+
+.csv-poc-header {
+    margin-bottom: 18px;
+}
+
+.csv-step {
+    margin-top: 24px;
+    padding: 20px;
+    border: 1px solid #e3e8f1;
+    border-radius: 12px;
+    background: #fcfdff;
+}
+
+.csv-step__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.csv-step__head h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #172235;
+}
+
+.csv-upload-box {
+    display: grid;
+    gap: 10px;
+}
+
+.csv-file-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #344054;
+}
+
+.csv-note {
+    margin: 0;
+    color: #667085;
+    font-size: 13px;
+}
+
+.csv-step-actions {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #e6eaf0;
+}
+
+.csv-detail-panel[hidden],
+#csvAllItemsPanel[hidden] {
+    display: none !important;
+}
+
+.csv-summary-title {
+    margin: 0;
+    color: #172235;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.csv-summary-subtitle {
+    margin: 16px 0 10px;
+    color: #344054;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.csv-recognized-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #16752b;
+    line-height: 1.9;
+    font-weight: 700;
+}
+
+.csv-summary-note {
+    margin: 16px 0 0;
+    color: #667085;
+    line-height: 1.8;
+    font-size: 14px;
+}
+
+.csv-detail-actions {
+    margin-top: 14px;
+}
+
+.csv-detail-panel {
+    margin-top: 14px;
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.csv-preview-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.csv-all-preview-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.csv-all-items-actions {
+    margin-top: 4px;
+}
+
+#csvAllItemsPanel {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.csv-all-header-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.csv-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid #d8e1ef;
+    border-radius: 999px;
+    background: #f7faff;
+    color: #344054;
+    font-size: 13px;
+}
+
+#csvPreviewTable,
+#csvAllPreviewTable,
+#csvResultTable {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+#csvPreviewTable th,
+#csvAllPreviewTable th,
+#csvResultTable th {
+    padding: 12px 14px;
+    text-align: left;
+    background: #2457bd;
+    color: #ffffff;
+    border: 0;
+    white-space: nowrap;
+}
+
+#csvPreviewTable td,
+#csvAllPreviewTable td,
+#csvResultTable td {
+    padding: 12px 14px;
+    border-top: 1px solid #e5e7eb;
+    color: #344054;
+    background: #ffffff;
+}
+
+#csvPreviewTable {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+}
+
+#csvPreviewTable th,
+#csvPreviewTable td {
+    white-space: normal;
+    word-break: break-word;
+}
+
+#csvAllPreviewTable {
+    width: max-content;
+    min-width: 760px;
+}
+
+.csv-preview-meta {
+    margin: 0;
+    color: #667085;
+    font-size: 13px;
+}
+
+.empty-cell {
+    text-align: center;
+    color: #667085;
+}
+
+.csv-question-form {
+    margin-top: 14px;
+    display: grid;
+    gap: 12px;
+}
+
+.csv-question-item {
+    border: 1px solid #e3e8f1;
+    border-radius: 8px;
+    padding: 12px;
+    background: #ffffff;
+    display: grid;
+    gap: 8px;
+}
+
+.csv-question-item label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1d2939;
+}
+
+@media (max-width: 760px) {
+    .csv-step {
+        padding: 16px;
+    }
+
+    .csv-step__head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    #csvPreviewTable,
+    #csvAllPreviewTable,
+    #csvResultTable {
+        min-width: 620px;
+    }
+
+    #csvPreviewTable {
+        min-width: 0;
+    }
+}
+
+
+/* ==========================================
+   CSV Hybrid Entry
+========================================== */
+
+.csv-data-type-select {
+    width: 100%;
+    max-width: 520px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #344054;
+    font-size: 15px;
+}
+
+.csv-data-type-select:focus {
+    outline: 2px solid rgba(36, 87, 189, 0.18);
+    border-color: #2457bd;
+}
+
+
+/* ==========================================
+   CSV Multi-column Mapping
+========================================== */
+
+.csv-checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.csv-checkbox-option input {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* ==========================================
+   AIKO Data Source registration complete
+   ========================================== */
+
+.registration-complete {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 360px;
+    padding: 18px 24px;
+    border: 1px solid #b9e2c2;
+    border-radius: 12px;
+    background: #effaf1;
+    color: #176b2c;
+}
+
+.registration-complete strong {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.registration-complete span {
+    font-size: 14px;
+    color: #45634c;
+}
+

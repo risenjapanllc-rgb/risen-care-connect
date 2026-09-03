@@ -28,12 +28,35 @@ let standardFields = [];
 let savedMappings = {};
 let sampleRecord = {};
 
+const connectionId =
+    sessionStorage.getItem(
+        "risenMysqlConnectionId"
+    ) || "";
+
 
 /**
  * APIからJSONを取得する
  */
 async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
+    if (!connectionId) {
+        throw new Error(
+            "MySQL接続セッションがありません。接続設定からやり直してください"
+        );
+    }
+
+    const headers = {
+        ...(options.headers || {}),
+        "x-risen-connection-id":
+            connectionId
+    };
+
+    const response = await fetch(
+        url,
+        {
+            ...options,
+            headers
+        }
+    );
 
     let data;
 
@@ -81,7 +104,17 @@ async function initializeMappingPage() {
             fetchJson(
                 `${API_BASE}/columns/${
                     encodeURIComponent(SOURCE_TABLE)
-                }`
+                }`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
             ),
 
             fetchJson(
@@ -99,7 +132,17 @@ async function initializeMappingPage() {
             ),
 
             fetchJson(
-                `${API_BASE}/table-mappings`
+                `${API_BASE}/table-mappings/list`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify({
+                        connectionId
+                    })
+                }
             )
         ]);
 

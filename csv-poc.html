@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>CSV取込PoC | RISEN CARE Connect</title>
+    <link rel="stylesheet" href="/style.css?v=20260819-multi-column-1">
+</head>
+
+<body>
+
+    <div id="main-navigation"></div>
+
+    <main class="main-container">
+
+        <section class="mapping-card csv-poc-card">
+
+            <div class="section-header csv-poc-header">
+                <div>
+                    <span class="page-step">CSV版 PoC</span>
+                    <h1>CSVデータの取込</h1>
+                    <p>
+                        施設で使用しているCSVを選択してください。
+                        RISEN CARE Connectが内容を確認し、
+                        データの種類と標準データモデルへの対応を判定します。
+                    </p>
+                </div>
+            </div>
+
+            <div id="csvPocStatus" class="mapping-status" aria-live="polite"></div>
+
+            <section class="csv-step is-active" data-step="1">
+                <div class="csv-step__head">
+                    <span class="result-step">STEP 1</span>
+                    <h2>CSVを選択</h2>
+                </div>
+
+                <div class="csv-upload-box">
+
+                    <label for="csvDataTypeMode" class="csv-file-label">
+                        データの種類
+                    </label>
+
+                    <select id="csvDataTypeMode" class="csv-data-type-select">
+                        <option value="auto">
+                            RISEN CARE Connectに自動判定させる
+                        </option>
+                        <option value="resident_basic_info">
+                            利用者基本情報
+                        </option>
+                        <option value="support_record">
+                            支援記録・日常記録
+                        </option>
+                    </select>
+
+                    <p class="csv-note">
+                        種類が分からない場合は「自動判定」のままで構いません。
+                    </p>
+
+                    <label for="csvFileInput" class="csv-file-label">
+                        CSVファイル
+                    </label>
+
+                    <input id="csvFileInput" type="file" accept=".csv,text/csv">
+
+                    <p class="csv-note">
+                        保存機能はありません。今回のPoCは画面確認までです。
+                    </p>
+
+                </div>
+
+                <div class="bottom-actions csv-step-actions">
+                    <button id="csvLoadButton" class="primary-button" type="button" disabled>
+                        読み込む
+                    </button>
+                </div>
+            </section>
+
+            <section class="csv-step" data-step="2" hidden>
+                <div class="csv-step__head">
+                    <span class="result-step">STEP 2</span>
+                    <h2>CSVの内容を確認しました</h2>
+                </div>
+
+                <div id="csvSummary" class="validation-card">読み込み中...</div>
+
+                <div id="csvRecognizedFields" class="validation-card">確認中...</div>
+
+                <div class="csv-detail-actions">
+                    <button
+                        id="csvToggleDetailButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        確認対象を表示
+                    </button>
+                </div>
+
+                <div id="csvDetailPanel" class="csv-detail-panel" hidden>
+                    <div class="validation-card">
+                        <p class="csv-summary-subtitle">今回の確認対象</p>
+                    </div>
+
+                    <div class="table-wrapper csv-preview-wrapper">
+                        <table id="csvPreviewTable">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <p id="csvPreviewMeta" class="csv-preview-meta"></p>
+
+                    <div class="csv-all-items-actions">
+                        <button
+                            id="csvToggleAllItemsButton"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            すべての項目を見る
+                        </button>
+                    </div>
+
+                    <div id="csvAllItemsPanel" hidden>
+                        <div id="csvAllHeaderList" class="validation-card">読み込み中...</div>
+
+                        <div class="table-wrapper csv-all-preview-wrapper">
+                            <table id="csvAllPreviewTable">
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bottom-actions csv-step-actions">
+                    <button id="csvToQuestionButton" class="primary-button" type="button">
+                        次へ進む
+                    </button>
+                </div>
+            </section>
+
+            <section class="csv-step" data-step="3" hidden>
+                <div class="csv-step__head">
+                    <span class="result-step">STEP 3</span>
+                    <h2 id="csvStep3Title">確認内容</h2>
+                </div>
+
+                <div id="csvQuestionGuide" class="validation-card"></div>
+
+                <form id="csvQuestionForm" class="csv-question-form"></form>
+
+                <div class="bottom-actions csv-step-actions">
+                    <button id="csvApplyAnswersButton" class="primary-button" type="button">
+                        この内容で進む
+                    </button>
+                </div>
+            </section>
+
+            <section class="csv-step" data-step="4" hidden>
+                <div class="csv-step__head">
+                    <span class="result-step">STEP 4</span>
+                    <h2>確認が完了しました</h2>
+                </div>
+
+                <div id="csvCompletionSummary" class="validation-card"></div>
+
+                <div class="table-wrapper">
+                    <table id="csvResultTable">
+                        <thead>
+                            <tr>
+                                <th>確認した項目</th>
+                                <th>CSVの項目</th>
+                                <th>確認方法</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </section>
+
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="/js/common.js?v=20260819-multi-column-1"></script>
+    <script src="/js/csv-poc.js?v=20260819-multi-column-1"></script>
+
+</body>
+</html>

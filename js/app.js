@@ -27,6 +27,9 @@ const nextStepArea =
 const nextStepButton =
     document.getElementById("nextStepButton");
 
+let activeMysqlConfig = null;
+let activeConnectionId = null;
+
 if (nextStepButton) {
     nextStepButton.addEventListener("click", (event) => {
         if (nextStepButton.classList.contains("is-disabled")) {
@@ -55,8 +58,42 @@ if (connectButton && connectionStatus) {
         }
 
         try {
+            const mysqlConfig = {
+                host:
+                    document.getElementById("host")?.value?.trim() || "",
+                port:
+                    Number(
+                        document.getElementById("port")?.value
+                    ) || 3306,
+                database:
+                    document.getElementById("database")?.value?.trim() || "",
+                user:
+                    document.getElementById("username")?.value?.trim() || "",
+                password:
+                    document.getElementById("password")?.value || ""
+            };
+
+            if (
+                !mysqlConfig.host ||
+                !mysqlConfig.database ||
+                !mysqlConfig.user
+            ) {
+                throw new Error(
+                    "ホスト、データベース名、ユーザー名を入力してください"
+                );
+            }
+
             const connectionResponse =
-                await fetch("/api/mysql-test");
+                await fetch(
+                    "/api/mysql-test",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(mysqlConfig)
+                    }
+                );
 
             const connectionResult =
                 await connectionResponse.json();
@@ -71,6 +108,26 @@ if (connectButton && connectionStatus) {
                 );
             }
 
+            activeMysqlConfig = {
+                ...mysqlConfig
+            };
+
+            activeConnectionId =
+                String(
+                    connectionResult.connectionId || ""
+                ).trim();
+
+            if (!activeConnectionId) {
+                throw new Error(
+                    "MySQL接続セッションを作成できませんでした"
+                );
+            }
+
+            sessionStorage.setItem(
+                "risenMysqlConnectionId",
+                activeConnectionId
+            );
+
             connectionStatus.textContent =
               "✓ MySQLへの接続に成功しました";
 
@@ -82,7 +139,19 @@ if (connectButton && connectionStatus) {
             }
 
             const tablesResponse =
-                await fetch("/api/tables");
+                await fetch(
+                    "/api/tables",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            connectionId:
+                                activeConnectionId
+                        })
+                    }
+                );
 
             const tables =
                 await tablesResponse.json();
@@ -168,13 +237,29 @@ async function loadColumns(tableName) {
         document.createElement("li");
 
     loadingItem.textContent =
-        `${tableName} のカラムを取得しています...`;
+        `現在確認中：${tableName} のカラムを取得しています...`;
 
     columnList.appendChild(loadingItem);
 
     try {
+        if (!activeConnectionId) {
+            throw new Error(
+                "MySQL接続セッションがありません。先に接続を確認してください"
+            );
+        }
+
         const response = await fetch(
-            `/api/columns/${encodeURIComponent(tableName)}`
+            `/api/columns/${encodeURIComponent(tableName)}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    connectionId:
+                        activeConnectionId
+                })
+            }
         );
 
         const result = await response.json();

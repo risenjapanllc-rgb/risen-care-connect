@@ -1,10 +1,37 @@
 const LocalFolderScanner = require('./LocalFolderScanner');
+const LocalConnectorConfig = require('./LocalConnectorConfig');
 
 class LocalConnectorService {
     constructor(options = {}) {
         this.scanner =
             options.scanner ||
             new LocalFolderScanner();
+
+        this.config =
+            options.config ||
+            new LocalConnectorConfig();
+    }
+
+    async getRegisteredFolderStatus() {
+        const allowedFolder =
+            await this.config.getAllowedFolder();
+
+        if (!allowedFolder) {
+            return {
+                status: 'not_configured',
+                folderName: null,
+                fileCount: 0,
+                wordCount: 0,
+                excelCount: 0,
+                checkedAt:
+                    new Date().toISOString(),
+                files: []
+            };
+        }
+
+        return this.getFolderStatus(
+            allowedFolder
+        );
     }
 
     async getFolderStatus(folderPath) {

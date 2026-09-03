@@ -1,6 +1,8 @@
 const express = require('express');
+const LocalConnectorService = require('./LocalConnectorService');
 
 const app = express();
+const service = new LocalConnectorService();
 
 const HOST = '127.0.0.1';
 const PORT = Number(
@@ -17,6 +19,30 @@ app.get('/health', (req, res) => {
         service: 'RISEN CARE Local Connector',
         status: 'ready'
     });
+});
+
+app.get('/status', async (req, res) => {
+    try {
+        const result =
+            await service.getRegisteredFolderStatus();
+
+        return res.json({
+            success: true,
+            status: result.status,
+            folderName: result.folderName,
+            fileCount: result.fileCount,
+            wordCount: result.wordCount,
+            excelCount: result.excelCount,
+            checkedAt: result.checkedAt
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message:
+                'Local Connectorの状態取得に失敗しました'
+        });
+    }
 });
 
 app.use((req, res) => {

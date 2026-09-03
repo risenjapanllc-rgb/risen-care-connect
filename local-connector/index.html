@@ -105,6 +105,29 @@
             font-size: 12px;
         }
 
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e7ecee;
+        }
+
+        .file-item:last-child {
+            border-bottom: 0;
+        }
+
+        .file-name {
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .file-meta,
+        .file-empty {
+            color: #68777d;
+            font-size: 13px;
+        }
+
         .notice {
             margin-top: 20px;
             color: #68777d;
@@ -208,6 +231,18 @@
                 </div>
             </div>
 
+            <div class="row">
+                <div class="label">
+                    参照対象ファイル
+                </div>
+
+                <div id="fileList">
+                    <div class="file-empty">
+                        ファイル情報を確認しています...
+                    </div>
+                </div>
+            </div>
+
             <p class="notice">
                 RISEN CAREは、登録された参照フォルダ内の
                 対象ファイルのみを参照します。
@@ -216,6 +251,176 @@
     </main>
 
     <script>
+        async function loadFiles() {
+            const fileList =
+                document.getElementById(
+                    'fileList'
+                );
+
+            try {
+                const response =
+                    await fetch('/files');
+
+                if (!response.ok) {
+                    throw new Error(
+                        'ファイル一覧を取得できませんでした'
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                if (
+                    data.status !== 'ready' ||
+                    !Array.isArray(data.files) ||
+                    data.files.length === 0
+                ) {
+                    fileList.innerHTML =
+                        '<div class="file-empty">' +
+                        '参照対象ファイルはありません' +
+                        '</div>';
+
+                    return;
+                }
+
+                fileList.innerHTML =
+                    data.files.map(file => {
+                        const updatedAt =
+                            file.updatedAt
+                                ? new Date(
+                                    file.updatedAt
+                                ).toLocaleString(
+                                    'ja-JP'
+                                )
+                                : '-';
+
+                        return `
+                            <div class="file-item">
+                                <div>
+                                    <div class="file-name">
+                                        ${escapeHtml(
+                                            file.fileName
+                                        )}
+                                    </div>
+
+                                    <div class="file-meta">
+                                        ${escapeHtml(
+                                            file.extension
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div class="file-meta">
+                                    ${escapeHtml(
+                                        updatedAt
+                                    )}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+            } catch (error) {
+                fileList.innerHTML =
+                    '<div class="file-empty error">' +
+                    'ファイル一覧を取得できません' +
+                    '</div>';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        async function loadFiles() {
+            const fileList =
+                document.getElementById(
+                    'fileList'
+                );
+
+            try {
+                const response =
+                    await fetch('/files');
+
+                if (!response.ok) {
+                    throw new Error(
+                        'ファイル一覧を取得できませんでした'
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                if (
+                    data.status !== 'ready' ||
+                    !Array.isArray(data.files) ||
+                    data.files.length === 0
+                ) {
+                    fileList.innerHTML =
+                        '<div class="file-empty">' +
+                        '参照対象ファイルはありません' +
+                        '</div>';
+
+                    return;
+                }
+
+                fileList.innerHTML =
+                    data.files.map(file => {
+                        const updatedAt =
+                            file.updatedAt
+                                ? new Date(
+                                    file.updatedAt
+                                ).toLocaleString(
+                                    'ja-JP'
+                                )
+                                : '-';
+
+                        return `
+                            <div class="file-item">
+                                <div>
+                                    <div class="file-name">
+                                        ${escapeHtml(
+                                            file.fileName
+                                        )}
+                                    </div>
+
+                                    <div class="file-meta">
+                                        ${escapeHtml(
+                                            file.extension
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div class="file-meta">
+                                    ${escapeHtml(
+                                        updatedAt
+                                    )}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+            } catch (error) {
+                fileList.innerHTML =
+                    '<div class="file-empty error">' +
+                    'ファイル一覧を取得できません' +
+                    '</div>';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
         async function loadStatus() {
             try {
                 const response =
@@ -315,6 +520,8 @@
         }
 
         loadStatus();
+        loadFiles();
+        loadFiles();
     </script>
 </body>
 </html>

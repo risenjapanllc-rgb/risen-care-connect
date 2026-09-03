@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const LocalConnectorService = require('./LocalConnectorService');
 
 const app = express();
@@ -12,6 +13,12 @@ const PORT = Number(
 app.use(express.json({
     limit: '1mb'
 }));
+
+app.get('/', (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, 'index.html')
+    );
+});
 
 app.get('/health', (req, res) => {
     return res.json({

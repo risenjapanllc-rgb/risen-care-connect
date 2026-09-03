@@ -1,3 +1,4 @@
+const path = require('path');
 const LocalFolderScanner = require('./LocalFolderScanner');
 const LocalConnectorConfig = require('./LocalConnectorConfig');
 
@@ -45,7 +46,7 @@ class LocalConnectorService {
                     status:
                         'folder_unavailable',
                     folderName:
-                        require('path').basename(
+                        path.basename(
                             allowedFolder
                         ),
                     fileCount: 0,
@@ -59,6 +60,91 @@ class LocalConnectorService {
 
             throw error;
         }
+    }
+
+    async resolveRegisteredExcelFile(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'Excelファイル名が指定されていません'
+            );
+        }
+
+        if (
+            fileName.includes('/') ||
+            fileName.includes('\\') ||
+            path.isAbsolute(fileName)
+        ) {
+            throw new Error(
+                'フォルダを含むファイル名は指定できません'
+            );
+        }
+
+        const extension =
+            path.extname(fileName).toLowerCase();
+
+        if (
+            extension !== '.xlsx' &&
+            extension !== '.xls'
+        ) {
+            throw new Error(
+                'Excelファイルのみ指定できます'
+            );
+        }
+
+        const allowedFolder =
+            await this.config.getAllowedFolder();
+
+        if (!allowedFolder) {
+            throw new Error(
+                '参照フォルダが設定されていません'
+            );
+        }
+
+        const scanResult =
+            await this.scanner.scan(
+                allowedFolder
+            );
+
+        const matchedFile =
+            scanResult.files.find(
+                file =>
+                    file.fileName === fileName &&
+                    (
+                        file.extension === '.xlsx' ||
+                        file.extension === '.xls'
+                    )
+            );
+
+        if (!matchedFile) {
+            throw new Error(
+                '登録フォルダ内の対象Excelが見つかりません'
+            );
+        }
+
+        const resolvedPath =
+            path.resolve(
+                allowedFolder,
+                matchedFile.fileName
+            );
+
+        const allowedRoot =
+            path.resolve(allowedFolder) +
+            path.sep;
+
+        if (
+            !resolvedPath.startsWith(
+                allowedRoot
+            )
+        ) {
+            throw new Error(
+                '登録フォルダ外のファイルは参照できません'
+            );
+        }
+
+        return resolvedPath;
     }
 
     async getFolderStatus(folderPath) {

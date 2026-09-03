@@ -230,22 +230,40 @@
                 const data =
                     await response.json();
 
-                const ready =
-                    data.status === 'ready';
+                const statusText =
+                    document.getElementById(
+                        'statusText'
+                    );
 
-                document.getElementById(
-                    'statusText'
-                ).textContent =
-                    ready
-                        ? '正常に接続されています'
-                        : '参照フォルダが設定されていません';
+                const statusDot =
+                    document.getElementById(
+                        'statusDot'
+                    );
 
-                document.getElementById(
-                    'statusDot'
-                ).style.background =
-                    ready
-                        ? '#2e9d63'
-                        : '#d97706';
+                if (data.status === 'ready') {
+                    statusText.textContent =
+                        '正常に接続されています';
+
+                    statusDot.style.background =
+                        '#2e9d63';
+
+                } else if (
+                    data.status ===
+                    'folder_unavailable'
+                ) {
+                    statusText.textContent =
+                        '参照フォルダを確認してください';
+
+                    statusDot.style.background =
+                        '#d97706';
+
+                } else {
+                    statusText.textContent =
+                        '参照フォルダが設定されていません';
+
+                    statusDot.style.background =
+                        '#d97706';
+                }
 
                 document.getElementById(
                     'folderName'

@@ -234,6 +234,51 @@ class LocalConnectorService {
         return details.filePath;
     }
 
+    async normalizeRegisteredWord(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'Wordファイル名が指定されていません'
+            );
+        }
+
+        const extension =
+            path.extname(fileName).toLowerCase();
+
+        if (extension !== '.docx') {
+            throw new Error(
+                'Wordファイルのみ指定できます'
+            );
+        }
+
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
+
+        const document =
+            await this.wordReader.read(
+                details.filePath
+            );
+
+        const documentType =
+            this.documentTypeDetector.detect(
+                document
+            );
+
+        return this.documentNormalizer.normalize({
+            sourceType: 'word',
+            fileName:
+                details.fileName,
+            updatedAt:
+                details.updatedAt,
+            document,
+            documentType
+        });
+    }
+
     async readAndDetectRegisteredWord(fileName) {
         const document =
             await this.readRegisteredWord(
@@ -249,6 +294,54 @@ class LocalConnectorService {
             document,
             documentType
         };
+    }
+
+    async normalizeRegisteredExcel(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'Excelファイル名が指定されていません'
+            );
+        }
+
+        const extension =
+            path.extname(fileName).toLowerCase();
+
+        if (
+            extension !== '.xlsx' &&
+            extension !== '.xls'
+        ) {
+            throw new Error(
+                'Excelファイルのみ指定できます'
+            );
+        }
+
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
+
+        const document =
+            await this.excelReader.read(
+                details.filePath
+            );
+
+        const documentType =
+            this.documentTypeDetector.detect(
+                document
+            );
+
+        return this.documentNormalizer.normalize({
+            sourceType: 'excel',
+            fileName:
+                details.fileName,
+            updatedAt:
+                details.updatedAt,
+            document,
+            documentType
+        });
     }
 
     async readAndDetectRegisteredExcel(fileName) {

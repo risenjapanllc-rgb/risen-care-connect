@@ -29,14 +29,14 @@ class ResidentMatcher {
         };
     }
 
-    match({ facilityId, sourceResident, candidates = [] }) {
+    match({ facilityId, sourceResident, candidates = [] } = {}) {
         const sourceIdentifier =
             String(sourceResident?.identifier?.value || "").trim();
 
         const sourceName =
             String(sourceResident?.name?.value || "").trim();
 
-        if (!facilityId || !sourceIdentifier) {
+        if (!facilityId || !sourceIdentifier || !Array.isArray(candidates)) {
             return {
                 status: "unmatched",
                 residentId: null,

@@ -193,3 +193,32 @@ test("name comparison remains conservative", () => {
     );
     assert.equal(result.residentId, null);
 });
+
+test("missing match input => unmatched", () => {
+    const result = matcher.match();
+
+    assert.deepStrictEqual(result, {
+        status: "unmatched",
+        residentId: null,
+        matchMethod: null,
+        candidates: []
+    });
+});
+
+test("non-array candidates => unmatched", () => {
+    const result = matcher.match({
+        facilityId: "facility-a",
+        sourceResident: {
+            identifier: { value: "00125" },
+            name: { value: "山田太郎" }
+        },
+        candidates: null
+    });
+
+    assert.deepStrictEqual(result, {
+        status: "unmatched",
+        residentId: null,
+        matchMethod: null,
+        candidates: []
+    });
+});

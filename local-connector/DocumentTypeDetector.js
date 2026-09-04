@@ -63,6 +63,15 @@ class DocumentTypeDetector {
     collectTexts(document) {
         const texts = [];
 
+        if (
+            typeof document.text === 'string' &&
+            document.text.trim() !== ''
+        ) {
+            texts.push(
+                document.text
+            );
+        }
+
         if (Array.isArray(document.sheetNames)) {
             texts.push(
                 ...document.sheetNames

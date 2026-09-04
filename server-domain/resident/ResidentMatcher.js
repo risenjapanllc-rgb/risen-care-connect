@@ -111,10 +111,18 @@ class ResidentMatcher {
             };
         }
 
-        if (
-            candidateName &&
-            sourceName !== candidateName
-        ) {
+        if (!candidateName) {
+            return {
+                status: "needs_review",
+                residentId: null,
+                matchMethod: "user_code_missing_candidate_name",
+                candidates: [
+                    this.toReviewCandidate(exactMatch)
+                ]
+            };
+        }
+
+        if (sourceName !== candidateName) {
             return {
                 status: "needs_review",
                 residentId: null,

@@ -17,7 +17,63 @@
  */
 class ResidentMatcher {
     constructor() {
-        // Matching logic will be added incrementally.
+        // Repository integration will be added incrementally.
+    }
+
+    toReviewCandidate(candidate) {
+        return {
+            id: candidate.id,
+            name: candidate.name || null,
+            gender: candidate.gender || null,
+            affiliation: candidate.affiliation || null
+        };
+    }
+
+    match({ facilityId, sourceResident, candidates = [] }) {
+        const sourceIdentifier =
+            String(sourceResident?.identifier?.value || "").trim();
+
+        if (!facilityId || !sourceIdentifier) {
+            return {
+                status: "unmatched",
+                residentId: null,
+                matchMethod: null,
+                candidates: []
+            };
+        }
+
+        const exactFacilityUserCodeMatches =
+            candidates.filter((candidate) =>
+                candidate &&
+                candidate.facilityId === facilityId &&
+                String(candidate.userCode || "").trim() === sourceIdentifier
+            );
+
+        if (exactFacilityUserCodeMatches.length === 0) {
+            return {
+                status: "unmatched",
+                residentId: null,
+                matchMethod: null,
+                candidates: []
+            };
+        }
+
+        if (exactFacilityUserCodeMatches.length > 1) {
+            return {
+                status: "needs_review",
+                residentId: null,
+                matchMethod: "duplicate_facility_user_code",
+                candidates: exactFacilityUserCodeMatches.map(
+                    (candidate) => this.toReviewCandidate(candidate)
+                )
+            };
+        }
+
+        return {
+            status: "matched",
+            residentId: exactFacilityUserCodeMatches[0].id,
+            matchMethod: "facility_user_code"
+        };
     }
 }
 

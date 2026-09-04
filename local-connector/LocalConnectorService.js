@@ -2,6 +2,7 @@ const path = require('path');
 const LocalFolderScanner = require('./LocalFolderScanner');
 const LocalConnectorConfig = require('./LocalConnectorConfig');
 const ExcelReader = require('./ExcelReader');
+const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
 
 class LocalConnectorService {
@@ -17,6 +18,10 @@ class LocalConnectorService {
         this.excelReader =
             options.excelReader ||
             new ExcelReader();
+
+        this.wordReader =
+            options.wordReader ||
+            new WordReader();
 
         this.documentTypeDetector =
             options.documentTypeDetector ||
@@ -81,6 +86,96 @@ class LocalConnectorService {
         return await this.excelReader.read(
             filePath
         );
+    }
+
+    async readRegisteredWord(fileName) {
+        const filePath =
+            await this.resolveRegisteredWordFile(
+                fileName
+            );
+
+        return await this.wordReader.read(
+            filePath
+        );
+    }
+
+    async resolveRegisteredWordFile(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'Wordファイル名が指定されていません'
+            );
+        }
+
+        if (
+            fileName.includes('/') ||
+            fileName.includes('\\') ||
+            path.isAbsolute(fileName)
+        ) {
+            throw new Error(
+                'フォルダを含むファイル名は指定できません'
+            );
+        }
+
+        const extension =
+            path.extname(fileName).toLowerCase();
+
+        if (extension !== '.docx') {
+            throw new Error(
+                'Wordファイルのみ指定できます'
+            );
+        }
+
+        const allowedFolder =
+            await this.config.getAllowedFolder();
+
+        if (!allowedFolder) {
+            throw new Error(
+                '参照フォルダが設定されていません'
+            );
+        }
+
+        const scanResult =
+            await this.scanner.scan(
+                allowedFolder
+            );
+
+        const matchedFile =
+            scanResult.files.find(
+                file =>
+                    file.fileName === fileName &&
+                    file.extension === '.docx'
+            );
+
+        if (!matchedFile) {
+            throw new Error(
+                '登録フォルダ内の対象Wordが見つかりません'
+            );
+        }
+
+        const resolvedPath =
+            path.resolve(
+                allowedFolder,
+                matchedFile.fileName
+            );
+
+        const allowedRoot =
+            path.resolve(allowedFolder) +
+            path.sep;
+
+        if (
+            !resolvedPath.startsWith(
+                allowedRoot
+            )
+        ) {
+            throw new Error(
+                '登録フォルダ外のファイルは参照できません'
+            );
+        }
+
+        return resolvedPath;
     }
 
     async readAndDetectRegisteredExcel(fileName) {

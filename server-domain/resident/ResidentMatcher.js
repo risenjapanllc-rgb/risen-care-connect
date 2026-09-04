@@ -22,7 +22,7 @@ class ResidentMatcher {
 
     toReviewCandidate(candidate) {
         return {
-            id: candidate.id || null,
+            id: String(candidate.id || "").trim() || null,
             name: candidate.name || null,
             gender: candidate.gender || null,
             affiliation: candidate.affiliation || null
@@ -97,7 +97,7 @@ class ResidentMatcher {
         const exactMatch =
             exactFacilityUserCodeMatches[0];
 
-        if (!exactMatch.id) {
+        if (!String(exactMatch.id || "").trim()) {
             return {
                 status: "needs_review",
                 residentId: null,

@@ -4,6 +4,7 @@ const LocalConnectorConfig = require('./LocalConnectorConfig');
 const ExcelReader = require('./ExcelReader');
 const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
+const DocumentNormalizer = require('./DocumentNormalizer');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -26,6 +27,10 @@ class LocalConnectorService {
         this.documentTypeDetector =
             options.documentTypeDetector ||
             new DocumentTypeDetector();
+
+        this.documentNormalizer =
+            options.documentNormalizer ||
+            new DocumentNormalizer();
     }
 
     async getRegisteredFolderStatus() {

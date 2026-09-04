@@ -19,7 +19,8 @@ Word / Excel
 → Local Connector
 → sourceResidentIdentifier / sourceResidentName
 → RISEN CARE Connect
-→ facilityIdを接続・認証コンテキストから付与
+→ RISEN CARE BackendでConnector Trustを検証
+→ Backend側の登録情報からfacilityId確定
 → RISEN CARE Backend Resident Matcher
 → Supabase public.users
 → residentId確定
@@ -60,6 +61,34 @@ users.facility_id が未設定で、user_code + name が一致する場合:
 
 - status: unmatched
 - residentId: null
+
+### 4.6 Resident Matcher API契約
+
+Resident Matcherへ渡すfacilityIdは、
+Connector Trust Boundaryで確定済みの値だけを使用する。
+
+入力:
+
+- facilityId: Backend側で確定済みの施設ID
+- sourceResidentIdentifier: 施設文書由来の識別子
+- sourceResidentName: 施設文書由来の利用者名
+
+照合結果は次の3状態とする。
+
+- matched
+- needs_review
+- unmatched
+
+matchedの場合のみresidentIdを確定する。
+
+needs_reviewでは候補が存在してもresidentIdはnullとし、
+候補情報はcandidatesへ分離する。
+
+unmatchedの場合もresidentIdはnullとする。
+
+Local Connectorまたはリクエスト本文から
+自己申告されたfacilityIdだけを根拠に
+Resident Matcherを実行しない。
 
 ## 5. 安全原則
 

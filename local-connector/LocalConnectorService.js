@@ -178,6 +178,23 @@ class LocalConnectorService {
         return resolvedPath;
     }
 
+    async readAndDetectRegisteredWord(fileName) {
+        const document =
+            await this.readRegisteredWord(
+                fileName
+            );
+
+        const documentType =
+            this.documentTypeDetector.detect(
+                document
+            );
+
+        return {
+            document,
+            documentType
+        };
+    }
+
     async readAndDetectRegisteredExcel(fileName) {
         const document =
             await this.readRegisteredExcel(

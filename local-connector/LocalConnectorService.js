@@ -82,7 +82,7 @@ class LocalConnectorService {
         }
     }
 
-    async getRegisteredFileMetadata(fileName) {
+    async _resolveRegisteredFileDetails(fileName) {
         if (
             typeof fileName !== 'string' ||
             fileName.trim() === ''
@@ -128,7 +128,28 @@ class LocalConnectorService {
             );
         }
 
+        const filePath =
+            path.resolve(
+                allowedFolder,
+                matchedFile.fileName
+            );
+
+        const allowedRoot =
+            path.resolve(allowedFolder) +
+            path.sep;
+
+        if (
+            !filePath.startsWith(
+                allowedRoot
+            )
+        ) {
+            throw new Error(
+                '登録フォルダ外のファイルは参照できません'
+            );
+        }
+
         return {
+            filePath,
             fileName:
                 matchedFile.fileName,
             extension:
@@ -137,6 +158,24 @@ class LocalConnectorService {
                 matchedFile.size,
             updatedAt:
                 matchedFile.updatedAt
+        };
+    }
+
+    async getRegisteredFileMetadata(fileName) {
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
+
+        return {
+            fileName:
+                details.fileName,
+            extension:
+                details.extension,
+            size:
+                details.size,
+            updatedAt:
+                details.updatedAt
         };
     }
 
@@ -172,16 +211,6 @@ class LocalConnectorService {
             );
         }
 
-        if (
-            fileName.includes('/') ||
-            fileName.includes('\\') ||
-            path.isAbsolute(fileName)
-        ) {
-            throw new Error(
-                'フォルダを含むファイル名は指定できません'
-            );
-        }
-
         const extension =
             path.extname(fileName).toLowerCase();
 
@@ -191,54 +220,18 @@ class LocalConnectorService {
             );
         }
 
-        const allowedFolder =
-            await this.config.getAllowedFolder();
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
 
-        if (!allowedFolder) {
+        if (details.extension !== '.docx') {
             throw new Error(
-                '参照フォルダが設定されていません'
+                'Wordファイルのみ指定できます'
             );
         }
 
-        const scanResult =
-            await this.scanner.scan(
-                allowedFolder
-            );
-
-        const matchedFile =
-            scanResult.files.find(
-                file =>
-                    file.fileName === fileName &&
-                    file.extension === '.docx'
-            );
-
-        if (!matchedFile) {
-            throw new Error(
-                '登録フォルダ内の対象Wordが見つかりません'
-            );
-        }
-
-        const resolvedPath =
-            path.resolve(
-                allowedFolder,
-                matchedFile.fileName
-            );
-
-        const allowedRoot =
-            path.resolve(allowedFolder) +
-            path.sep;
-
-        if (
-            !resolvedPath.startsWith(
-                allowedRoot
-            )
-        ) {
-            throw new Error(
-                '登録フォルダ外のファイルは参照できません'
-            );
-        }
-
-        return resolvedPath;
+        return details.filePath;
     }
 
     async readAndDetectRegisteredWord(fileName) {
@@ -285,16 +278,6 @@ class LocalConnectorService {
             );
         }
 
-        if (
-            fileName.includes('/') ||
-            fileName.includes('\\') ||
-            path.isAbsolute(fileName)
-        ) {
-            throw new Error(
-                'フォルダを含むファイル名は指定できません'
-            );
-        }
-
         const extension =
             path.extname(fileName).toLowerCase();
 
@@ -307,57 +290,21 @@ class LocalConnectorService {
             );
         }
 
-        const allowedFolder =
-            await this.config.getAllowedFolder();
-
-        if (!allowedFolder) {
-            throw new Error(
-                '参照フォルダが設定されていません'
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
             );
-        }
-
-        const scanResult =
-            await this.scanner.scan(
-                allowedFolder
-            );
-
-        const matchedFile =
-            scanResult.files.find(
-                file =>
-                    file.fileName === fileName &&
-                    (
-                        file.extension === '.xlsx' ||
-                        file.extension === '.xls'
-                    )
-            );
-
-        if (!matchedFile) {
-            throw new Error(
-                '登録フォルダ内の対象Excelが見つかりません'
-            );
-        }
-
-        const resolvedPath =
-            path.resolve(
-                allowedFolder,
-                matchedFile.fileName
-            );
-
-        const allowedRoot =
-            path.resolve(allowedFolder) +
-            path.sep;
 
         if (
-            !resolvedPath.startsWith(
-                allowedRoot
-            )
+            details.extension !== '.xlsx' &&
+            details.extension !== '.xls'
         ) {
             throw new Error(
-                '登録フォルダ外のファイルは参照できません'
+                'Excelファイルのみ指定できます'
             );
         }
 
-        return resolvedPath;
+        return details.filePath;
     }
 
     async getFolderStatus(folderPath) {

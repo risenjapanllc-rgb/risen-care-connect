@@ -31,7 +31,16 @@ class DocumentSemanticExtractor {
                 this.findValueAfterLabel(
                     lines,
                     '長期目標'
-                )
+                ),
+
+            supportMethod:
+                standardDocument.documentType ===
+                'individual_support_plan'
+                    ? this.findValueAfterLabel(
+                        lines,
+                        '支援内容'
+                    )
+                    : null
         };
     }
 

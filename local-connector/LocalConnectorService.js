@@ -273,15 +273,26 @@ class LocalConnectorService {
                 document
             );
 
-        return this.documentNormalizer.normalize({
-            sourceType: 'word',
-            fileName:
-                details.fileName,
-            updatedAt:
-                details.updatedAt,
-            document,
-            documentType
-        });
+        const standardDocument =
+            this.documentNormalizer.normalize({
+                sourceType: 'word',
+                fileName:
+                    details.fileName,
+                updatedAt:
+                    details.updatedAt,
+                document,
+                documentType
+            });
+
+        const extracted =
+            this.documentSemanticExtractor.extract(
+                standardDocument
+            );
+
+        return {
+            ...standardDocument,
+            extracted
+        };
     }
 
     async readAndDetectRegisteredWord(fileName) {

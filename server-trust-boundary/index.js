@@ -12,7 +12,15 @@ const ServerTrustBoundaryService =
 const ResidentRepository =
     require("./ResidentRepository");
 
+const ConnectorRegistrationRepository =
+    require("./ConnectorRegistrationRepository");
+
+const ConnectorRegistrationVerifier =
+    require("./ConnectorRegistrationVerifier");
+
 module.exports = {
     ServerTrustBoundaryService,
-    ResidentRepository
+    ResidentRepository,
+    ConnectorRegistrationRepository,
+    ConnectorRegistrationVerifier
 };

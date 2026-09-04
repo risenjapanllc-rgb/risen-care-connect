@@ -40,6 +40,15 @@ class DocumentSemanticExtractor {
                         lines,
                         '支援内容'
                     )
+                    : null,
+
+            supportContent:
+                standardDocument.documentType ===
+                'support_record'
+                    ? this.findValueAfterLabel(
+                        lines,
+                        '支援内容'
+                    )
                     : null
         };
     }

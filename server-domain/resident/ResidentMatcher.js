@@ -94,9 +94,30 @@ class ResidentMatcher {
             };
         }
 
+        const exactMatch =
+            exactFacilityUserCodeMatches[0];
+
+        const candidateName =
+            String(exactMatch.name || "").trim();
+
+        if (
+            sourceName &&
+            candidateName &&
+            sourceName !== candidateName
+        ) {
+            return {
+                status: "needs_review",
+                residentId: null,
+                matchMethod: "user_code_name_mismatch",
+                candidates: [
+                    this.toReviewCandidate(exactMatch)
+                ]
+            };
+        }
+
         return {
             status: "matched",
-            residentId: exactFacilityUserCodeMatches[0].id,
+            residentId: exactMatch.id,
             matchMethod: "facility_user_code"
         };
     }

@@ -77,6 +77,64 @@ class LocalConnectorService {
         }
     }
 
+    async getRegisteredFileMetadata(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'ファイル名が指定されていません'
+            );
+        }
+
+        if (
+            fileName.includes('/') ||
+            fileName.includes('\\') ||
+            path.isAbsolute(fileName)
+        ) {
+            throw new Error(
+                'フォルダを含むファイル名は指定できません'
+            );
+        }
+
+        const allowedFolder =
+            await this.config.getAllowedFolder();
+
+        if (!allowedFolder) {
+            throw new Error(
+                '参照フォルダが設定されていません'
+            );
+        }
+
+        const scanResult =
+            await this.scanner.scan(
+                allowedFolder
+            );
+
+        const matchedFile =
+            scanResult.files.find(
+                file =>
+                    file.fileName === fileName
+            );
+
+        if (!matchedFile) {
+            throw new Error(
+                '登録フォルダ内の対象ファイルが見つかりません'
+            );
+        }
+
+        return {
+            fileName:
+                matchedFile.fileName,
+            extension:
+                matchedFile.extension,
+            size:
+                matchedFile.size,
+            updatedAt:
+                matchedFile.updatedAt
+        };
+    }
+
     async readRegisteredExcel(fileName) {
         const filePath =
             await this.resolveRegisteredExcelFile(

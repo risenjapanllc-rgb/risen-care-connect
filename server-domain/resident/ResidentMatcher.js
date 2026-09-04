@@ -100,8 +100,18 @@ class ResidentMatcher {
         const candidateName =
             String(exactMatch.name || "").trim();
 
+        if (!sourceName) {
+            return {
+                status: "needs_review",
+                residentId: null,
+                matchMethod: "user_code_missing_source_name",
+                candidates: [
+                    this.toReviewCandidate(exactMatch)
+                ]
+            };
+        }
+
         if (
-            sourceName &&
             candidateName &&
             sourceName !== candidateName
         ) {

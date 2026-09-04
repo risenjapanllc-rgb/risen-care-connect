@@ -25,6 +25,12 @@ class DocumentSemanticExtractor {
                 this.findValueAfterLabel(
                     lines,
                     '本人の希望'
+                ),
+
+            longTermGoal:
+                this.findValueAfterLabel(
+                    lines,
+                    '長期目標'
                 )
         };
     }

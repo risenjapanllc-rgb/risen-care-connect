@@ -222,3 +222,30 @@ test("non-array candidates => unmatched", () => {
         candidates: []
     });
 });
+
+test("current match without candidate id => needs_review", () => {
+    const result = matcher.match({
+        facilityId: "facility-a",
+        sourceResident: {
+            identifier: { value: "00125" },
+            name: { value: "山田太郎" }
+        },
+        candidates: [{
+            facilityId: "facility-a",
+            userCode: "00125",
+            name: "山田太郎"
+        }]
+    });
+
+    assert.deepStrictEqual(result, {
+        status: "needs_review",
+        residentId: null,
+        matchMethod: "user_code_missing_candidate_id",
+        candidates: [{
+            id: null,
+            name: "山田太郎",
+            gender: null,
+            affiliation: null
+        }]
+    });
+});

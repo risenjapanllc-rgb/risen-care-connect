@@ -18,9 +18,13 @@ const ConnectorRegistrationRepository =
 const ConnectorRegistrationVerifier =
     require("./ConnectorRegistrationVerifier");
 
+const ConnectorCredentialVerifier =
+    require("./ConnectorCredentialVerifier");
+
 module.exports = {
     ServerTrustBoundaryService,
     ResidentRepository,
     ConnectorRegistrationRepository,
-    ConnectorRegistrationVerifier
+    ConnectorRegistrationVerifier,
+    ConnectorCredentialVerifier
 };

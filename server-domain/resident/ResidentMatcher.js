@@ -33,6 +33,9 @@ class ResidentMatcher {
         const sourceIdentifier =
             String(sourceResident?.identifier?.value || "").trim();
 
+        const sourceName =
+            String(sourceResident?.name?.value || "").trim();
+
         if (!facilityId || !sourceIdentifier) {
             return {
                 status: "unmatched",
@@ -50,6 +53,28 @@ class ResidentMatcher {
             );
 
         if (exactFacilityUserCodeMatches.length === 0) {
+            const legacyUserCodeNameMatches =
+                sourceName
+                    ? candidates.filter((candidate) =>
+                        candidate &&
+                        candidate.facilityId === null &&
+                        String(candidate.userCode || "").trim() ===
+                            sourceIdentifier &&
+                        String(candidate.name || "").trim() === sourceName
+                    )
+                    : [];
+
+            if (legacyUserCodeNameMatches.length > 0) {
+                return {
+                    status: "needs_review",
+                    residentId: null,
+                    matchMethod: "legacy_user_code_name",
+                    candidates: legacyUserCodeNameMatches.map(
+                        (candidate) => this.toReviewCandidate(candidate)
+                    )
+                };
+            }
+
             return {
                 status: "unmatched",
                 residentId: null,

@@ -21,12 +21,22 @@ class DocumentTypeDetector {
                 this.normalize(text)
             );
 
-        const result =
+        const candidates = [
             this.scoreIndividualSupportPlan(
                 normalizedTexts
-            );
+            ),
+            this.scoreSupportRecord(
+                normalizedTexts
+            )
+        ];
 
-        if (result.score < 4) {
+        candidates.sort(
+            (a, b) => b.score - a.score
+        );
+
+        const result = candidates[0];
+
+        if (!result || result.score < 4) {
             return {
                 type: 'unknown',
                 label: '未確定',
@@ -143,6 +153,60 @@ class DocumentTypeDetector {
         return {
             type: 'individual_support_plan',
             label: '個別支援計画',
+            score,
+            matchedSignals
+        };
+    }
+
+    scoreSupportRecord(texts) {
+        const signals = [
+            {
+                name: '支援記録',
+                weight: 4
+            },
+            {
+                name: '記録日時',
+                weight: 2
+            },
+            {
+                name: '記録者',
+                weight: 2
+            },
+            {
+                name: '支援内容',
+                weight: 2
+            }
+        ];
+
+        let score = 0;
+        const matchedSignals = [];
+
+        signals.forEach(signal => {
+            const normalizedName =
+                this.normalize(signal.name);
+
+            const matched =
+                texts.some(text =>
+                    text.includes(
+                        normalizedName
+                    )
+                );
+
+            if (!matched) {
+                return;
+            }
+
+            score += signal.weight;
+
+            matchedSignals.push({
+                signal: signal.name,
+                weight: signal.weight
+            });
+        });
+
+        return {
+            type: 'support_record',
+            label: '支援記録',
             score,
             matchedSignals
         };

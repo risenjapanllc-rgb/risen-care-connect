@@ -15,6 +15,12 @@ class DocumentSemanticExtractor {
             );
 
         return {
+            residentId:
+                this.findValueAfterLabel(
+                    lines,
+                    '利用者ID'
+                ),
+
             wish:
                 this.findValueAfterLabel(
                     lines,

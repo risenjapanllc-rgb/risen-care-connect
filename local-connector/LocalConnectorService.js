@@ -2,6 +2,7 @@ const path = require('path');
 const LocalFolderScanner = require('./LocalFolderScanner');
 const LocalConnectorConfig = require('./LocalConnectorConfig');
 const ExcelReader = require('./ExcelReader');
+const DocumentTypeDetector = require('./DocumentTypeDetector');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -16,6 +17,10 @@ class LocalConnectorService {
         this.excelReader =
             options.excelReader ||
             new ExcelReader();
+
+        this.documentTypeDetector =
+            options.documentTypeDetector ||
+            new DocumentTypeDetector();
     }
 
     async getRegisteredFolderStatus() {
@@ -76,6 +81,23 @@ class LocalConnectorService {
         return await this.excelReader.read(
             filePath
         );
+    }
+
+    async readAndDetectRegisteredExcel(fileName) {
+        const document =
+            await this.readRegisteredExcel(
+                fileName
+            );
+
+        const documentType =
+            this.documentTypeDetector.detect(
+                document
+            );
+
+        return {
+            document,
+            documentType
+        };
     }
 
     async resolveRegisteredExcelFile(fileName) {

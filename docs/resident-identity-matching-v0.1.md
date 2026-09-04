@@ -109,3 +109,36 @@ user_code単独の一意性には永続的に依存しない。
 
 既存public.usersのUNIQUE制約変更や、
 既存usersへのfacility_id移行はv0.1では実施しない。
+
+## Resident Matcher Minimum I/O Contract
+
+v0.1では、Resident MatcherはServer Trust Boundaryが確定したfacilityIdと、帳票から得たsourceResidentを入力として扱う。
+
+facilityIdはLocal Connectorの自己申告値を信用しない。
+
+Outputは次の3状態とする。
+
+- matched: 安全に本人を確定できた状態。top-level residentIdにpublic.users.idを返す。
+- needs_review: 候補はあるが人の確認が必要な状態。top-level residentIdはnullとする。
+- unmatched: 一致候補がない状態。residentIdはnullとする。
+
+sourceResident.identifierは帳票側の利用者番号等であり、public.users.idではない。
+sourceResident.nameもSource側で観測された氏名であり、Internal Resident Identityそのものではない。
+
+候補ResidentのIDをcandidatesに含める場合でも、候補であることを本人確定として扱わない。
+
+初期Matching Rule:
+
+- Server verified facility_id + user_code exact -> matched候補
+- users.facility_idがNULL + user_code exact + name exact -> needs_review
+- user_code exact + name mismatch -> needs_review
+- name only match -> needs_review
+- no candidate -> unmatched
+
+現在の移行状態ではuser_code一致だけを理由として無条件にmatchedへしない。
+
+needs_reviewでは人が最終確認できる構造とし、「この人」「該当者なし」「わからない」を将来の確認選択肢とする。
+
+Human Confirmationも永久に正しいとは仮定せず、訂正・無効化・再確認可能なExplicit Resident Mappingとして扱う方向とする。
+
+無効化された旧Mappingを将来の自動確定や候補優先の根拠として再利用しない。

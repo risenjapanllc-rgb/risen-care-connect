@@ -5,6 +5,7 @@ const ExcelReader = require('./ExcelReader');
 const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
 const DocumentNormalizer = require('./DocumentNormalizer');
+const DocumentSemanticExtractor = require('./DocumentSemanticExtractor');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -31,6 +32,10 @@ class LocalConnectorService {
         this.documentNormalizer =
             options.documentNormalizer ||
             new DocumentNormalizer();
+
+        this.documentSemanticExtractor =
+            options.documentSemanticExtractor ||
+            new DocumentSemanticExtractor();
     }
 
     async getRegisteredFolderStatus() {

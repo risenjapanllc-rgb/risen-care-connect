@@ -17,6 +17,7 @@ function createEntry(observation, key = "opaque-document-key-1") {
     return {
         sourceDocumentKey: key,
         relativePath: observation.relativePath,
+        relativePathLookupKey: observation.relativePathLookupKey,
         fileName: observation.fileName,
         firstSeenAt: "2026-09-05T10:00:01Z",
         lastSeenAt: "2026-09-05T10:00:01Z",
@@ -25,7 +26,11 @@ function createEntry(observation, key = "opaque-document-key-1") {
     };
 }
 
-function createRegistry({ storeOverrides = {}, generatorOverrides = {} } = {}) {
+function createRegistry({
+    storeOverrides = {},
+    generatorOverrides = {},
+    lookupKeyBuilderOverrides = {}
+} = {}) {
     const calls = [];
     const registryStore = {
         async getOrCreate(observation, createNewEntry) {
@@ -40,9 +45,19 @@ function createRegistry({ storeOverrides = {}, generatorOverrides = {} } = {}) {
         },
         ...generatorOverrides
     };
+    const relativePathLookupKeyBuilder = {
+        build(relativePath) {
+            return relativePath;
+        },
+        ...lookupKeyBuilderOverrides
+    };
 
     return {
-        registry: new SourceDocumentRegistry({ registryStore, sourceDocumentKeyGenerator }),
+        registry: new SourceDocumentRegistry({
+            registryStore,
+            sourceDocumentKeyGenerator,
+            relativePathLookupKeyBuilder
+        }),
         calls
     };
 }
@@ -56,6 +71,7 @@ test("new path creates an allowlisted registry entry from generator output", asy
     assert.deepStrictEqual(Object.keys(entry), [
         "sourceDocumentKey",
         "relativePath",
+        "relativePathLookupKey",
         "fileName",
         "firstSeenAt",
         "lastSeenAt",
@@ -64,6 +80,36 @@ test("new path creates an allowlisted registry entry from generator output", asy
     ]);
     assert.strictEqual(entry.sourceDocumentKey, "opaque-document-key-1");
     assert.strictEqual(entry.relativePath, "support.docx");
+    assert.strictEqual(entry.relativePathLookupKey, "support.docx");
+});
+
+test("passes the builder lookup key to Store and entry candidates", async () => {
+    const observation = createObservation();
+    const builderCalls = [];
+    let candidate;
+    let storeObservation;
+    const { registry } = createRegistry({
+        lookupKeyBuilderOverrides: {
+            build(relativePath) {
+                builderCalls.push(relativePath);
+                return "lookup/support.docx";
+            }
+        },
+        storeOverrides: {
+            async getOrCreate(observationValue, createNewEntry) {
+                storeObservation = observationValue;
+                candidate = await createNewEntry();
+                return candidate;
+            }
+        }
+    });
+
+    const entry = await registry.observe(observation);
+
+    assert.deepStrictEqual(builderCalls, ["support.docx"]);
+    assert.strictEqual(storeObservation.relativePathLookupKey, "lookup/support.docx");
+    assert.strictEqual(candidate.relativePathLookupKey, "lookup/support.docx");
+    assert.strictEqual(entry.relativePathLookupKey, "lookup/support.docx");
 });
 
 test("same path reuses the stored key despite updated size and time", async () => {
@@ -72,7 +118,10 @@ test("same path reuses the stored key despite updated size and time", async () =
         updatedAt: "2026-09-06T10:00:00Z",
         size: 456
     });
-    let storedEntry = createEntry(initial);
+    let storedEntry = createEntry({
+        ...initial,
+        relativePathLookupKey: initial.relativePath
+    });
     let generatorCalls = 0;
     const { registry } = createRegistry({
         generatorOverrides: {
@@ -88,6 +137,7 @@ test("same path reuses the stored key despite updated size and time", async () =
                 }
                 storedEntry = {
                     ...storedEntry,
+                    relativePathLookupKey: observation.relativePathLookupKey,
                     fileName: observation.fileName,
                     lastSeenAt: observation.observedAt,
                     lastObservedUpdatedAt: observation.updatedAt,
@@ -113,15 +163,18 @@ test("different paths can receive distinct keys", async () => {
         generatorOverrides: {
             async generate() {
                 sequence += 1;
-                return `opaque-document-key-${sequence}`;
+                return "opaque-document-key-" + sequence;
             }
         },
         storeOverrides: {
             async getOrCreate(observation, createNewEntry) {
-                if (!entries.has(observation.relativePath)) {
-                    entries.set(observation.relativePath, await createNewEntry());
+                if (!entries.has(observation.relativePathLookupKey)) {
+                    entries.set(
+                        observation.relativePathLookupKey,
+                        await createNewEntry()
+                    );
                 }
-                return entries.get(observation.relativePath);
+                return entries.get(observation.relativePathLookupKey);
             }
         }
     });
@@ -145,7 +198,7 @@ test("generator output must be a non-metadata opaque key", async () => {
     }
 });
 
-test("malformed and absolute-path observations are rejected", async () => {
+test("malformed observations and lookup keys are rejected", async () => {
     const { registry } = createRegistry();
 
     for (const observation of [
@@ -153,12 +206,28 @@ test("malformed and absolute-path observations are rejected", async () => {
         [],
         {},
         createObservation({ relativePath: "/Users/test/support.docx" }),
+        createObservation({ relativePath: "C:\\Users\\test\\support.docx" }),
         createObservation({ relativePath: "../support.docx" }),
         createObservation({ fileName: "" }),
         createObservation({ updatedAt: "" }),
         createObservation({ size: -1 })
     ]) {
         await assert.rejects(() => registry.observe(observation), TypeError);
+    }
+
+    for (const lookupKey of [
+        undefined,
+        null,
+        "",
+        " \n\t ",
+        "/Users/test/support.docx",
+        "C:\\Users\\test\\support.docx",
+        "../support.docx"
+    ]) {
+        const { registry: lookupRegistry } = createRegistry({
+            lookupKeyBuilderOverrides: { build: () => lookupKey }
+        });
+        await assert.rejects(() => lookupRegistry.observe(createObservation()), TypeError);
     }
 });
 
@@ -190,7 +259,7 @@ test("Store owns atomic get-or-create for concurrent first observations", async 
     let createCalls = 0;
     const { registry } = createRegistry({
         storeOverrides: {
-            getOrCreate(storeObservation, createNewEntry) {
+            getOrCreate(_observation, createNewEntry) {
                 if (storedEntry) {
                     return storedEntry;
                 }
@@ -215,12 +284,13 @@ test("Store owns atomic get-or-create for concurrent first observations", async 
     assert.strictEqual(first.sourceDocumentKey, second.sourceDocumentKey);
 });
 
-test("input is not mutated", async () => {
-    const observation = createObservation();
+test("input is not mutated and sourceRecordKey is not generated", async () => {
+    const observation = createObservation({ sourceRecordKey: "untrusted" });
     const before = JSON.stringify(observation);
     const { registry } = createRegistry();
 
-    await registry.observe(observation);
+    const entry = await registry.observe(observation);
 
     assert.strictEqual(JSON.stringify(observation), before);
+    assert.strictEqual(entry.sourceRecordKey, undefined);
 });

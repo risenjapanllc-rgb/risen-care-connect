@@ -3,34 +3,54 @@
 const path = require("path");
 
 class SourceDocumentRegistry {
-    constructor({ sourceDocumentKeyGenerator, registryStore } = {}) {
-        if (!sourceDocumentKeyGenerator || !registryStore) {
-            throw new Error("SourceDocumentRegistry requires generator and store");
+    constructor({
+        sourceDocumentKeyGenerator,
+        registryStore,
+        relativePathLookupKeyBuilder
+    } = {}) {
+        if (
+            !sourceDocumentKeyGenerator ||
+            !registryStore ||
+            !relativePathLookupKeyBuilder
+        ) {
+            throw new Error("SourceDocumentRegistry requires generator, store, and lookup key builder");
         }
 
         this.sourceDocumentKeyGenerator = sourceDocumentKeyGenerator;
         this.registryStore = registryStore;
+        this.relativePathLookupKeyBuilder = relativePathLookupKeyBuilder;
     }
 
     async observe(observation) {
         this.assertObservation(observation);
 
+        const relativePathLookupKey =
+            this.relativePathLookupKeyBuilder.build(observation.relativePath);
+        if (!this.isRelativePath(relativePathLookupKey)) {
+            throw new TypeError("relativePathLookupKey is invalid");
+        }
+
         const observedAt = new Date().toISOString();
         const entry = await this.registryStore.getOrCreate(
             {
                 relativePath: observation.relativePath,
+                relativePathLookupKey,
                 fileName: observation.fileName,
                 updatedAt: observation.updatedAt,
                 size: observation.size,
                 observedAt
             },
-            async () => this.createEntry(observation, observedAt)
+            async () => this.createEntry(
+                observation,
+                relativePathLookupKey,
+                observedAt
+            )
         );
 
-        return this.toRegistryEntry(entry, observation.relativePath);
+        return this.toRegistryEntry(entry, relativePathLookupKey);
     }
 
-    async createEntry(observation, observedAt) {
+    async createEntry(observation, relativePathLookupKey, observedAt) {
         const sourceDocumentKey = await this.sourceDocumentKeyGenerator.generate();
         if (
             !this.isNonEmptyString(sourceDocumentKey) ||
@@ -43,6 +63,7 @@ class SourceDocumentRegistry {
         return {
             sourceDocumentKey,
             relativePath: observation.relativePath,
+            relativePathLookupKey,
             fileName: observation.fileName,
             firstSeenAt: observedAt,
             lastSeenAt: observedAt,
@@ -67,14 +88,18 @@ class SourceDocumentRegistry {
         }
     }
 
-    toRegistryEntry(entry, relativePath) {
-        if (!this.isPlainObject(entry) || entry.relativePath !== relativePath) {
+    toRegistryEntry(entry, relativePathLookupKey) {
+        if (
+            !this.isPlainObject(entry) ||
+            entry.relativePathLookupKey !== relativePathLookupKey
+        ) {
             throw new Error("registryStore returned an invalid entry");
         }
 
         const keys = [
             "sourceDocumentKey",
             "relativePath",
+            "relativePathLookupKey",
             "fileName",
             "firstSeenAt",
             "lastSeenAt",
@@ -92,6 +117,7 @@ class SourceDocumentRegistry {
         return {
             sourceDocumentKey: entry.sourceDocumentKey,
             relativePath: entry.relativePath,
+            relativePathLookupKey: entry.relativePathLookupKey,
             fileName: entry.fileName,
             firstSeenAt: entry.firstSeenAt,
             lastSeenAt: entry.lastSeenAt,
@@ -104,6 +130,7 @@ class SourceDocumentRegistry {
         return (
             this.isNonEmptyString(value) &&
             !path.isAbsolute(value) &&
+            !path.win32.isAbsolute(value) &&
             !value.split(/[\\/]+/).includes("..")
         );
     }

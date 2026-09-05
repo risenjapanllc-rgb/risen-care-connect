@@ -356,6 +356,257 @@ v0.1では次を確定する。
 - Connector ResponseへのdocumentId / ingestionId / operationId公開
 
 
+## Source Record Identity Rules
+
+### 1. Identityの分離
+
+次のIdentityを別の概念として扱う。
+
+- `sourceDocumentKey`: Source Document系列のLocal observation identity
+- `sourceRecordKey`: Source側の論理Recordを継続観測するidentity候補
+- `recordIdentityCandidate`: stable source IDがない場合に、同一Recordの可能性を評価する候補情報
+- `recordId`: Server-side RISEN Record Identity
+- `contentHash`: Record内容の同一性・変更検知候補
+- `residentId`: Resident association
+
+```text
+sourceRecordKey != recordIdentityCandidate
+sourceRecordKey != recordId
+sourceRecordKey != contentHash
+sourceRecordKey != residentId
+```
+
+### 2. Server-side Resolution
+
+`sourceRecordKey`はLocal observationであり、Server authorityではない。client supplied `recordId`は受け入れない。
+
+Serverは、次の情報とserver-side historyを組み合わせて`recordId`をresolveする。
+
+```text
+verified facility context
++ verified connector context
++ sourceDocumentKey
++ sourceRecordKeyまたはrecordIdentityCandidate
++ Document context
++ server-side history
+```
+
+この情報から決定論的に`recordId`を生成するとは扱わない。duplicate、collision、scope不一致、historyとの矛盾は自動統合せず、CONFLICTまたはreview候補とする。
+
+### 3. Stable Source IDがある場合
+
+Source側にstable record IDが存在する場合、それを`sourceRecordKey`の有力候補として利用する。
+
+ただしstable source ID単独をglobal `recordId`として扱わない。Server側で少なくとも次を確認する。
+
+- duplicate
+- collision
+- facility scope
+- connector scope
+- `sourceDocumentKey`
+- Document context
+- server-side history
+
+Source側stable IDが同じでも、scopeやDocument contextが異なる場合は同一Recordと自動確定しない。
+
+### 4. Stable Source IDがない場合
+
+stable source IDが存在しないWord / Excelでは、複合フィールドから直ちに永続`sourceRecordKey`を生成しない。
+
+次の情報はまず`recordIdentityCandidate`として扱う。
+
+- source resident identity
+- record date/time
+- record type/category
+- stable form context
+- explicit source record number
+- semantic section
+- source-side structural identifier
+- Form Mappingで定義されたidentity candidate fields
+
+```text
+recordIdentityCandidate != sourceRecordKey
+```
+
+候補を組み合わせても一意性が確認できない場合は、CONFLICTまたはreviewとする。
+
+### 5. 永続Record Identityにしない単独情報
+
+次を単独の永続Record Identityにしない。
+
+- row number
+- cell address
+- paragraph number
+- filename
+- `contentHash`
+- `residentId`
+- record date/time
+- resident + date/time
+- resident + date/time + record type
+
+### 6. Excel Record
+
+- row insert / delete / sortによる位置変更だけではidentityを変更しない
+- stable source IDが同じならsame `sourceRecordKey`候補とする
+- row copyでstable IDまたは`recordIdentityCandidate`が重複した場合は自動mergeしない
+- 1行1recordを前提にしない
+- 複数行・複数cell RecordはForm Mappingでrecord boundaryを定義する方向とする
+
+行位置が変わっても、stable source IDまたはServer側で解決済みのidentity候補が同じなら、同じRecord系列として扱う候補とする。位置情報だけが変わったことを理由に新Recordを作らない。
+
+### 7. Word Record
+
+- paragraph numberを永続identityにしない
+- 段落追加・並び替えによる位置変更だけではidentityを変更しない
+- copyでstable IDまたは`recordIdentityCandidate`が重複した場合は自動mergeしない
+- Word内record boundaryはForm Mapping等で明示的に定義する方向とする
+
+stableな識別情報がない場合、段落の位置や近接だけで既存Recordとの同一性を確定しない。
+
+### 8. sourceRecordKeyとcontentHash
+
+```text
+same sourceRecordKey + same contentHash
+=> UNCHANGED候補
+
+same sourceRecordKey + different contentHash
+=> UPDATED / new version候補
+
+different sourceRecordKey + same contentHash
+=> 同一Recordとは判断しない
+```
+
+`contentHash`だけでmergeしない。contentHashはRecord内容の変更検知候補であり、sourceRecordKeyやrecordIdの代替ではない。
+
+### 9. sourceRecordKey Collision
+
+sourceRecordKeyがcollisionした場合は自動mergeしない。CONFLICTまたはreview候補とする。
+
+具体的なerror code、review状態、再発行方法、既存recordIdへの接続方法はTBDとする。
+
+### 10. sourceRecordKey変更時
+
+`sourceRecordKey`が変更された場合、既存`recordId`へ自動接続しない。
+
+次の可能性があるため、別のServer-side Identity Resolution規則を必要とする。
+
+- Mapping変更
+- Source ID変更
+- copy
+- 新Record
+- Document context変更
+- collision解消または誤った再利用
+
+### 11. MissingとDelete
+
+```text
+missing != delete
+```
+
+完全なDocument Observationが成立した場合のみ、Record欠落を`MISSING_CANDIDATE`候補とする。
+
+次の場合はmissingを確定しない。
+
+- scan failure
+- read failure
+- extract failure
+- mapping failure
+- TOCTOU
+- partial observation
+- network failure
+
+物理delete、inactive化、missingからの復帰は、Storage Policyおよび別のDeletion Policyで扱う。
+
+### 12. Facility Custom Form
+
+Form Mappingは将来、少なくとも次を定義できる方向とする。
+
+- record boundary
+- stable source ID location if available
+- identity candidate fields
+- content fields
+- source resident identity
+- record date/time
+- record type
+- provenance location
+- mapping version
+
+具体的なForm Mapping schema、record boundaryの表現、custom fieldの許可範囲はTBDとする。
+
+### 13. ProvenanceとSource Location
+
+次はProvenance候補として利用できるが、単独の永続identityにはしない。
+
+- row number
+- cell address
+- paragraph number
+- sheet name
+- source location
+
+absolute path、Local usernameを含むpath、不要なraw document全文はServerへ送らない。source locationを送る場合のprivacy minimizationと保持期間は別途定義する。
+
+### 14. AIとIdentity Resolution
+
+AIでRecord Identity、dedup、mergeを決定しない。
+
+将来AIを利用する場合も、候補整理やHuman Review補助までとする。identity resolutionそのものは、明示Rule、Server history、Policy、必要に応じたHuman Reviewで扱う。
+
+### 15. Identity Chain
+
+```text
+sourceDocumentKey
+  ↓
+sourceRecordKey / recordIdentityCandidate
+  ↓
+server-side recordId
+  ↓
+versionId
+```
+
+`sourceDocumentKey`だけで`recordId`を決定しない。`residentId`はこのidentity chainとは別のResident associationである。
+
+Resident Matching前後でDocument IdentityをRecord Identityへ置き換えない。`residentId`をRecord Identityやdedup keyに使用しない。
+
+### 16. v0.1で確定する境界
+
+- `sourceRecordKey`はLocal observationでありServer authorityではない
+- stable source IDがある場合は`sourceRecordKey`の有力候補として扱う
+- stable source IDがない場合は`recordIdentityCandidate`として扱う
+- `recordIdentityCandidate`から直ちに永続`sourceRecordKey`を決定しない
+- client supplied `recordId`を受け入れない
+- filename、row number、cell address、paragraph number、hash、residentIdを単独identityにしない
+- sourceRecordKey collision時に自動mergeしない
+- sourceRecordKey変更時に既存recordIdへ自動接続しない
+- missingをdeleteと同一視しない
+- cross-document / cross-connectorの自動mergeを行わない
+- cross-facilityの自動mergeを行わない
+- recordId、versionId、idempotency keyの最終仕様は今回決めない
+- Payload schemaは今回変更しない
+- 原本はLocalに残し、raw document全文をServerへ送らない
+- AIでRecord Identity、dedup、mergeを決定しない
+
+### 17. TBD
+
+- sourceRecordKey具体形式
+- stable source ID許可形式
+- `recordIdentityCandidate` schema
+- Form Mapping schema
+- record boundary
+- sourceRecordKey collision処理
+- sourceRecordKey変更時のrecordId再接続
+- copy record処理
+- missing/delete状態遷移
+- Provenance schema
+- source location privacy minimization
+- Source Record IdentityをPayloadへ追加する時期
+- contentHash algorithm / canonicalization version
+- recordId / versionIdの生成・保存
+- idempotency keyとの関係
+- cross-document / cross-connector merge
+- Human Review queue
+- Storage Policy連携
+- TOCTOU observation status / retry
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

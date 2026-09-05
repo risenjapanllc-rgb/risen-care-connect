@@ -395,6 +395,118 @@ Hashが変わる可能性がある。
 Hash値だけを保存して
 生成方式が不明になる構造を避ける。
 
+## 20.1 Canonicalization Version Authority v0.1
+
+### 1. Initial Stable Identifier
+
+v0.1のinitial stable identifierは次とする。
+
+```text
+risen-semantic-canonicalization-1
+```
+
+これはRISEN CARE製品version、API version、document version、
+mappingVersion、facility固有versionではない。
+Serverが管理するsemantic canonicalization algorithm contractの
+識別子とする。
+
+### 2. Server Authority and Immutable Meaning
+
+canonicalizationVersionのauthorityはServer側に置く。
+
+- client supplied canonicalizationVersionをauthorityとして信頼しない
+- facilityが自由に設定する値ではない
+- Server-side allowlistとcompatibility policyで管理する
+
+一度使用したidentifierのcanonicalization contractの意味は、
+後から変更しない。非互換なalgorithm変更が必要な場合は、
+既存identifierを書き換えず、新しいidentifierを追加する。
+
+例:
+
+```text
+risen-semantic-canonicalization-1
+risen-semantic-canonicalization-2
+```
+
+identifierの数字の大小だけからcompatibilityを推測しない。
+
+### 3. Contract 1
+
+`risen-semantic-canonicalization-1`が現在保証する範囲は、
+current Server implementationとtestsで確認された次に限定する。
+
+- semanticTypeは`support_record`
+- semanticContentはallowlisted structureである
+- property orderは`semanticType`、`fields`、`customFields`の順で固定する
+- fieldsは`supportContent`のみである
+- customFieldsはempty objectのみである
+- supportContentをtrimしない
+- newlineを意味的に正規化しない
+- Unicode normalizationをしない
+- full-width / half-width変換をしない
+- canonicalStringはcanonical objectを`JSON.stringify`して生成する
+
+このidentifierは、上記以外のcanonicalization behaviorを保証しない。
+
+### 4. Hash Boundary and Metadata Location
+
+canonicalizationVersionはServer processing metadataとして扱う。
+
+次には含めない。
+
+- semanticContent
+- canonicalString
+- contentHashのhash input
+- source provenance
+
+canonicalizationVersion自体の差だけでUPDATEDと判定しない。
+
+### 5. Change Resolution Compatibility
+
+Identity Resolutionがresolvedであっても、canonicalization
+compatibilityを確認できない場合はcontentHashを直接比較しない。
+
+compatibleな場合だけ、次をChange Resolution candidateとする。
+
+```text
+same contentHash
+-> unchanged_candidate
+
+different contentHash
+-> updated_candidate
+```
+
+canonicalizationVersionがunknown、missing、またはServer policy上
+incompatibleな場合、Change Resolutionは次の状態へ進める。
+
+```javascript
+{ status: "incompatible" }
+```
+
+incompatibleはUPDATED、UNCHANGED、Record Identity conflict、
+Human Reviewのpending_reviewと同義ではない。これは現在の比較contractでは
+安全にhash比較できない技術的状態であり、Storage成功も意味しない。
+
+将来のChange Resolverは少なくとも次が揃った場合だけhash比較する。
+
+```text
+resolved identity
++ same recordId
++ Server-authoritative compatible canonicalization metadata
++ contentHash
+```
+
+contentHashでRecord Identityを解決してはならない。
+
+### 6. mappingVersion Boundary
+
+mappingVersionはcanonicalizationVersionと分離する。
+
+- mappingVersion差だけでUPDATEDとしない
+- mappingVersion compatibility policyは今回確定しない
+- Commit 6.5ではmappingVersion compatibilityを実装しない
+
 ## 21. Document Observation
 
 Missing判定を行う前に、

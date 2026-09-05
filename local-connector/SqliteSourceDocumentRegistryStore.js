@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
 class SqliteSourceDocumentRegistryStore {
@@ -8,6 +10,7 @@ class SqliteSourceDocumentRegistryStore {
             throw new TypeError("databasePath is required");
         }
 
+        fs.mkdirSync(path.dirname(databasePath), { recursive: true });
         this.database = new DatabaseSync(databasePath);
 
         this.database.exec(`

@@ -325,3 +325,23 @@ test("registry storage contains only allowlisted document identity metadata", as
         });
     }
 });
+
+test("creates missing parent directory for database path", () => {
+    const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "risen-registry-parent-")
+    );
+    const nestedDir = path.join(tempDir, "nested", "registry");
+    const databasePath = path.join(nestedDir, "registry.db");
+
+    assert.strictEqual(fs.existsSync(nestedDir), false);
+
+    const store = new Store({ databasePath });
+
+    try {
+        assert.ok(store.database);
+        assert.strictEqual(fs.existsSync(nestedDir), true);
+    } finally {
+        store.database.close();
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+});

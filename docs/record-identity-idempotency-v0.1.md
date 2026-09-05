@@ -1154,6 +1154,364 @@ AIでidentity、dedup、merge、Record Version、Resident associationを最終�
 - cross-document / cross-connector policy
 - status polling
 
+## Server-side Idempotency Repository Contract
+
+### 1. Repositoryの位置付け
+
+Idempotency Repositoryは、次のRepositoryと分離する。
+
+```text
+Idempotency Repository
+!= Storage Repository
+!= Record Repository
+!= Resident Repository
+!= Human Review Repository
+```
+
+Idempotency RepositoryはRecord Identity、Resident Identity、Human Review decision、Storage Policyを決定しない。
+
+### 2. 最小責務
+
+Idempotency Repositoryは次を担当する。
+
+- verified scope内のidempotency operationを管理する
+- 同一scope + `idempotencyKey`の処理開始権をatomicにclaimする
+- same keyのinput一致 / 不一致を扱う
+- processing stateを管理する
+- processing ownershipを管理する
+- stale ownerによるcomplete / failを拒否する
+- retry時に既存operation stateとsafeなresult referenceを返す
+- credential、raw payload、raw Word / Excel、不要なPIIを保持・返却しない
+
+### 3. 禁止する責務
+
+Idempotency Repositoryは次を行わない。
+
+- client facilityIdからfacilityを決定する
+- Connector credentialを受け取る
+- raw payloadを保存する
+- Resident Matchingを行う
+- Record Identity resolutionを行う
+- Human Review decisionを行う
+- Storage Policyを決定する
+- AIによるidentity / dedup推論を行う
+- `recordId`、`versionId`、`residentId`をclaim identityとして利用する
+
+### 4. Atomic Claim
+
+次の分離操作だけで排他を保証してはならない。
+
+```text
+findByKey()
+  ↓
+not found
+  ↓
+insert()
+```
+
+Request A/Bが同時到着すると、両方が未存在と判断してbusiness processingを開始するrace conditionが発生する。
+
+そのため、lookupとcreate / claim競合をRepository内でatomicに扱う`claimOperation(...)`を第一候補とする。同じscope + `idempotencyKey`に対してbusiness processing開始権を得られるworkerは最大1つとする。
+
+### 5. v0.1最小Method候補
+
+```text
+claimOperation(...)
+completeOperation(...)
+failOperation(...)
+```
+
+状態照会が必要な場合のみ`getOperation(...)`を追加候補とする。ownership renewalが必要な場合のみ`renewClaim(...)`を将来候補とする。正式なmethod名はTBDとする。
+
+### 6. Claim Input
+
+```javascript
+{
+    verifiedFacilityId,
+    verifiedConnectorId,
+    idempotencyKey,
+    inputFingerprint
+}
+```
+
+`verifiedFacilityId`と`verifiedConnectorId`はTrust Boundaryで確認済みの値だけを使用する。client supplied facilityIdをauthorityにしない。
+
+Repositoryへraw credential、raw payload、residentId、recordIdを渡さない。`inputFingerprint`はidempotency専用の比較値候補であり、`contentHash`とは分離する。
+
+```text
+inputFingerprint != contentHash
+```
+
+`inputFingerprint`の名称、algorithm、canonicalization、対象field、生成場所、保存形式はTBDとする。Repositoryはfingerprintの業務的意味を推論せず、同じscope + keyの一致 / 不一致を安全に扱う。
+
+### 7. Claim Output
+
+```javascript
+{
+    outcome,
+    ingestionId,
+    processingState,
+    ownership,
+    resultReference,
+    retryability
+}
+```
+
+`outcome`の概念候補:
+
+- NEW_CLAIMED
+- EXISTING_PROCESSING
+- EXISTING_COMPLETED
+- EXISTING_FAILED_RETRYABLE
+- EXISTING_FAILED_FINAL
+- CONFLICT
+
+正式なenum、field名、ownership情報の公開範囲はTBDとする。
+
+### 8. ingestionId
+
+`ingestionId`はServer-side ingestion operation identity候補である。
+
+第一候補は、atomic claimとoperation identityを安全に結び付けやすいため、Repositoryがclaim成功時に生成または確定する方式とする。ただしServiceが事前生成して渡す案も排除せず、具体方式はTBDとする。
+
+同じ有効なoperation retryでは同じ`ingestionId`を参照する候補とする。
+
+```text
+ingestionId != recordId
+ingestionId != versionId
+ingestionId != reviewItemId
+```
+
+Connector responseへの公開はConnector Response ContractのTBDを維持する。
+
+### 9. Idempotency Scope
+
+第一候補:
+
+```text
+verified facility context
++ verified connector context
++ idempotencyKey
+```
+
+cross-facility dedupとcross-connector automatic mergeは行わない。endpoint、operation type、protocol versionをscopeへ含めるかはTBDとする。
+
+### 10. Same Keyの扱い
+
+#### same key + same input
+
+同一operationと安全に確認できる場合は既存operationを参照する。
+
+- PROCESSING相当なら新しいbusiness processingを開始しない
+- COMPLETED相当なら既存resultを再利用する候補
+- 既存`ingestionId`、state、resultReferenceを参照する候補
+- Storageを二重実行しない
+- Review itemを無制限に増殖させない
+
+#### same key + different fingerprint
+
+既存operationを上書きしない。
+
+- silent overwrite禁止
+- silent merge禁止
+- 異なるinputへ既存resultを流用しない
+- `CONFLICT`またはreject候補とする
+
+この検出に`contentHash`単独を使用しない。
+
+### 11. Processing Ownership
+
+Contract上、次を保証する。
+
+- 1 operationに同時に有効なprocessing ownerは最大1つ
+- ownershipを失ったworkerはcomplete / failできない
+- takeover後、古いownerは結果を書き込めない
+
+実現手段の第一候補は、lease、ownershipToken、generation、fencing token、compare-and-setの組み合わせである。ただし、v0.1 Contractでこれらすべての具体実装を必須固定しない。
+
+### 12. Stale Worker / ABA
+
+次のケースを防止できる必要がある。
+
+```text
+Worker A claim
+→ A停止
+→ ownership timeout / takeover
+→ Worker Bが新しいownership取得
+→ B complete
+→ A復帰
+→ Aの古いcomplete
+```
+
+状態名PROCESSINGだけの比較ではABA問題を防げない可能性がある。`completeOperation(...)`と`failOperation(...)`では、現在のownership token、generationまたはfencing相当値、expected stateを検証する方向とする。
+
+### 13. Complete / Fail
+
+概念上、次を受ける候補とする。
+
+```javascript
+{
+    ingestionId,
+    currentOwnershipProof,
+    expectedProcessingState,
+    resultReference
+}
+```
+
+`failOperation(...)`では、safe failure classificationとretryabilityを扱う候補とする。
+
+Repositoryはcallerが現在のownerであることをcompare-and-setで確認し、stale ownerからのcomplete / failを拒否する。credential、raw payload、stack、dependency error detailは保存・返却しない。
+
+### 14. Processing State
+
+概念候補:
+
+- RECEIVED
+- PROCESSING
+- COMPLETED
+- FAILED_RETRYABLE
+- FAILED_FINAL
+- CONFLICT
+
+正式enum、状態遷移、TTL、completed result retentionはTBDとする。
+
+```text
+idempotency processing state
+!= Storage state
+!= Record Identity state
+!= Human Review state
+!= AIKO access state
+```
+
+### 15. Result Reference
+
+response bodyそのものを無制限にRepositoryへ保存する方式を第一候補にしない。Server-sideのsafeな`resultReference`を保持する方向とする。
+
+`resultReference`は次を含まない。
+
+- credential
+- raw payload
+- raw document
+- stack
+- 不要なPII
+
+`resultReference`がどのRepositoryまたはStorageを指すかはTBDとする。過去のtransport resultと現在有効なbusiness stateを分離し、Human Review訂正後に古いdecisionを復活させない。
+
+### 16. RetryとCrash Recovery
+
+- PROCESSING中のretryは新しいbusiness processingを開始しない
+- COMPLETED後のretryはStorageをblindに再実行しない
+- FAILED_RETRYABLEは安全なownership再取得後のretry候補
+- FAILED_FINALは無制限retryしない
+- response loss時は既存operationまたはresultReferenceを参照する候補
+- claim後・business processing前crashはownership recovery候補
+- Storage前crashはbusiness operation側のretry安全性も確認する
+
+business Storage成功後、idempotency completion保存前にcrashした場合、Idempotency Repositoryだけでは二重business effectを完全には防げない。この場合のblind Storage retryは禁止し、Storage Effect Idempotency、Transaction、Recoveryの別contractを必要とする。
+
+### 17. Storage Transactionとの関係
+
+次の案を比較対象とする。
+
+- A. Idempotencyとbusiness Storageのtransaction coordination
+- B. business Storage自体をidempotent化する
+- C. outbox / operation logでrecoveryする
+- D. A〜Cの組み合わせ
+
+第一候補の設計目標は次とする。
+
+```text
+at-least-once delivery
++ idempotent processing
++ duplicate-safe business effect
+```
+
+具体的なDB / Supabase transaction方式、Storage key、outbox schemaはTBDとする。
+
+### 18. Human Reviewとの境界
+
+Idempotency Repositoryは`reviewItemId`を生成せず、Human Review decisionを保持しない。
+
+同一operation retryでReview itemを増殖させないため、business result referenceとの関連を持てる候補とする。ただし、次を維持する。
+
+```text
+reviewItemId != idempotencyKey
+```
+
+曖昧なRecord candidateをidempotencyだけで同一Reviewへ統合しない。Human Review訂正後の旧retryでは、過去decisionを復活させず、現在有効なbusiness stateを参照する。
+
+### 19. Connector Revocation
+
+Trust verificationはIdempotency Repositoryより前の境界である。revoked Connectorからの新しいretryは、Repositoryに到達する前にdeniedとなる第一候補とする。
+
+既存operationのcleanup、内部recovery、失効後のprocessing継続可否はTBDとする。
+
+### 20. Repositoryが返さない情報
+
+- credential
+- raw payload
+- raw Word / Excel content
+- Supabase service_role
+- facility secret
+- unnecessary PII
+- client asserted facility authority
+- internal stack / error detail
+
+### 21. Current Implementationとの差分
+
+現在は次が未実装である。
+
+- Idempotency Repository
+- `idempotencyKey`
+- `ingestionId`
+- `inputFingerprint`
+- atomic claim
+- processing ownership
+- lease / generation / fencing
+- processing state persistence
+- completion / failure compare-and-set
+- retry result reuse
+- Storage transaction / recovery
+- outbox / operation log
+
+現在の`ConnectorIngestionService`はTrust → Payload Validation → Resident Matchingまでを担当するが、Idempotency Repositoryを呼び出す契約はない。`ResidentRepository`はresident候補取得のRepositoryであり、Idempotency Repositoryとは別責務である。
+
+### 22. v0.1で確定する原則
+
+- Idempotency RepositoryをStorage、Record、Resident、Human Review Repositoryから分離する
+- lookupとclaim競合をatomicに扱う
+- 同一scope + keyで有効なprocessing ownerは最大1つ
+- stale ownerによるcomplete / failを拒否する
+- verified facility / connector contextをscopeに使う
+- same key + different inputはCONFLICTまたはreject候補
+- same key + same inputは既存operation参照候補
+- raw credential、raw payload、不要なPIIを保持しない
+- Record Identity、Resident Identity、Human Review decisionを決定しない
+- exactly-once deliveryを保証しない
+- duplicate-safe business effectを設計目標とする
+- Storage state、Review state、AIKO access stateを分離する
+
+### 23. TBD
+
+- method正式名
+- outcome / processing state正式enum
+- `idempotencyKey`形式、生成、保存、TTL
+- inputFingerprintの名称、algorithm、対象、canonicalization、保存
+- `ingestionId`形式、生成主体、外部公開
+- ownership token、lease、generation、fencing方式
+- takeover条件、timeout、renew方式
+- completion / failureのcompare-and-set詳細
+- DB lock、unique constraint、transaction方式
+- Storage Effect Idempotency
+- outbox / operation log
+- retryable / final error分類
+- completed result retention
+- expired key reuse、cleanup race
+- connector revocation後のinternal recovery
+- Human Reviewとのresult reference永続化
+- status polling
+- audit event schema
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

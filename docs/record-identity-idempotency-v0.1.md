@@ -607,6 +607,263 @@ Resident Matching前後でDocument IdentityをRecord Identityへ置き換えな�
 - Storage Policy連携
 - TOCTOU observation status / retry
 
+## Record Identity Human Review Rules
+
+### 1. Reviewの責務
+
+Human ReviewはRISEN CARE Human Management側で行う。Connector側では行わない。
+
+Connectorは送信・同期結果を受け取る主体であり、resident identityまたはRecord Identityの最終確認主体ではない。
+
+### 2. reviewItemId
+
+Review対象にはServer生成のopaqueな`reviewItemId`を使用する。
+
+```text
+reviewItemId != recordIdentityCandidate
+reviewItemId != sourceRecordKey
+reviewItemId != recordId
+reviewItemId != versionId
+reviewItemId != residentId
+```
+
+`reviewItemId`はHuman Review作業を追跡するidentityであり、Record Identityそのものではない。
+
+`recordIdentityCandidate`を`reviewItemId`にしない。candidateはPII、source location、構造情報等を含む可能性があり、外部参照identityへ昇格させない。
+
+### 3. Review開始候補
+
+次の場合はRecord Identity Reviewを開始する候補とする。
+
+- stable source IDがなく一意性を安全に解決できない
+- sourceRecordKey collisionが発生した
+- 1つのcandidateが複数Recordを指す
+- Mapping変更後の対応が不明である
+- copyによってidentity candidateが重複した
+- sourceRecordKey変更後に既存recordIdへ接続できない
+- resident associationが`needs_review`である
+- Review中に新しいVersion候補が到着し関係が不明である
+
+ただし、次はRecord Identity Reviewより先にObservation failureとして扱う。
+
+- scan failure
+- read failure
+- extract failure
+- partial observation
+- TOCTOU
+- network failure
+
+観測自体が不完全な場合、Record Identityを推測してReview itemを作成したり、missingを確定したりしない。
+
+### 4. Human Reviewの3操作
+
+第一候補の判断操作は次の3つとする。
+
+- 同じ記録
+- 新しい記録
+- 判断できない
+
+「判断できない」は正式な状態として扱う。
+
+#### 同じ記録
+
+現在のServer-side identity resolutionにおいて、既存Recordとのassociationを成立させる判断候補とする。
+
+永久・不可逆な同一性確定とはしない。保存成功、Resident Review完了、AIKO利用可能を意味しない。
+
+#### 新しい記録
+
+既存Recordとは別の論理Recordとして扱う判断候補とする。NEW候補であり、新しい`recordId`や`versionId`の具体生成規則は今回決めない。
+
+新しいRecordと判断しても、保存許可やAIKO利用可能を意味しない。
+
+#### 判断できない
+
+`PENDING_REVIEW`または`CONFLICT`を維持する。
+
+- recordIdへ自動接続しない
+- AIKO通常利用へ投入しない
+- 後続情報、Mapping変更、再Reviewを待つ
+- Connector再送だけで`matched`へ昇格しない
+
+### 5. Record Identity ReviewとResident Identity Review
+
+次の2つのReviewを分離する。
+
+```text
+Record Identity Review
+  = これは同じ論理Recordか
+
+Resident Identity Review
+  = どのresidentとのassociationか
+```
+
+片方の確定から、もう片方を自動確定しない。
+
+- Recordが同じでもresident associationが未確定になり得る
+- resident associationが成立してもRecord IdentityがCONFLICTになり得る
+- `residentId`をRecord dedup keyにしない
+
+### 6. Review画面の表示最小化
+
+通常表示の第一候補は次の5項目とする。
+
+- 利用者の確認用表示名
+- 記録日時
+- 記録種別
+- semantic contentの短いpreview
+- 出典の安全な表示名
+
+通常表示には次を出さない第一候補とする。
+
+- `residentId`
+- `recordId`
+- `versionId`
+- credential
+- facility内部ID
+- absolute path
+- raw document全文
+- `sourceHash` / `contentHash`の生値
+
+### 7. 詳しく確認
+
+必要な権限を持つReviewerに限り、追加情報を表示する二段階UIを候補とする。
+
+- source resident identifier
+- 必要な利用者番号
+- safe source document name
+- sheet / section
+- 最小限のsource location
+- provenance
+- candidate間の差分
+- hash一致 / 不一致という比較結果
+- observation状態
+- review理由
+
+具体UI、表示項目ごとのPII分類、表示権限はTBDとする。
+
+原本はLocalに残す。Serverがraw originalを保持している前提にしない。「原本を確認」を将来実装する場合は、認証・認可されたHuman ManagementとLocal Connector間の別の安全な経路を設計する。
+
+### 8. Review結果と訂正
+
+Human Review結果は訂正可能にする。
+
+少なくとも次をaudit可能にする方向とする。
+
+- previous decision
+- corrected decision
+- reviewer
+- decision time
+- correction time
+- correction reason
+- previous association
+- current association
+- affected recordId / versionId候補
+
+具体的なaudit schemaはTBDとする。
+
+誤って「同じ記録」とした場合は、成立したassociationを訂正可能にする。誤って「新しい記録」とした場合も、単純mergeや履歴削除をせず、別のServer-side Identity Resolutionとして訂正する。
+
+訂正前の履歴を無条件に消去しない。現在有効なassociationと過去の判断履歴を分離して保持する方向とする。
+
+### 9. Review Queueの保守的dedup
+
+同じpayload再送でreview itemを無制限に増やさない。ただし、`recordIdentityCandidate`の「equivalent」を曖昧な自動判定でreviewItem同一性へ昇格させない。
+
+第一候補は、次がすべて整合し、確実に同一の再送と確認できる場合のみ既存reviewItemへobservationを追加する方式とする。
+
+```text
+same authenticated connector context
++ same verified facility scope
++ same sourceDocumentKey
++ same sourceRecordKeyまたは明示的に同一と検証された候補
++ same contentHash
++ compatible Document context
++ compatible observation state
+```
+
+同一らしいが確定できない場合は自動統合せず、既存Reviewとの関連候補またはCONFLICTとして扱う。別Recordを誤って統合することより、review itemが一時的に複数になることを優先する。
+
+次だけではreview itemを統合しない。
+
+- `contentHash`単独
+- `recordIdentityCandidate`単独
+- resident + date/time + type
+
+review queue dedup keyの最終仕様、TTL、状態遷移はTBDとする。
+
+### 10. AIKOとの境界
+
+Review待ちRecordをAIKO通常利用へ自動投入しない。
+
+AIは次を最終決定しない。
+
+- 同じRecord
+- 新しいRecord
+- merge
+- `recordId`
+- `versionId`
+- resident association
+
+AIを将来利用する場合も、候補整理、差分表示、Review補助までとする。Review queueをAIKOから参照する場合は、Human Authorization、対象facility、action、purpose、Data Classificationを確認する別のServer-side経路が必要である。
+
+### 11. Facility Authorization
+
+Review画面およびReview操作には、少なくとも次のServer-side authorizationを必要とする。
+
+- authenticated human actor
+- target facility
+- review action
+- active membership / permission
+
+client supplied role、permission、facilityを信用しない。cross-facility候補を同じReview画面へ混ぜない。
+
+### 12. 状態と保存・利用の分離
+
+```text
+matched != stored != reviewed != AIKO accessible
+```
+
+「同じ記録」は現在のidentity resolution上のassociation候補であり、保存成功を意味しない。「新しい記録」はNEW候補であり、保存許可を意味しない。「判断できない」はPENDING_REVIEWまたはCONFLICTとして保存・処理する候補であり、通常のAIKOデータへ投入しない。
+
+### 13. v0.1で確定する境界
+
+- Human ReviewはRISEN CARE Human Management側で行う
+- Connector側でRecord IdentityやResident Identityを最終確認しない
+- `reviewItemId`はServer生成のopaqueなReview作業identityとする
+- `reviewItemId`をRecord IdentityやResident Identityとして扱わない
+- `recordIdentityCandidate`をreviewItemIdにしない
+- stable source IDがない場合は一意性未確認のcandidateとしてReviewへ回す
+- Observation failureはRecord Identity Reviewより先に扱う
+- 「同じ記録」「新しい記録」「判断できない」を正式な操作候補とする
+- Review結果は訂正可能とする
+- Record Identity ReviewとResident Identity Reviewを分離する
+- 通常表示は最小PIIにする
+- 原本はLocalに残し、raw document全文をServerへ送らない
+- review queue dedupは保守的に扱う
+- `needs_review`をAIKO通常利用へ自動投入しない
+- cross-facility候補を混ぜない
+- `matched`、stored、reviewed、AIKO accessibleを同一視しない
+
+### 14. TBD
+
+- `reviewItemId`具体形式
+- review queue schema / storage
+- review queue dedup key
+- review状態遷移
+- review期限 / TTL
+- correction権限
+- audit event schema
+- `recordId` / `versionId`の具体処理
+- Human Authorization action mapping
+- source location privacy minimization
+- Local原本確認経路
+- review中Version到着時の処理
+- Storage Policy具体連携
+- AIKO review queue access
+- retry / idempotencyとの統合
+- cross-document / cross-connector policy
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

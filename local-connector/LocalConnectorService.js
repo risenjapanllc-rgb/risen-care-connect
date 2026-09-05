@@ -36,6 +36,10 @@ class LocalConnectorService {
         this.documentSemanticExtractor =
             options.documentSemanticExtractor ||
             new DocumentSemanticExtractor();
+
+        this.sourceDocumentRegistry =
+            options.sourceDocumentRegistry ||
+            null;
     }
 
     async getRegisteredFolderStatus() {
@@ -164,6 +168,21 @@ class LocalConnectorService {
             updatedAt:
                 matchedFile.updatedAt
         };
+    }
+
+    async observeRegisteredFile(fileName) {
+        if (!this.sourceDocumentRegistry) {
+            throw new Error("Source Document Registry is not configured");
+        }
+
+        const details = await this._resolveRegisteredFileDetails(fileName);
+
+        return await this.sourceDocumentRegistry.observe({
+            relativePath: details.fileName,
+            fileName: details.fileName,
+            updatedAt: details.updatedAt,
+            size: details.size
+        });
     }
 
     async getRegisteredFileMetadata(fileName) {

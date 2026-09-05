@@ -4,9 +4,17 @@ const SourceDocumentRegistry = require("./SourceDocumentRegistry");
 const SourceDocumentKeyGenerator = require("./SourceDocumentKeyGenerator");
 const RelativePathLookupKeyBuilder = require("./RelativePathLookupKeyBuilder");
 const SqliteSourceDocumentRegistryStore = require("./SqliteSourceDocumentRegistryStore");
+const DatabasePathResolver = require("./DatabasePathResolver");
 
 function createService({ databasePath } = {}) {
-    const registryStore = new SqliteSourceDocumentRegistryStore({ databasePath });
+    const resolvedDatabasePath =
+        typeof databasePath === "string" && databasePath.trim() !== ""
+            ? databasePath.trim()
+            : new DatabasePathResolver().resolve();
+
+    const registryStore = new SqliteSourceDocumentRegistryStore({
+        databasePath: resolvedDatabasePath
+    });
     const sourceDocumentRegistry = new SourceDocumentRegistry({
         sourceDocumentKeyGenerator: new SourceDocumentKeyGenerator(),
         registryStore,

@@ -14,3 +14,20 @@ test("creates LocalConnectorService with persistent source document registry", (
     assert.ok(service.sourceDocumentRegistry);
     assert.strictEqual(typeof service.sourceDocumentRegistry.observe, "function");
 });
+
+test("resolves default database path when databasePath is omitted", () => {
+    const previous = process.env.RISEN_LOCAL_CONNECTOR_DATABASE_PATH;
+    const databasePath = path.join(os.tmpdir(), "risen-composition-root-default.sqlite");
+    process.env.RISEN_LOCAL_CONNECTOR_DATABASE_PATH = databasePath;
+
+    try {
+        const service = LocalConnectorCompositionRoot.createService();
+        assert.ok(service.sourceDocumentRegistry);
+    } finally {
+        if (previous === undefined) {
+            delete process.env.RISEN_LOCAL_CONNECTOR_DATABASE_PATH;
+        } else {
+            process.env.RISEN_LOCAL_CONNECTOR_DATABASE_PATH = previous;
+        }
+    }
+});

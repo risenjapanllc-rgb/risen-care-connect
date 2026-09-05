@@ -864,6 +864,296 @@ matched != stored != reviewed != AIKO accessible
 - retry / idempotencyとの統合
 - cross-document / cross-connector policy
 
+## Idempotency / Retry Identity Rules
+
+### 1. Identityの分離
+
+次のIdentityを同一概念として扱わない。
+
+- `requestId`: 1回の通信attemptを追跡するcorrelation identity候補
+- `idempotencyKey`: 同一ingestion operationの再実行を識別するidentity候補
+- `ingestionId`: Server-side ingestion operation identity候補
+- `sourceDocumentKey`: Local Source Document observation identity
+- `sourceRecordKey`: Local Source Record observation identity候補
+- `recordIdentityCandidate`: stable source IDなしの場合のRecord identity評価材料
+- `contentHash`: canonical semantic Record content identity候補
+- `sourceHash`: Local original bytes observation hash候補
+- `recordId`: Server-side RISEN Record Identity
+- `versionId`: Server-side Record Version Identity
+- `reviewItemId`: Human Review operation identity
+- `residentId`: Resident association
+
+```text
+requestId != idempotencyKey
+idempotencyKey != sourceRecordKey
+idempotencyKey != contentHash
+ingestionId != recordId
+contentHash != recordId
+reviewItemId != idempotencyKey
+```
+
+### 2. Delivery Model
+
+exactly-once deliveryは保証しない。
+
+第一候補は次の組み合わせとする。
+
+```text
+at-least-once delivery
++ server-side idempotent processing
++ business identity / change detection
+```
+
+このモデルは、idempotency state永続化、原子的な競合制御、Storage transaction、retry時の既存結果再利用が実装されて初めて成立する。NetworkやHTTP transportが一度だけ配送することは前提にしない。
+
+### 3. requestId
+
+`requestId`は1回の通信attemptを追跡するcorrelation identity候補とする。
+
+同一ingestion operationのretryでも、各HTTP attemptで新しい`requestId`を使用できる。`requestId`単独でdedupしない。
+
+具体的な生成方式、再利用可否、外部公開、保存期間はTBDとする。
+
+### 4. idempotencyKey
+
+`idempotencyKey`は同一ingestion operationのretryを識別する候補であり、業務Record identityではない。
+
+第一候補として、Connectorがoperation開始時に生成し、同じoperationのretryでのみ再利用する。新しいscan / 新しいobservationは新しいoperation候補であり、原則として新しい`idempotencyKey`候補とする。
+
+具体的な生成方式、形式、TTL、Local永続化方式はTBDとする。
+
+### 5. ingestionId
+
+`ingestionId`はServer-side ingestion operation identity候補とする。
+
+第一候補:
+
+- Serverが生成する
+- 同じ有効な`idempotencyKey`のretryでは同じ`ingestionId`を再利用する候補とする
+- `recordId`、`versionId`、`reviewItemId`とは別概念とする
+- Connector responseへ返すかはConnector Response ContractのTBDを維持する
+
+### 6. Idempotency Scope
+
+client supplied `facilityId`をauthorityにしない。
+
+少なくとも次のServer-side scope内で`idempotencyKey`を解釈することを第一候補とする。
+
+```text
+verified facility context
++ verified connector context
++ idempotencyKey
+```
+
+cross-facility dedupは禁止する。cross-connector automatic mergeも行わない。endpoint、operation type、protocol version等をscopeへ含めるかはTBDとする。
+
+### 7. Same Key / Same Input
+
+同じ`idempotencyKey`と同一operation inputが安全に確認できる場合、同じingestion operationのretry候補とする。
+
+- 既存processing stateを再利用する
+- 既存resultを再利用する
+- 既存`ingestionId`を再利用する候補とする
+- Storageを二重実行しない
+- Review itemを無制限に増殖させない
+
+同一性を安全に確認できない場合は、既存結果を無条件に返さない。
+
+### 8. Same Key / Different Input
+
+```text
+same idempotencyKey + different operation input
+```
+
+では、次を行わない。
+
+- silent overwrite
+- silent merge
+- 既存operation結果の異なるinputへの流用
+
+第一候補は`CONFLICT`またはrejectとする。
+
+この検出に`contentHash`単独を使わない。`contentHash`は業務Recordのsemantic content identity候補であり、ingestion request identityではない。
+
+将来、同一keyに対応するinput比較のため`idempotencyPayloadFingerprint`のような独立比較値が必要になる可能性がある。ただし名称、形式、計算対象、canonicalization、algorithm、保存期間はTBDとする。
+
+```text
+idempotencyPayloadFingerprint != contentHash
+```
+
+### 9. Different Key / Same Payload
+
+異なる`idempotencyKey`で同じpayloadが到着した場合、transport / ingestion operationとしては別operation候補とする。自動的に同じ`ingestionId`へ統合しない。
+
+ただしbusiness identity / change detection側で次が確認できれば、`UNCHANGED`候補とする。
+
+```text
+same sourceDocumentKey
++ same sourceRecordKey
++ same contentHash
++ compatible trusted context / history
+```
+
+`contentHash`単独でmergeしない。
+
+### 10. Retry条件
+
+network断、timeout、response loss、server処理途中failureでは、同一operationであることが分かる場合、同じ`idempotencyKey`を再利用する第一候補とする。`requestId`はattemptごとに別でもよい。
+
+Connector restart / PC restart後もretry continuityを維持するには、未完了operationの`idempotencyKey`と送信状態をLocal側で安全に永続化する仕組みが必要になる可能性がある。outbox、queue、暗号化、復旧方式はTBDとする。
+
+### 11. Concurrent Duplicate
+
+同じscopeと同じ`idempotencyKey`の並行requestは、Server側で原子的に扱う必要がある。
+
+第一候補:
+
+1. 1つのingestion operationだけを開始する
+2. 他のrequestは既存のprocessing stateまたはresultへ接続する
+3. Storage、Record Identity、Review作成を二重実行しない
+
+具体的なDB lock、unique constraint、transaction、advisory lock等はTBDとする。
+
+### 12. Processing State
+
+将来のServer-side idempotency processing stateとして、少なくとも次を概念候補とする。
+
+- RECEIVED
+- PROCESSING
+- COMPLETED
+- FAILED_RETRYABLE
+- FAILED_FINAL
+- CONFLICT
+
+正式enum、遷移、TTL、completed result retentionはTBDとする。
+
+```text
+idempotency processing state
+!=
+Storage state
+!=
+Review state
+```
+
+### 13. Business Identityとの関係
+
+次の判定はidempotency retryそのものではない。
+
+```text
+same sourceRecordKey + same contentHash
+=> UNCHANGED候補
+
+same sourceRecordKey + different contentHash
+=> UPDATED / new version候補
+
+different sourceRecordKey + same contentHash
+=> 同じRecordとは判断しない
+```
+
+同じSource Recordの新しいscan / observationは、新しいingestion operationになり得る。新しいoperationであっても、business identity側では`UNCHANGED`候補になり得る。
+
+### 14. sourceHash / contentHash
+
+`sourceHash`はLocal original bytesの観測hash、`contentHash`はcanonical semantic Record contentのhash候補として分離する。
+
+- different `sourceHash` + same `contentHash`: original bytesは変化したがsemantic contentは同じ候補
+- same `sourceHash` + different `contentHash`: Extractor、Mapping、Canonicalization version変更、不整合等を疑う
+
+いずれも自動的に同一operationや同一Recordとはしない。
+
+Serverはraw originalを受け取らないため、`sourceHash`を原本byteから独立再計算できない。現在のPayloadはcanonical semantic contentも十分に送っていないため、`contentHash`をServerで再計算可能とは断定しない。
+
+Hashは認証、暗号化、匿名化ではない。
+
+### 15. sourceUpdatedAt
+
+`sourceUpdatedAt`単独でretry、Record identity、Version identity、content changeを決めない。
+
+Excelを開いて保存しただけでmtimeや`sourceHash`が変化しても、semantic contentが同じなら`UNCHANGED`候補になり得る。mtimeだけでVersionを作らない。
+
+### 16. Human Review
+
+`reviewItemId`と`idempotencyKey`を分離する。
+
+- 同一operation retryでは新しいreviewItemを無制限に作らない
+- 同じkeyでもinputが異なればsilent mergeしない
+- 曖昧な`recordIdentityCandidate`をidempotencyだけで同一Reviewへ統合しない
+- review中の新しいscanは新しいingestion operationになり得る
+- review完了後の旧operation retryは、同じkeyなら既存operation resultを参照する候補
+- Human Review訂正後は過去decisionを復活させず、現在有効なServer-side decision/historyを参照する
+
+Record Identity Human Review Rulesのconservative dedup方針を維持する。
+
+### 17. Storage
+
+```text
+matched != stored != reviewed != AIKO accessible
+```
+
+idempotency processing successはStorage successを意味しない。Storage成功後にresponse lossが発生しても、retryで二重Storage effectを発生させない設計が必要である。
+
+### 18. Mapping / Canonicalization Version
+
+Mapping version変更やCanonicalization version変更は単純retryとして扱わない。新operationまたは再評価候補とする。
+
+旧`contentHash`と新`contentHash`をversion違いを無視して直接比較しない。migration、recompute、旧履歴との接続方針はTBDとする。
+
+### 19. Connector Reinstall
+
+Connector reinstall後のidempotency continuity、Local registry復元、`sourceDocumentKey` rebind、unfinished operation復旧はTBDとする。
+
+reinstall後に同じDocumentを観測しただけで、旧ingestion operationのretryとは判断しない。
+
+### 20. AIKO
+
+idempotency処理からAIKO利用可否を決めない。
+
+`UNCHANGED`、`UPDATED`、`COMPLETED`等のingestion結果だけでAIKO accessibleとはしない。Storage Policy、Review、Resident association、AIKO Access Policyを別途通す。
+
+AIでidentity、dedup、merge、Record Version、Resident associationを最終決定しない。
+
+### 21. v0.1で確定する境界
+
+- `requestId`、`idempotencyKey`、`ingestionId`、Document / Record / Version / Review / Resident identityを分離する
+- exactly-once deliveryを保証しない
+- at-least-once delivery + server-side idempotent processing + business identity/change detectionを第一候補とする
+- `requestId`単独でdedupしない
+- 同一operationのretryでは同じ`idempotencyKey`を再利用する候補とする
+- 新しいscan / observationは新しいoperation候補とする
+- same key / different inputはCONFLICTまたはreject候補とする
+- different key / same payloadは別operationとして扱い、business identity側でUNCHANGEDを評価する
+- cross-facility dedupを行わない
+- cross-connector automatic mergeを行わない
+- `residentId`をdedup keyにしない
+- `sourceHash`、`contentHash`、`sourceUpdatedAt`を単独でidempotency authorityにしない
+- Hashは認証・暗号化・匿名化ではない
+- Human Review itemをretryで無制限に増やさない
+- 曖昧な候補を保守的dedupで自動統合しない
+- Storage state、Review state、AIKO access stateをidempotency stateから分離する
+- raw originalをServerへ送る前提にしない
+
+### 22. TBD
+
+- `idempotencyKey`具体形式
+- key生成algorithm
+- Local側保存方式、outbox、queue、復旧
+- TTL / retention
+- scopeへendpoint / operation type / protocol versionを含めるか
+- `idempotencyPayloadFingerprint`の名称、形式、計算対象、canonicalization、algorithm、保存期間
+- `ingestionId`形式と外部公開
+- processing state正式enumと状態遷移
+- concurrent lock、unique constraint、DB transaction
+- retryable / final error分類
+- HTTP status mapping
+- completed result retention
+- failed operation retry policy
+- Review queueとの永続化連携
+- Storage transaction
+- Mapping / Canonicalization version変更時のmigration / recompute
+- Connector reinstall recovery
+- cross-document / cross-connector policy
+- status polling
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

@@ -1,9 +1,9 @@
 const express = require('express');
 const path = require('path');
-const LocalConnectorService = require('./LocalConnectorService');
+const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
 
 const app = express();
-const service = new LocalConnectorService();
+const service = LocalConnectorCompositionRoot.createService();
 
 const HOST = '127.0.0.1';
 const PORT = Number(

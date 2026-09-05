@@ -104,6 +104,258 @@ documentKeyとしない。
 ファイル名変更・移動・コピーを
 どう扱うかは別途Policy化する。
 
+## Document Identity Rules
+
+### 1. Source Document IdentityとServer Document Identity
+
+`sourceDocumentKey`とServer-side `documentId`は分離する。
+
+`sourceDocumentKey`は、Local ConnectorがSource Documentを継続観測するためのLocal observation identityとする。
+
+`documentId`は、Server側で生成・管理・resolveするRISEN内部Document Identityとする。
+
+`sourceDocumentKey`をServer authorityとして単独利用しない。client supplied `documentId`は受け入れない。
+
+### 2. Trusted Observation Lookup Scope
+
+次の3値はdocumentIdの決定論的な生成式ではなく、Server-side Document Identityをlookup・resolveするためのtrusted observation scopeとする。
+
+```text
+verified facilityId
++ verified connectorId
++ validated sourceDocumentKey
+```
+
+Serverは、このscopeとserver-side document historyを使って既存の`documentId`との関連を解決する。3値から決定論的に`documentId`を生成するとは扱わない。
+
+`verified facilityId`はConnector Trustがregistrationから確定した値、`verified connectorId`は同じTrust結果に含まれる値、`validated sourceDocumentKey`はLocal observationとして受け取り形式・scope・historyを確認した値である。
+
+### 3. sourceDocumentKeyの生成と保存
+
+`sourceDocumentKey`はLocal Connectorが生成・永続化することを第一候補とする。
+
+具体的な形式、UUID採用、Local registryの保存方式、registryのsecurity、backup、復元方式はTBDとする。
+
+Local registryでは、必要に応じて次のLocal-only observation metadataを管理できる。
+
+- sourceDocumentKey
+- Local pathまたはrelative path
+- file IDの観測値
+- fileName
+- size
+- mtime
+- sourceHash
+- firstSeenAt / lastSeenAt
+
+これらのLocal pathや内部metadataを、そのままServerへ送信しない。
+
+### 4. sourceDocumentKeyに直接使わない値
+
+次を単独で`sourceDocumentKey`にしない。
+
+- filename
+- absolute path
+- relativePath
+- mtime
+- sourceHash
+- contentHash
+- residentId
+
+absolute pathはServerへ送らない。relativePathもPIIや施設内部構造を含む可能性があるため、v0.1ではLocal-only observation metadataの第一候補とする。
+
+filenameはrename、copy、delete後のrecreate、同名置換、別業務Documentを区別できない。
+
+`sourceHash`はLocalが読んだ原本Word / Excel byteの観測hash候補であり、`contentHash`はcanonical semantic contentの同一性hash候補である。どちらもDocument Identityそのものではない。
+
+原本をServerへ送らないため、Serverが`sourceHash`を原本byteから独立再計算できるとは仮定しない。Hashは暗号化、認証、権限、匿名化の代替ではない。
+
+### 5. Windows file ID / filesystem identity
+
+Windows file IDやfilesystem identityは、Localでの再発見、rename、folder moveの検出を補助する候補とする。
+
+次の理由から、単独の永続identityやServer authorityにはしない。
+
+- Volumeやfilesystemを跨ぐと安定しない可能性がある
+- copyでは別file IDになる
+- delete後のrecreateでは別file IDになる
+- network/shared folderではSMB serverやfilesystem依存になる
+- backup、同期、移行、再登録で変化する可能性がある
+
+Connector再起動後も安定させる主たる手段はLocal registryの永続化とし、file IDは補助情報として扱う。
+
+### 6. File Operation Rules
+
+| 操作 | 第一候補 | 注意 |
+|---|---|---|
+| same file / rescan | same sourceDocumentKey | Local registryが同じObservationを再発見し、Server contextも整合する場合 |
+| same file / content update | same sourceDocumentKey | 変更はsourceHash / contentHashと将来のVersion側で扱う |
+| rename | TBD | 安全に継続観測できる場合のみsame候補。filenameだけでは判断しない |
+| folder内move | TBD | 安全に継続観測できる場合のみsame候補。filesystem境界を跨ぐ場合は特にTBD |
+| copy | new sourceDocumentKey | 内容同一でも新しいLocal observationとして扱う第一候補 |
+| delete → recreate | new sourceDocumentKey | 同名・同内容・同mtimeでも旧Document系列に自動接続しない |
+| same-name replacement | newまたはCONFLICT | 自動接続しない。file ID、history、完全観測を確認して別途判断 |
+| Connector restart | same sourceDocumentKey | Local registryが維持されている場合 |
+| Connector reinstall | TBD | registry復元、再登録、再発行の方式が未確定 |
+| same facility / different connector | TBD | v0.1ではcross-connector automatic mergeを行わない |
+| different facility | new scope | cross-facility automatic mergeを禁止する |
+| network/shared folder | TBD | file ID、同時編集、SMB、接続断、複数Connectorの扱いが未確定 |
+
+### 7. sourceDocumentKey Collision
+
+同じ`sourceDocumentKey`を複数Documentまたは複数scopeが主張した場合、自動mergeしない。
+
+次を確認する。
+
+- verified connector context
+- verified facility scope
+- sourceDocumentKeyの形式・長さ
+- server-side document history
+- file ID、path、hash等のLocal observation
+- Document context
+
+解消できない場合は`CONFLICT`またはserver-side review候補とする。具体的なerror、review、再発行、既存Documentとの接続方法はTBDとする。
+
+推測困難なopaque値にすることは推奨するが、推測困難性は認証や認可の代わりではない。
+
+### 8. documentIdのscopeとcross-connector境界
+
+Server-side `documentId`は、少なくとも次のscopeとhistoryに基づいてresolveする。
+
+```text
+verified facilityId
++ verified connectorId
++ validated sourceDocumentKey
++ server-side document history
+```
+
+このscopeをglobal keyとして公開しない。client supplied `documentId`を採用しない。
+
+同じfacilityの別PC・別Connectorが同じ共有ファイルを読む場合も、v0.1ではcross-connector automatic mergeを行わない。同じ物理Documentの二重観測か別Documentか、Connectorごとの履歴をどう統合するかが未確定だからである。
+
+異なるfacilityでは、同じ`sourceHash`または`contentHash`でもDocumentを統合しない。
+
+```text
+same hash != same facility data
+```
+
+### 9. Network / Shared Folder
+
+network/shared folderのidentity resolutionはTBDとする。
+
+少なくとも次を考慮する。
+
+- SMB serverごとのfile ID仕様
+- 接続断と再接続
+- 同時編集とlock
+- rename / move通知
+- mtime精度
+- cache
+- read中の置換
+- 複数Connectorの同時scan
+- share権限変更
+
+Local側でsourceDocumentKeyを永続化し、`stat before -> read -> sourceHash -> stat after`を候補とする。不完全な観測を正常Documentとして確定しない。
+
+### 10. TOCTOU / Document Observation
+
+Document identity判定の前に、Source Documentを正常かつ十分に観測できたかを評価する。
+
+```text
+stat before
+→ read
+→ sourceHash
+→ stat after
+→ observation status
+```
+
+読取中にsize、mtime、file ID等が変化した場合、またはreadが部分成功・失敗した場合は、正常同期として確定しない。
+
+候補statusは次のとおりとするが、名称はTBDとする。
+
+- COMPLETE
+- PARTIAL
+- FAILED
+- CHANGED_DURING_READ
+
+retry回数、backoff、skip、次回scan、missingとの関係はTBDとする。完全なDocument Observationがない場合、Record欠落を削除や`MISSING_CANDIDATE`と解釈しない。
+
+### 11. Resident Identity / Storageとの分離
+
+Document IdentityとResident Identityを分離する。
+
+- Resident Matching前後で`documentId`を変更しない
+- `residentId`をDocument Identityやdedup keyにしない
+- sourceRecordKeyとresidentIdを同じidentityとして扱わない
+- `matched`を保存成功とみなさない
+
+```text
+same document
+!=
+storage success
+!=
+resident matched
+!=
+AIKO accessible
+```
+
+`matched`は現在のserver-side matching contract上のresident associationであり、Storage Policy、Record Identity Resolution、Classification、Retentionを通過した保存成功とは別である。
+
+### 12. Connector Responseとの分離
+
+Document IdentityとConnector Response identifierを分離する。
+
+Connector Responseは次の最小形を第一候補とする。
+
+```javascript
+{
+  requestId,
+  status
+}
+```
+
+`documentId`をConnectorへ返すかはTBDとする。返す場合も、`requestId`、idempotency key、`ingestionId`、`operationId`、`residentId`とは別概念のserver-side identifierとして扱う。
+
+### 13. v0.1の境界
+
+v0.1では次を確定する。
+
+- `sourceDocumentKey`とserver-side `documentId`を分離する
+- sourceDocumentKeyはLocal observation identityとする
+- documentIdはServer側で生成・管理・resolveする
+- `verified facilityId + verified connectorId + validated sourceDocumentKey`はlookup scopeであり、決定論的な生成式ではない
+- client supplied documentIdを受け入れない
+- absolute pathをServerへ送らない
+- filename、mtime、sourceHash、contentHash、residentIdを単独のDocument Identityにしない
+- sourceHashとcontentHashを分離する
+- Windows file IDを補助情報に限定する
+- cross-connector automatic mergeを行わない
+- cross-facility automatic mergeを禁止する
+- TOCTOU不完全観測を正常Documentとして確定しない
+- 原本はLocalに残し、raw document全文をServerへ送らない
+- AIでDocument Identityを判定しない
+
+### 14. TBD
+
+- sourceDocumentKey具体形式
+- UUID採用
+- Local registry保存方式、security、backup、復元
+- Connector reinstall時のregistry復元・再登録・再発行
+- rename / folder move detection
+- Windows file ID取得方式とfilesystem差異
+- network/shared folder identity
+- sourceDocumentKey collision処理
+- sourceHash algorithm / version / 対象byte
+- contentHash canonical input / version
+- documentId生成・保存・scope・TTL
+- cross-connector future merge
+- same-name replacementの再接続可否
+- delete → recreateの再接続可否
+- TOCTOU observation status、retry回数、backoff
+- missing / delete policy
+- Payload identity field追加時期
+- Connector ResponseへのdocumentId / ingestionId / operationId公開
+
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

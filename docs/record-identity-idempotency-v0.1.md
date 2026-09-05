@@ -1913,6 +1913,338 @@ PENDING_REVIEW / CONFLICTを通常AIKOデータへ投入しない。Idempotency�
 - PII / secret redaction
 - AIKO access連携
 
+## Record Identity → Change Resolution → Storage Effect Handoff
+
+### 1. 基本handoff
+
+概念上、次の3責務を分離する。
+
+```text
+Record Identity Resolution
+→ Record Change Resolution
+→ applyRecordEffect(...)
+```
+
+Record Identity Resolutionは「これはどのRecordか」を判断する。Record Change Resolutionは「そのRecordは今回どう変わったか」を判断する。`applyRecordEffect(...)`は、解決済みIdentityとChange Intentに基づきbusiness effectをduplicate-safeに適用する。
+
+概念責務の分離は、必ず3クラスへ分割することを意味しない。MVPではorchestration内の明示的な段階または小さな関数として実装してよい。
+
+### 2. Record Identity Resolution
+
+最小責務:
+
+- existing Recordへ安全にresolveできるか判断する
+- existing `recordId`を返す
+- NEW Record candidateを返す
+- Identity ambiguityならPENDING_REVIEWを返す
+- collision等ならCONFLICTを返す
+
+判断材料候補:
+
+- `sourceRecordKey`
+- `recordIdentityCandidate`
+- `sourceDocumentKey` / `documentId`
+- verified facility / connector context
+- trusted server-side identity history
+- Human Reviewのcurrent effective decision
+
+`contentHash`の変化だけで新しい`recordId`を決めない。Record Identity Resolutionはsemantic UPDATED / UNCHANGEDの最終判断主体ではない。NEW candidateの時点で永続`recordId`を確定しない第一候補とする。
+
+### 3. Identity Resolution output
+
+概念結果候補:
+
+- existing `recordId`
+- NEW candidate
+- PENDING_REVIEW
+- CONFLICT
+
+正式enum / field名はTBDとする。NEW candidateは新Record作成が可能なidentity判断であり、`recordId`そのものではない。
+
+### 4. Record Change Resolution
+
+Record Identity Resolution後に行う。Change Intentとして次を判断する。
+
+- NEW
+- UPDATED
+- UNCHANGED
+- PENDING_REVIEW
+- CONFLICT
+
+既存Recordの場合の判断材料候補:
+
+- resolved `recordId`
+- current effective Version
+- `contentHash`
+- `mappingVersion`
+- `canonicalizationVersion`
+- trusted server history
+
+```text
+Record Change Resolution != Record Identity Resolution
+Record Change Resolution != Storage Effect execution
+```
+
+### 5. NEW
+
+次を混同しない。
+
+```text
+NEW identity != NEW business Record
+NEW business Record != NEW Version
+NEW Version != NEW ingestion operation
+```
+
+Identity ResolutionがNEW Record candidateを返した場合、Change ResolutionはNEW effect candidateとして扱える。ただし`recordId`はまだ確定しない。
+
+```text
+NEW candidate
+→ applyRecordEffect
+→ atomic Record creation成功
+→ recordId確定
+```
+
+### 6. UPDATED
+
+UPDATEDはIdentityではない。
+
+```text
+same resolved recordId
++ compatible comparison context
++ different semantic content
+=> UPDATED candidate
+```
+
+Change Resolutionの結果はVersion creation intentであり、`versionId`そのものではない。
+
+```text
+UPDATED candidate
+→ applyRecordEffect
+→ atomic Version creation成功
+→ versionId確定
+```
+
+### 7. UNCHANGED
+
+UNCHANGEDはIdentityではなく、今回のobservationとcurrent effective Versionとの比較結果である。
+
+```text
+same resolved recordId
++ compatible comparison context
++ same semantic content
+=> UNCHANGED candidate
+```
+
+通常は新しいVersion effectを作らない。ただし`UNCHANGED`は過去のStorage effect成功の証明ではない。retry / recovery時にはeffect history、provenance、current storage state等を確認する。
+
+### 8. contentHash / sourceHash
+
+`contentHash`はRecord Change Resolutionの判断材料であり、Record Identity、resident identity、`recordId`、`versionId`、global merge keyではない。
+
+```text
+same contentHash != same business Record
+```
+
+`sourceHash`はObservation metadataであり、semantic UPDATED authorityではない。`sourceHash`または`sourceUpdatedAt`単独でVersionを作らない。
+
+### 9. Mapping / Canonicalization
+
+`mappingVersion` / `canonicalizationVersion`が互換でない場合、UPDATEDまたはUNCHANGEDと即断しない。recompute、migration、review、conflict候補とする。具体方式はTBDである。
+
+### 10. PENDING_REVIEW / CONFLICT
+
+同じ上位状態名を使う場合でも、内部reasonを分離できる設計とする。
+
+候補reason:
+
+- identity ambiguity
+- identity collision
+- change comparison unavailable
+- incompatible mapping
+- concurrent effect conflict
+- resident association pending
+
+Identity Review、Change Review、Storage Conflict、Resident Reviewを同じ意味として扱わない。正式reason enumはTBDとする。
+
+### 11. applyRecordEffect
+
+`applyRecordEffect(...)`はIdentityを自由にresolveせず、semantic changeも自由判断しない。
+
+第一候補input:
+
+```text
+resolved identity
++ resolved change intent
++ trusted server context
++ provenance
+```
+
+責務:
+
+- NEW Record effect
+- UPDATED Version effect
+- UNCHANGED時のno-op
+- existing effect resolution
+- concurrent duplicate防止
+- duplicate-safe result
+- stale decision検出または拒否候補
+
+非責務:
+
+- resident matching
+- facility決定
+- Record Identity推論
+- AI推論
+- client supplied `recordId` / `versionId`採用
+- `contentHash`単独merge
+
+### 12. recordId / versionId生成タイミング
+
+Identity Resolution時、Change Resolution時には`recordId`を生成しない第一候補とする。NEW candidateと永続Recordを分離し、`applyRecordEffect`のatomic Record create成功時に`recordId`を確定する。
+
+`versionId`もChange Resolution時には確定しない。UPDATED candidateを`applyRecordEffect`へ渡し、atomic Version creation成功時に`versionId`を確定する。
+
+race時の二重生成を防ぎやすく、Storage effect成功とIdentity確定を結び付けやすい。具体的なID生成方式はTBDである。
+
+### 13. Human Review handoff
+
+Identity ambiguityの場合は次を第一候補とする。
+
+```text
+Identity Resolution
+→ PENDING_REVIEW / CONFLICT
+→ Human Review
+→ current effective decision
+→ Identity Resolution再開または確定
+→ Change Resolution
+→ applyRecordEffect
+```
+
+正式Record / Version effectをReview前に確定しない。PENDING_REVIEW用の隔離保存を将来行う場合も、正式Record / Version effectとは分離し、Storage Policyに従う。
+
+### 14. Resident association
+
+```text
+Resident Matching != Record Identity Resolution
+residentId matched != Record Identity resolved
+Record Identity resolved != resident association confirmed
+```
+
+resident associationが`needs_review`なら通常AIKO利用可能状態へ進めない。`residentId`をRecord dedup keyにしない。
+
+### 15. Crash recovery
+
+```text
+claim
+→ Identity Resolution
+→ Change Resolution = UPDATED
+→ applyRecordEffect creates Version
+→ crash before Idempotency completion
+→ retry
+```
+
+retry時にcurrent effective Versionが既に新contentなら、Change ResolutionがUNCHANGEDになる可能性がある。これはrecovery path候補として妥当である。
+
+ただし、次は同じ意味ではない。
+
+```text
+UNCHANGED != previous effect success proof
+```
+
+必要に応じてeffect history、effectReference、ingestion provenance、current storage state、mapping / canonicalization contextを確認する。具体Recovery方式はTBDである。
+
+### 16. Concurrency
+
+Operation A/Bが同じcurrent Versionを読み、両方UPDATED candidateになっても、Change Resolutionだけでは二重Version creationを防げない。
+
+```text
+Change Resolution = candidate decision
+applyRecordEffect = atomic duplicate-safe effect
+```
+
+最終的なduplicate-safe保証は`applyRecordEffect`側のatomicityに残す。stale Change IntentはStorage適用時に拒否または再評価候補とする。具体CAS、transaction、lock方式はTBDである。
+
+### 17. Idempotencyとの境界
+
+- Idempotency Repository: same ingestion operation retryの第一防御
+- Record Change Resolution: semantic business changeの判断
+- Storage Effect: different ingestion operationでもsame business effectをduplicate-safeにする第二防御
+
+`idempotencyKey`、`ingestionId`、`contentHash`のいずれも単独でRecord / Version Identityとして使わない。
+
+### 18. current effective state
+
+Change Resolutionはhistorical latestではなくcurrent effective Version / associationと比較する。
+
+Human Review訂正、resident association訂正、Storage correction後は、current effective decision / stateを参照する。
+
+```text
+historical result != current effective state
+```
+
+### 19. 用語整理
+
+この章では次の意味を使用する。
+
+- `sourceDocumentKey`: Local observation identity
+- `documentId`: Server internal Document identity
+
+`documentKey`という曖昧語は新しいcontractでは使用しない。既存文書中の`documentKey`表記は今回は変更しないが、実装前に`sourceDocumentKey` / `documentId`へ統一または意味固定する必要がある。
+
+### 20. Current implementation
+
+現在は次が未実装である。
+
+- Document Identity Resolution
+- Record Identity Resolution
+- Record Change Resolution
+- `applyRecordEffect(...)`
+- atomic `recordId` creation
+- atomic `versionId` creation
+- Human Review persistence / handoff
+- Storage Effect persistence
+- Recovery
+
+現行`ConnectorIngestionService`は次までを担当する。
+
+```text
+Connector Trust
+→ Payload Validation
+→ Resident Matching
+```
+
+Storage処理、Record / Version persistence、Identity Resolutionはまだ担当していない。
+
+### 21. v0.1 fixed principles
+
+- Identity ResolutionとChange Resolutionを分ける
+- Change ResolutionとStorage Effectを分ける
+- NEW candidate時点で`recordId`を確定しない
+- UPDATED candidate時点で`versionId`を確定しない
+- `recordId` / `versionId`はatomic Storage effect成功時確定を第一候補とする
+- `contentHash`をRecord Identityにしない
+- `sourceHash`をsemantic update authorityにしない
+- `applyRecordEffect`はIdentityを自由解釈しない
+- concurrencyの最終防御はStorage Effect atomicity
+- Review前に正式Storage effectを確定しない
+- historical resultとcurrent effective stateを分ける
+
+### 22. TBD
+
+- 正式class / service名
+- Record Change Resolution正式enum
+- PENDING_REVIEW / CONFLICT reason enum
+- `recordId` / `versionId`生成方式
+- current effective Version取得方法
+- mapping / canonicalization compatibility
+- stale Change Intent検出方法
+- effect history / effectReference
+- Recovery
+- transaction / CAS / lock
+- Human Review後のorchestrator
+- `documentKey`既存表記の整理
+- Payload identity fields追加時期
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

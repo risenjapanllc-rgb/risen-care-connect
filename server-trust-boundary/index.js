@@ -27,6 +27,9 @@ const ConnectorTrustService =
 const ConnectorPayloadValidator =
     require("./ConnectorPayloadValidator");
 
+const ConnectorIngestionService =
+    require("./ConnectorIngestionService");
+
 module.exports = {
     ServerTrustBoundaryService,
     ResidentRepository,
@@ -34,5 +37,6 @@ module.exports = {
     ConnectorRegistrationVerifier,
     ConnectorCredentialVerifier,
     ConnectorTrustService,
-    ConnectorPayloadValidator
+    ConnectorPayloadValidator,
+    ConnectorIngestionService
 };

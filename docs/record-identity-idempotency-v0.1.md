@@ -1512,6 +1512,407 @@ Trust verificationはIdempotency Repositoryより前の境界である。revoked
 - status polling
 - audit event schema
 
+## Storage Effect Idempotency Contract
+
+### 1. 責務分離
+
+次のidentityとStorage Effectを分離する。
+
+```text
+Transport retry identity
+!= Ingestion operation identity
+!= Document Identity
+!= Source Record Identity
+!= Server Record Identity
+!= Record Version Identity
+!= Storage Effect
+```
+
+Storage Effect Idempotencyは次と別責務である。
+
+```text
+Storage Effect Idempotency
+!= Idempotency Repository
+!= Record Identity resolution
+!= Resident Identity resolution
+!= Human Review decision
+!= AIKO Access decision
+```
+
+新しい`storageEffectId`をv0.1で直ちに導入しない。まず既存identity、trusted context、server-side historyでduplicate-safe effectを実現できるかを優先する。
+
+### 2. 最小責務
+
+Storage Effect Idempotencyは次を担当する。
+
+- NEW Record creation effectの重複防止
+- UPDATED Version creation effectの重複防止
+- UNCHANGED時に不要なVersionを作らない
+- concurrent business effectの二重成功防止
+- idempotency completion前crash後のblind Storage retry防止
+- Human Review結果によるeffectの重複防止
+- missing / delete effectの誤発生防止
+- provenance / historyの保持
+
+Record IdentityやResident Identityそのものは決定しない。
+
+### 3. Idempotency Repositoryとの二重防御
+
+同じingestion operationのretryでは、Idempotency Repositoryが第一防御となる。
+
+```text
+same ingestion operation retry
+  -> Idempotency Repository
+```
+
+異なるingestion operationでも、同じbusiness observationであればStorage Effect側が第二防御となる。
+
+```text
+different ingestion operation
++ same business observation
+  -> Storage Effect Idempotency
+```
+
+したがって、`ingestionId`単独、`idempotencyKey`単独ではbusiness dedupを完結しない。
+
+### 4. NEW Record
+
+同じbusiness observationのretryで`recordId`を二重生成しない。
+
+既存effect解決の判断材料候補:
+
+```text
+trusted document context
++ resolved source record identity
++ compatible content identity
++ server-side history
+```
+
+これは`recordId`を決定するdeterministic formulaではなく、Server-sideで既存Record / effectを安全に解決するための判断材料である。
+
+曖昧な`recordIdentityCandidate`は自動mergeしない。
+
+- 確実に同一: 既存effect再利用候補
+- 曖昧: PENDING_REVIEW / CONFLICT候補
+- 明確に別: NEW候補
+
+### 5. UPDATED Version
+
+```text
+same resolved recordId
++ semantic content changed
+=> UPDATED / new Version候補
+```
+
+同じsemantic updateのretryで`versionId`を二重生成しない。
+
+同一Version effect判断の材料候補:
+
+```text
+same recordId
++ compatible mapping / canonicalization context
++ same contentHash
++ compatible trusted history
+```
+
+`contentHash`単独でVersionをmergeしない。`contentHash`をglobal uniqueにしない。「same business update context」の具体定義はTBDとし、曖昧な概念をunique conditionとして実装しない。
+
+### 6. UNCHANGED
+
+次を満たす場合はUNCHANGED候補とする。
+
+```text
+same resolved source record identity
++ same contentHash
++ compatible mapping / canonicalization context
++ trusted server history
+```
+
+新しい`versionId`を作らない方向とする。ただし、`contentHash`単独でRecordをmergeしない。
+
+`sourceHash`単独や`sourceUpdatedAt`単独ではVersionを作らない。
+
+### 7. applyRecordEffect
+
+Storage側のatomic / idempotent operationとして`applyRecordEffect(...)`を第一候補とする。正式method名はTBDである。
+
+概念入力候補:
+
+```javascript
+{
+    verifiedFacilityContext,
+    verifiedConnectorContext,
+    documentIdentityContext,
+    sourceRecordIdentityContext,
+    contentIdentityContext,
+    mappingVersion,
+    canonicalizationVersion,
+    ingestionProvenance,
+    residentAssociationState
+}
+```
+
+次を満たす。
+
+- client supplied facilityIdをauthorityにしない
+- client supplied recordId / versionIdをauthorityにしない
+- raw credentialを渡さない
+- raw originalを前提にしない
+- 不要なPIIを渡さない
+
+概念output候補:
+
+```javascript
+{
+    outcome,
+    recordId,
+    versionId,
+    storageState,
+    effectReference
+}
+```
+
+`outcome`候補:
+
+- CREATED_RECORD
+- CREATED_VERSION
+- UNCHANGED
+- EXISTING_EFFECT
+- PENDING_REVIEW
+- CONFLICT
+
+正式enum、field、external公開範囲はTBDとする。
+
+### 8. Atomicity
+
+`applyRecordEffect(...)`は、existing effect resolutionと必要なRecord / Version effectを競合安全に扱えるRepository能力候補である。
+
+Service側の単純な次の構成だけでatomicityを保証しない。
+
+```text
+find
+  -> not found
+  -> insert
+```
+
+同じlogical Record / Version effectが並行到着しても、確実に同一と判断できる場合は二重成功させない。Identityが曖昧な場合はauto mergeせず、CONFLICT / PENDING_REVIEWとする。
+
+具体的なlock、unique constraint、transaction、DB方式はTBDである。
+
+### 9. Storage成功後completion前crash
+
+```text
+business Storage成功
+  -> Idempotency completion保存前crash
+  -> retry
+```
+
+この場合は次を禁止する。
+
+- blind insert
+- blind Version creation
+- completion欠落だけを理由にStorageを最初から再実行
+
+retry時にStorage側が既存business effectを安全に解決し、次のような結果を返せる方向とする。
+
+- EXISTING_EFFECT
+- UNCHANGED
+- 既存Record / Version参照
+
+Idempotency Repositoryだけでこの問題を完全解決できるとは扱わない。Storage Effect Idempotency、Transaction、Recoveryの別contractを必要とする。
+
+### 10. ingestionIdとeffect
+
+`ingestionId`はStorage effectのprovenance候補である。
+
+```text
+ingestionId != recordId
+ingestionId != versionId
+```
+
+同じ`ingestionId`のretryでは既存effect発見の補助になり得る。しかし、異なる`ingestionId`でも同じbusiness observationなら二重effectを防ぐ必要がある。
+
+したがって、`ingestionId`単独をStorage business dedup keyにしない。
+
+### 11. Concurrent Business Effect
+
+Operation A/Bが同じlogical Recordを同時処理しても、両方が新しい`recordId`を作成してはいけない。
+
+同じRecordへの同じsemantic updateでも、同一Versionを二重作成してはいけない。
+
+ただしIdentityが曖昧なら自動統合せず、Review / Conflictへ送る。「確実に同一」と「曖昧」を区別する。
+
+### 12. Human Review
+
+Record Identityが曖昧な場合、Storage effectを先に確定しない第一候補とする。
+
+Reviewで「同じ記録」と確定した場合は、既存`recordId`への関連付け候補とする。新Recordや新Versionを無条件に作らない。
+
+Reviewで「新しい記録」と確定した場合は、NEW Record creation候補とする。
+
+Review actionのretryでも、二重Record / Version effectを作らない。
+
+Review訂正時は過去associationやVersionをsilent delete / overwriteしない。previous decision、current decision、actor、time、correction historyを保持する方向とする。具体schemaはTBDである。
+
+### 13. Resident Association
+
+`residentId`をRecord dedup keyにしない。
+
+```text
+Record Identity != Resident association
+```
+
+resident associationの訂正でRecord Identityを安易に作り直さない。誤associationの訂正とRecord / Version historyを分離する。
+
+### 14. Mapping / Canonicalization
+
+`mappingVersion`または`canonicalizationVersion`が異なる`contentHash`を単純比較してUNCHANGED / UPDATEDを決めない。
+
+Version compatibility、recompute、migration、reviewはTBDとする。同一Version effect判断ではcompatible version contextを必要とする。
+
+### 15. sourceHash / sourceUpdatedAt
+
+`sourceHash`はLocal original bytes observation、`contentHash`はcanonical semantic content identity候補である。
+
+```text
+different sourceHash + same contentHash
+=> semantic Storage effectはUNCHANGED候補
+
+same sourceHash + different contentHash
+=> Extractor / Mapping / Canonicalization差異または不整合候補
+```
+
+いずれも自動Version作成の単独根拠にしない。`sourceUpdatedAt`だけの変化もVersion作成理由にしない。
+
+Serverはraw originalを受け取らないため、`sourceHash`を独立再計算できない。現在のPayloadではcanonical semantic contentも十分送っていないため、`contentHash`をServerで再計算可能とは断定しない。
+
+### 16. Missing / Deletion
+
+```text
+missing != delete
+```
+
+`MISSING_CANDIDATE`はcomplete observation後だけの候補とする。
+
+次の場合はdelete / inactive effectを発生させない。
+
+- read failure
+- scan failure
+- network failure
+- TOCTOU
+- partial observation
+- mapping failure
+
+delete / inactive化を導入する場合、そのStorage effect自体にもidempotencyが必要になる可能性がある。具体的Deletion PolicyはTBDである。
+
+### 17. Transaction / Recovery
+
+比較候補:
+
+- A. Record / Version effectのtransaction coordination
+- B. Storage operation自体のidempotency
+- C. ingestion provenance / operation log
+- D. outbox / recovery
+- E. 組み合わせ
+
+v0.1では特定方式を固定しない。Storage operation自体のidempotencyを中心候補とし、必要に応じてtransaction coordination、operation log、outbox / recoveryを組み合わせる。
+
+第一候補の設計目標:
+
+```text
+at-least-once delivery
++ idempotent processing
++ duplicate-safe business effect
+```
+
+### 18. Exactly-once
+
+exactly-once deliveryは保証しない。exactly-once processingも安易に保証しない。
+
+exactly-once business effectも現時点で保証すると断定しない。重複しない副作用を目標とするには、Storage側の原子性、既存effect検出、Transaction、Recoveryが必要である。
+
+### 19. Audit / Provenance
+
+Record / Version effectには、必要に応じて次をprovenance候補として保持する。
+
+- `ingestionId`
+- `sourceDocumentKey` / `documentId` relation
+- `sourceRecordKey`
+- `contentHash` metadata
+- `mappingVersion`
+- `canonicalizationVersion`
+- observed timestamps
+
+ただしraw credential、raw absolute path、不要なPIIは保持しない。
+
+### 20. AIKO
+
+Storage成功だけでAIKO accessibleにしない。
+
+```text
+matched != stored != reviewed != AIKO accessible
+```
+
+PENDING_REVIEW / CONFLICTを通常AIKOデータへ投入しない。IdempotencyやStorage effectの結果からAIKO利用可否を決定しない。
+
+### 21. Current Implementationとの差分
+
+現在は次が未実装である。
+
+- `applyRecordEffect(...)`
+- Storage existing effect resolution
+- Record creation atomicity
+- Version creation atomicity
+- Storage operation idempotency
+- `ingestionId` provenance
+- Storage / Idempotency transaction coordination
+- outbox / recovery
+- duplicate-safe business effect
+- deletion effect idempotency
+- Human Review action idempotency
+
+現在の`ConnectorIngestionService`はTrust → Payload Validation → Resident Matchingまでを担当するが、Storage処理は行わない。現在の`ResidentRepository`もcandidate lookup専用であり、Storage Effect Repositoryとは別責務である。
+
+### 22. v0.1で確定する原則
+
+- Storage Effect Idempotencyを独立責務として扱う
+- `storageEffectId`をv0.1で直ちに追加しない
+- same business observationでRecord / Versionを二重作成しない
+- `applyRecordEffect(...)`のようなatomic / idempotent operationを第一候補とする
+- `contentHash`単独でmergeしない
+- `sourceHash`単独でVersionを作らない
+- `sourceUpdatedAt`単独でeffectを作らない
+- `residentId`をdedup keyにしない
+- Human Review待ちではStorage effectを確定しない第一候補とする
+- missingをdeleteと同一視しない
+- cross-facility effectをmergeしない
+- AIKO accessをStorage successから導出しない
+- exactly-once delivery / processingを保証しない
+- duplicate-safe business effectを設計目標とする
+
+### 23. TBD
+
+- `applyRecordEffect(...)`正式method名
+- outcome / storage state正式enum
+- effect identityの最終表現
+- Record / Version creation atomicity実装
+- Storage側idempotency mechanism
+- `recordId` / `versionId`生成方式
+- `ingestionId` provenance
+- same business update context
+- transaction境界
+- operation log / outbox / recovery
+- concurrent create / update制御
+- Mapping / Canonicalization migration
+- Human Review action idempotency
+- Review訂正effect
+- resident association correction history
+- deletion effect
+- Storage failure retry分類
+- audit event schema
+- PII / secret redaction
+- AIKO access連携
+
 ## 6. Source Record Identity
 
 sourceRecordKeyは

@@ -3,10 +3,12 @@
 class SemanticContentProcessor {
     constructor({
         semanticContentCanonicalizer,
-        semanticContentHasher
+        semanticContentHasher,
+        canonicalizationVersionAuthority
     } = {}) {
         this.semanticContentCanonicalizer = semanticContentCanonicalizer;
         this.semanticContentHasher = semanticContentHasher;
+        this.canonicalizationVersionAuthority = canonicalizationVersionAuthority;
     }
 
     process(validatedSemanticRecord) {
@@ -19,6 +21,19 @@ class SemanticContentProcessor {
             validatedSemanticRecord.semanticContent === undefined
         ) {
             return this.invalid("validated_semantic_content_missing");
+        }
+
+        let canonicalizationVersion;
+        try {
+            canonicalizationVersion = this.canonicalizationVersionAuthority.getCurrentVersion();
+        } catch {
+            return this.invalid("canonicalization_version_unavailable");
+        }
+        if (
+            typeof canonicalizationVersion !== "string" ||
+            canonicalizationVersion.trim() === ""
+        ) {
+            return this.invalid("canonicalization_version_unavailable");
         }
 
         let canonicalResult;
@@ -57,7 +72,10 @@ class SemanticContentProcessor {
                 sourceRecordContext: validatedSemanticRecord.sourceRecordContext,
                 semanticContent: validatedSemanticRecord.semanticContent,
                 provenance: validatedSemanticRecord.provenance,
-                contentHash: hashResult.contentHash
+                contentHash: hashResult.contentHash,
+                processingMetadata: {
+                    canonicalizationVersion
+                }
             }
         };
     }

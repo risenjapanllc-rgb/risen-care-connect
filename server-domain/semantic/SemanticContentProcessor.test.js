@@ -42,6 +42,12 @@ function createDependencies(overrides = {}) {
                 return { contentHash: CONTENT_HASH };
             }
         },
+        canonicalizationVersionAuthority: {
+            getCurrentVersion() {
+                calls.push({ name: "getCurrentVersion", value: [] });
+                return "risen-semantic-canonicalization-1";
+            }
+        },
         ...overrides
     };
 }
@@ -57,13 +63,16 @@ test("valid validatedSemanticRecord => processed", () => {
 
     assert.strictEqual(result.status, "processed");
     assert.strictEqual(result.processedSemanticRecord.contentHash, CONTENT_HASH);
+    assert.deepStrictEqual(result.processedSemanticRecord.processingMetadata, {
+        canonicalizationVersion: "risen-semantic-canonicalization-1"
+    });
 });
 
 test("only semanticContent is passed to the canonicalizer", () => {
     const record = createValidatedSemanticRecord();
     const { calls } = process(record);
 
-    assert.deepStrictEqual(calls[0], {
+    assert.deepStrictEqual(calls[1], {
         name: "canonicalize",
         value: record.semanticContent
     });
@@ -72,7 +81,7 @@ test("only semanticContent is passed to the canonicalizer", () => {
 test("only canonicalString is passed to the hasher", () => {
     const { calls } = process();
 
-    assert.deepStrictEqual(calls[1], { name: "hash", value: "canonical-string" });
+    assert.deepStrictEqual(calls[2], { name: "hash", value: "canonical-string" });
 });
 
 test("Hasher contentHash is the only adopted hash", () => {
@@ -123,10 +132,15 @@ test("validated envelope fields and supportContent are preserved", () => {
     assert.strictEqual(processed.canonicalString, undefined);
 });
 
-test("dependencies run once each in canonicalize then hash order", () => {
+test("dependencies run once in Authority, canonicalize, then hash order", () => {
     const { calls } = process();
 
-    assert.deepStrictEqual(calls.map((call) => call.name), ["canonicalize", "hash"]);
+    assert.deepStrictEqual(calls.map((call) => call.name), [
+        "getCurrentVersion",
+        "canonicalize",
+        "hash"
+    ]);
+    assert.deepStrictEqual(calls[0].value, []);
 });
 
 test("input is not mutated", () => {
@@ -190,4 +204,85 @@ test("malformed dependency results fail safely", () => {
         status: "invalid",
         errorCode: "semantic_hasher_result_invalid"
     });
+});
+
+test("client supplied versions are not adopted as processing metadata", () => {
+    const record = createValidatedSemanticRecord({
+        canonicalizationVersion: "evil-version",
+        processingMetadata: { canonicalizationVersion: "evil-version" },
+        provenance: {
+            ...createValidatedSemanticRecord().provenance,
+            canonicalizationVersion: "evil-version"
+        }
+    });
+    const { result } = process(record);
+
+    assert.deepStrictEqual(result.processedSemanticRecord.processingMetadata, {
+        canonicalizationVersion: "risen-semantic-canonicalization-1"
+    });
+    assert.strictEqual(
+        result.processedSemanticRecord.provenance.canonicalizationVersion,
+        "evil-version"
+    );
+});
+
+test("version remains outside semanticContent and hash input", () => {
+    const calls = [];
+    const record = createValidatedSemanticRecord();
+    const processor = new SemanticContentProcessor({
+        canonicalizationVersionAuthority: {
+            getCurrentVersion(...args) {
+                calls.push({ name: "getCurrentVersion", value: args });
+                return "risen-semantic-canonicalization-1";
+            }
+        },
+        semanticContentCanonicalizer: {
+            canonicalize(semanticContent) {
+                calls.push({ name: "canonicalize", value: semanticContent });
+                return { canonicalString: "canonical-string" };
+            }
+        },
+        semanticContentHasher: {
+            hash(canonicalString) {
+                calls.push({ name: "hash", value: canonicalString });
+                return { contentHash: CONTENT_HASH };
+            }
+        }
+    });
+    const result = processor.process(record);
+
+    assert.strictEqual(result.processedSemanticRecord.semanticContent.canonicalizationVersion, undefined);
+    assert.deepStrictEqual(calls, [
+        { name: "getCurrentVersion", value: [] },
+        { name: "canonicalize", value: record.semanticContent },
+        { name: "hash", value: "canonical-string" }
+    ]);
+});
+
+test("Authority failures fail safely before canonicalization", () => {
+    for (const authority of [
+        { getCurrentVersion() { throw new Error("internal authority detail"); } },
+        { getCurrentVersion: () => 123 },
+        { getCurrentVersion: () => "" },
+        { getCurrentVersion: () => " \n\t " }
+    ]) {
+        const calls = [];
+        const processor = new SemanticContentProcessor({
+            canonicalizationVersionAuthority: authority,
+            semanticContentCanonicalizer: {
+                canonicalize() {
+                    calls.push("canonicalize");
+                    return { canonicalString: "canonical-string" };
+                }
+            },
+            semanticContentHasher: { hash: () => ({ contentHash: CONTENT_HASH }) }
+        });
+        const result = processor.process(createValidatedSemanticRecord());
+
+        assert.deepStrictEqual(result, {
+            status: "invalid",
+            errorCode: "canonicalization_version_unavailable"
+        });
+        assert.deepStrictEqual(calls, []);
+    }
 });

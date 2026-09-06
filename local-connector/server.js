@@ -4,6 +4,7 @@ const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot')
 
 const app = express();
 const service = LocalConnectorCompositionRoot.createService();
+app.locals.localConnectorService = service;
 
 const HOST = '127.0.0.1';
 const PORT = Number(
@@ -85,6 +86,27 @@ app.get('/files', async (req, res) => {
             success: false,
             message:
                 '対象ファイル一覧の取得に失敗しました'
+        });
+    }
+});
+
+app.post("/files/:fileName/observe", async (req, res) => {
+    try {
+        const result = await service.observeRegisteredFile(
+            req.params.fileName
+        );
+
+        return res.json({
+            success: true,
+            sourceDocumentKey: result.sourceDocumentKey,
+            fileName: result.fileName,
+            observedUpdatedAt: result.lastObservedUpdatedAt,
+            observedSize: result.lastObservedSize
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "ファイルの観測に失敗しました"
         });
     }
 });

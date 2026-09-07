@@ -33,73 +33,115 @@
             </h1>
 
             <p class="hero-description">
-                施設システムとRISEN CAREを接続し、<br>
-                AIKOが検索・分析・活用できる<br>
-                標準データ基盤を構築します。
+                施設で利用しているデータを、<br>
+                それぞれの環境に合わせてRISEN CAREへ接続します。
             </p>
-
-            <button id="startButton" type="button">
-    接続を開始する
-</button>
 
         </section>
 
-        <section class="home-menu">
 
-            <h2>
-                設定メニュー
-            </h2>
+        <section class="data-source-section">
 
-            <div class="home-menu-grid">
+            <div class="data-source-heading">
+                <p class="page-step">
+                    STEP 1
+                </p>
+
+                <h2>
+                    データ接続方法を選択
+                </h2>
+
+                <p>
+                    施設で現在利用しているデータ管理方法を選択してください。
+                </p>
+            </div>
+
+
+            <div class="data-source-grid">
 
                 <a
                     href="connection.html"
-                    class="home-menu-card"
+                    class="data-source-card"
                 >
-                    <span class="home-menu-step">
-                        STEP 1
+                    <span class="data-source-card__step">
+                        DATABASE
                     </span>
 
                     <strong>
-                        データベース接続
+                        データベース
                     </strong>
 
                     <span>
-                        MySQLへの接続を確認します。
+                        MySQLなどのデータベースを利用している場合
+                    </span>
+
+                    <span class="data-source-card__action">
+                        データベースを設定 →
                     </span>
                 </a>
 
-                <a
-                    href="table-mapping.html"
-                    class="home-menu-card"
+
+                <div
+                    class="data-source-card data-source-card--disabled"
                 >
-                    <span class="home-menu-step">
-                        STEP 2
+                    <span class="data-source-card__step">
+                        API
                     </span>
 
                     <strong>
-                        テーブル分類
+                        API
                     </strong>
 
                     <span>
-                        施設側テーブルの意味を分類します。
+                        他社システムとAPIで接続する場合
+                    </span>
+
+                    <span class="data-source-card__status">
+                        準備中
+                    </span>
+                </div>
+
+
+                <a
+                    href="csv-poc.html"
+                    class="data-source-card"
+                >
+                    <span class="data-source-card__step">
+                        CSV
+                    </span>
+
+                    <strong>
+                        CSV
+                    </strong>
+
+                    <span>
+                        他社システムなどからCSVを受け取っている場合
+                    </span>
+
+                    <span class="data-source-card__action">
+                        CSVを設定 →
                     </span>
                 </a>
 
+
                 <a
-                    href="mapping.html"
-                    class="home-menu-card"
+                    href="local-connector.html"
+                    class="data-source-card"
                 >
-                    <span class="home-menu-step">
-                        STEP 3
+                    <span class="data-source-card__step">
+                        WORD / EXCEL
                     </span>
 
                     <strong>
-                        カラム分類
+                        Word / Excel
                     </strong>
 
                     <span>
-                        各カラムを標準項目へ対応付けます。
+                        施設でWordやExcelを使って管理している場合
+                    </span>
+
+                    <span class="data-source-card__action">
+                        ファイル取込を設定 →
                     </span>
                 </a>
 

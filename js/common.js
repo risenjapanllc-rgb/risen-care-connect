@@ -11,6 +11,10 @@ function getCurrentPage() {
         return "connection";
     }
 
+    if (path.endsWith("/data-source.html")) {
+        return "data-source";
+    }
+
     if (path.endsWith("/table-mapping.html")) {
         return "table-mapping";
     }
@@ -81,9 +85,9 @@ function renderNavigation() {
             pageName: "home"
         },
         {
-            href: "/connection.html",
+            href: "/data-source.html",
             label: "データ接続",
-            pageName: "connection"
+            pageName: "data-source"
         },
         {
             href: "/table-mapping.html",

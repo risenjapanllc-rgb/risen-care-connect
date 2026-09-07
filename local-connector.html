@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Word / Excel取込 | RISEN CARE Connect</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<div id="main-navigation"></div>
+
+<main class="main-container">
+
+    <section class="mapping-card">
+
+        <div class="section-header">
+            <div>
+                <span class="page-step">LOCAL CONNECTOR</span>
+                <h1>Word / Excel取込</h1>
+                <p>
+                    施設で使用しているWord・Excelファイルを確認し、
+                    RISEN CARE Connectが読み取った内容を確認します。
+                </p>
+            </div>
+        </div>
+
+        <div
+            id="localConnectorStatus"
+            class="mapping-status"
+            aria-live="polite"
+        ></div>
+
+        <section class="csv-step is-active" data-step="1">
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 1</span>
+                <h2>ファイルを選択</h2>
+            </div>
+
+            <div id="connectorFolderSummary" class="validation-card">
+                Local Connectorに接続しています...
+            </div>
+
+            <div
+                id="connectorFileList"
+                class="validation-card"
+            >
+                ファイル一覧を取得しています...
+            </div>
+
+        </section>
+
+        <section class="csv-step" data-step="2" hidden>
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 2</span>
+                <h2>読み取り結果を確認</h2>
+            </div>
+
+            <div id="analysisSummary" class="validation-card"></div>
+
+            <div id="analysisFields" class="validation-card"></div>
+
+            <div class="bottom-actions csv-step-actions">
+                <button
+                    id="analysisBackButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    ファイル一覧に戻る
+                </button>
+
+                <button
+                    id="analysisConfirmButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    この内容で確認する
+                </button>
+            </div>
+
+        </section>
+
+        <section class="csv-step" data-step="3" hidden>
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 3</span>
+                <h2>取り込み内容の確認</h2>
+            </div>
+
+            <div
+                id="importConfirmation"
+                class="validation-card"
+            ></div>
+
+            <div class="bottom-actions csv-step-actions">
+                <button
+                    id="importBackButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    読み取り結果に戻る
+                </button>
+
+                <button
+                    id="importReadyButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    取り込み準備を完了する
+                </button>
+            </div>
+
+        </section>
+
+    </section>
+
+</main>
+
+<footer class="app-footer">
+    © 2026 RISEN CARE Connect
+</footer>
+
+<script src="/js/common.js"></script>
+<script src="/js/local-connector.js"></script>
+
+</body>
+</html>

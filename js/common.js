@@ -27,6 +27,10 @@ function getCurrentPage() {
         return "csv-poc";
     }
 
+    if (path.endsWith("/local-connector.html")) {
+        return "local-connector";
+    }
+
     return "";
 }
 
@@ -100,6 +104,12 @@ function renderNavigation() {
             href: "/csv-poc.html",
             label: "CSV取込PoC",
             pageName: "csv-poc"
+        }
+,
+        {
+            href: "/local-connector.html",
+            label: "Word / Excel取込",
+            pageName: "local-connector"
         }
     ];
 

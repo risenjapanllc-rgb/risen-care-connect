@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
 
@@ -10,6 +11,13 @@ const HOST = '127.0.0.1';
 const PORT = Number(
     process.env.RISEN_LOCAL_CONNECTOR_PORT || 4310
 );
+
+app.use(cors({
+    origin: [
+        'http://localhost:3001',
+        'http://127.0.0.1:3001'
+    ]
+}));
 
 app.use(express.json({
     limit: '1mb'
@@ -107,6 +115,43 @@ app.post("/files/:fileName/observe", async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "ファイルの観測に失敗しました"
+        });
+    }
+});
+
+app.post("/files/:fileName/analyze", async (req, res) => {
+    try {
+        const fileName = req.params.fileName;
+        const extension = path.extname(fileName).toLowerCase();
+
+        let result;
+
+        if (extension === ".docx" || extension === ".doc") {
+            result =
+                await service.normalizeRegisteredWord(fileName);
+        } else if (extension === ".xlsx" || extension === ".xls") {
+            result =
+                await service.normalizeRegisteredExcel(fileName);
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "WordまたはExcelファイルのみ解析できます"
+            });
+        }
+
+        return res.json({
+            success: true,
+            fileName,
+            documentType: result.documentType,
+            documentTypeConfidence:
+                result.documentTypeConfidence,
+            source: result.source,
+            extracted: result.extracted
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "ファイルの解析に失敗しました"
         });
     }
 });

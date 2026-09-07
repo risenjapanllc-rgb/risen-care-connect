@@ -82,34 +82,18 @@ function renderNavigation() {
         },
         {
             href: "/connection.html",
-            label: "接続",
+            label: "データ接続",
             pageName: "connection"
         },
         {
             href: "/table-mapping.html",
-            label: "テーブル分類",
+            label: "データ設定",
             pageName: "table-mapping"
         },
         {
-            href: "/mapping.html",
-            label: "カラム分類",
-            pageName: "mapping"
-        },
-        {
             href: "/validation.html",
-            label: "検証結果",
+            label: "検証",
             pageName: "validation"
-        },
-        {
-            href: "/csv-poc.html",
-            label: "CSV取込PoC",
-            pageName: "csv-poc"
-        }
-,
-        {
-            href: "/local-connector.html",
-            label: "Word / Excel取込",
-            pageName: "local-connector"
         }
     ];
 

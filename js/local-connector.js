@@ -104,6 +104,8 @@ async function loadFiles() {
     }
 }
 
+let selectedFilePath = "";
+
 function renderFiles(files) {
     const supportedFiles =
         files.filter(file =>
@@ -119,52 +121,167 @@ function renderFiles(files) {
         return;
     }
 
-    fileList.innerHTML = supportedFiles.map(file => `
-        <div class="card" style="margin-bottom: 16px;">
-            <strong>${escapeHtml(file.fileName)}</strong>
+    fileList.innerHTML = `
+        <div class="local-file-selection">
+            ${supportedFiles.map(file => {
+                const changeType =
+                    file.changeType || "";
 
-            <p>
-                ${escapeHtml(file.extension)}
-                /
-                ${formatSize(file.size)}
-            </p>
+                const changeLabel =
+                    changeType === "new"
+                        ? "🆕 新規"
+                        : changeType === "updated"
+                            ? "🔄 更新"
+                            : changeType === "unchanged"
+                                ? "変更なし"
+                                : "";
 
-            <p class="form-help">
-                更新：
-                ${escapeHtml(file.updatedAt || "")}
+                const changeClass =
+                    changeType
+                        ? ` local-file-option--${changeType}`
+                        : "";
+
+                return `
+                    <button
+                        type="button"
+                        class="local-file-option${changeClass}"
+                        data-select-file="${escapeHtml(file.relativePath || file.fileName)}"
+                    >
+                        <span class="local-file-option__body">
+                            <strong>
+                                ${escapeHtml(file.fileName)}
+                            </strong>
+
+                            <span class="form-help">
+                                場所：
+                                ${escapeHtml(file.relativePath || file.fileName)}
+                            </span>
+
+                            <span>
+                                ${escapeHtml(file.extension)}
+                                /
+                                ${formatSize(file.size)}
+                            </span>
+
+                            <span class="form-help">
+                                更新：
+                                ${escapeHtml(file.updatedAt || "")}
+                            </span>
+
+                            ${
+                                changeLabel
+                                    ? `<span class="local-file-option__change ${changeClass.trim()}">${changeLabel}</span>`
+                                    : ""
+                            }
+                        </span>
+
+                        <span class="local-file-option__check">
+                            選択
+                        </span>
+                    </button>
+                `;
+            }).join("")}
+        </div>
+
+        <div class="local-file-selection__footer">
+            <p id="selectedFileMessage">
+                ファイルを選択してください。
             </p>
 
             <button
+                id="analyzeSelectedFileButton"
+                class="primary-button"
                 type="button"
-                data-analyze-file="${escapeHtml(file.fileName)}"
+                disabled
             >
-                解析する
+                このファイルを読み取る
             </button>
         </div>
-    `).join("");
+    `;
 
     fileList
-        .querySelectorAll("[data-analyze-file]")
+        .querySelectorAll("[data-select-file]")
         .forEach(button => {
             button.addEventListener(
                 "click",
-                () => analyzeFile(
-                    button.dataset.analyzeFile
+                () => selectFile(
+                    button.dataset.selectFile
                 )
             );
         });
+
+    document
+        .getElementById("analyzeSelectedFileButton")
+        ?.addEventListener(
+            "click",
+            () => {
+                if (selectedFilePath) {
+                    analyzeFile(selectedFilePath);
+                }
+            }
+        );
 }
 
-async function analyzeFile(fileName) {
+function selectFile(filePath) {
+    selectedFilePath = filePath;
+
+    fileList
+        .querySelectorAll("[data-select-file]")
+        .forEach(button => {
+            const isSelected =
+                button.dataset.selectFile === filePath;
+
+            button.classList.toggle(
+                "is-selected",
+                isSelected
+            );
+
+            button.setAttribute(
+                "aria-pressed",
+                String(isSelected)
+            );
+
+            const check =
+                button.querySelector(
+                    ".local-file-option__check"
+                );
+
+            if (check) {
+                check.textContent =
+                    isSelected
+                        ? "選択中"
+                        : "選択";
+            }
+        });
+
+    const message =
+        document.getElementById("selectedFileMessage");
+
+    if (message) {
+        message.textContent =
+            `選択中：${filePath}`;
+    }
+
+    const analyzeButton =
+        document.getElementById(
+            "analyzeSelectedFileButton"
+        );
+
+    if (analyzeButton) {
+        analyzeButton.disabled = false;
+    }
+}
+
+async function analyzeFile(filePath) {
     try {
         setStatus("ファイルを解析しています...");
 
-        const encodedFileName =
-            encodeURIComponent(fileName);
+        const encodedFilePath =
+            encodeURIComponent(filePath);
 
         const response =
             await fetch(
-                `${LOCAL_CONNECTOR_BASE}/files/${encodedFileName}/analyze`,
+                `${LOCAL_CONNECTOR_BASE}/files/${encodedFilePath}/analyze`,
                 {
                     method: "POST"
                 }

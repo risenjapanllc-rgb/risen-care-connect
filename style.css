@@ -1907,3 +1907,156 @@ a.data-source-card:hover {
         min-height: 180px;
     }
 }
+/* ==========================================
+   Local Connector - File Selection
+========================================== */
+
+.local-file-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.local-file-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+
+    padding: 18px 22px;
+
+    background: #ffffff;
+    color: #1f2d3d;
+
+    border: 1px solid #dce3ee;
+    border-radius: 10px;
+
+    text-align: left;
+    font-size: 16px;
+
+    cursor: pointer;
+    transition:
+        background-color .15s ease,
+        border-color .15s ease,
+        box-shadow .15s ease;
+}
+
+.local-file-option:hover {
+    background: #f7faff;
+    border-color: #8eace0;
+    box-shadow: 0 2px 8px rgba(31, 78, 168, .08);
+}
+
+.local-file-option.is-selected {
+    background: #eef4ff;
+    border: 2px solid #3366ff;
+    padding: 17px 21px;
+}
+
+.local-file-option__body {
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.local-file-option__body strong {
+    font-size: 18px;
+    color: #1f2d3d;
+}
+
+.local-file-option__body > span {
+    color: #66758d;
+    font-size: 14px;
+}
+
+.local-file-option__body .form-help {
+    margin: 0;
+    color: #8995a8;
+    font-size: 13px;
+}
+
+.local-file-option__check {
+    flex: 0 0 auto;
+
+    color: #3366cc;
+    font-size: 15px;
+    font-weight: bold;
+
+    white-space: nowrap;
+}
+
+.local-file-option.is-selected .local-file-option__check {
+    color: #1f4ea8;
+}
+
+.local-file-selection__footer {
+    margin-top: 22px;
+    padding: 20px 0 4px;
+
+    border-top: 1px solid #e1e7f0;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.local-file-selection__footer p {
+    color: #66758d;
+    font-size: 16px;
+}
+
+.local-file-selection__footer .primary-button {
+    flex: 0 0 auto;
+}
+
+.local-file-selection__footer .primary-button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+    .local-file-option {
+        align-items: flex-start;
+    }
+
+    .local-file-selection__footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .local-file-selection__footer .primary-button {
+        width: 100%;
+    }
+}
+
+.local-file-option__change {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+
+    padding: 3px 9px;
+
+    border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.local-file-option__change.local-file-option--new {
+    color: #246b45;
+    background: #eaf7ef;
+}
+
+.local-file-option__change.local-file-option--updated {
+    color: #8a5a00;
+    background: #fff4d6;
+}
+
+.local-file-option__change.local-file-option--unchanged {
+    color: #6f7b8d;
+    background: #f1f3f6;
+}

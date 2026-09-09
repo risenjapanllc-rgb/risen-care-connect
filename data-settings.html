@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>データ設定 | RISEN CARE Connect</title>
+
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
+</head>
+
+<body>
+
+    <div id="main-navigation"></div>
+
+    <main class="container">
+
+        <section class="data-source-page">
+
+            <div class="data-source-heading">
+
+                <span class="page-step">
+                    STEP 2
+                </span>
+
+                <h1>
+                    データ設定
+                </h1>
+
+                <p>
+                    接続したデータをRISEN CAREの標準項目に対応付けます。
+                </p>
+
+            </div>
+
+            <div class="data-source-grid">
+
+                <a
+                    href="/table-mapping.html"
+                    class="data-source-card"
+                >
+                    <span class="data-source-card__type">
+                        DATABASE
+                    </span>
+
+                    <strong>
+                        データベース
+                    </strong>
+
+                    <span>
+                        MySQLなどのデータベースを利用している場合
+                    </span>
+
+                    <span class="data-source-card__action">
+                        テーブル・カラムを設定 →
+                    </span>
+                </a>
+
+
+                <div
+                    class="data-source-card data-source-card--disabled"
+                    aria-disabled="true"
+                >
+                    <span class="data-source-card__type">
+                        API
+                    </span>
+
+                    <strong>
+                        API
+                    </strong>
+
+                    <span>
+                        APIから取得するデータの対応付け
+                    </span>
+
+                    <span class="data-source-card__status">
+                        準備中
+                    </span>
+                </div>
+
+
+                <a
+                    href="/csv-poc.html"
+                    class="data-source-card"
+                >
+                    <span class="data-source-card__type">
+                        CSV
+                    </span>
+
+                    <strong>
+                        CSV
+                    </strong>
+
+                    <span>
+                        CSVから取得したデータの項目を設定
+                    </span>
+
+                    <span class="data-source-card__action">
+                        CSVの設定 →
+                    </span>
+                </a>
+
+
+                <a
+                    href="/local-connector.html"
+                    class="data-source-card"
+                >
+                    <span class="data-source-card__type">
+                        WORD / EXCEL
+                    </span>
+
+                    <strong>
+                        Word / Excel
+                    </strong>
+
+                    <span>
+                        読み取ったファイルの内容を確認・設定
+                    </span>
+
+                    <span class="data-source-card__action">
+                        ファイル設定 →
+                    </span>
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="app-footer">
+        © 2026 RISEN CARE Connect
+    </footer>
+
+    <script src="/js/common.js"></script>
+
+</body>
+</html>

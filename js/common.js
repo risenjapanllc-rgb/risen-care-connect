@@ -15,6 +15,10 @@ function getCurrentPage() {
         return "data-source";
     }
 
+    if (path.endsWith("/data-settings.html")) {
+        return "data-settings";
+    }
+
     if (path.endsWith("/table-mapping.html")) {
         return "table-mapping";
     }
@@ -90,9 +94,9 @@ function renderNavigation() {
             pageName: "data-source"
         },
         {
-            href: "/table-mapping.html",
+            href: "/data-settings.html",
             label: "データ設定",
-            pageName: "table-mapping"
+            pageName: "data-settings"
         },
         {
             href: "/validation.html",

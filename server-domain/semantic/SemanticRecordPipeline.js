@@ -152,6 +152,17 @@ class SemanticRecordPipeline {
             };
         }
 
+        if (
+            identityResolution.status ===
+            "invalid"
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "semantic_identity_resolution_invalid"
+            };
+        }
+
         return {
             status:
                 identityResolution.status,

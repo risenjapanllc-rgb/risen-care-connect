@@ -544,3 +544,95 @@ test("unknown identity resolution status fails closed", () => {
         }
     );
 });
+
+test("invalid identity resolution returns minimal failure without semantic record", () => {
+    const pipeline =
+        new SemanticRecordPipeline({
+            semanticRecordValidator: {
+                validate(record) {
+                    return {
+                        status: "valid",
+                        validatedSemanticRecord:
+                            record
+                    };
+                }
+            },
+            semanticContentProcessor: {
+                process(record) {
+                    return {
+                        status: "processed",
+                        processedSemanticRecord: {
+                            ...record,
+                            contentHash:
+                                "a".repeat(64)
+                        }
+                    };
+                }
+            },
+            recordIdentityResolver: {
+                resolve() {
+                    return {
+                        status: "invalid"
+                    };
+                }
+            }
+        });
+
+    const result =
+        pipeline.process({
+            verifiedContext: {
+                connectorId:
+                    "connector-1",
+                facilityId:
+                    "facility-1"
+            },
+            semanticRecord: {
+                semanticContent: {
+                    semanticType:
+                        "support_record",
+                    fields: {
+                        supportContent:
+                            "sensitive semantic content"
+                    },
+                    customFields: {}
+                },
+                provenance: {
+                    sourceDocumentKey:
+                        "document-key-1"
+                }
+            }
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "invalid",
+            errorCode:
+                "semantic_identity_resolution_invalid"
+        }
+    );
+
+    assert.strictEqual(
+        Object.hasOwn(
+            result,
+            "processedSemanticRecord"
+        ),
+        false
+    );
+
+    assert.strictEqual(
+        Object.hasOwn(
+            result,
+            "identityResolution"
+        ),
+        false
+    );
+
+    assert.strictEqual(
+        JSON.stringify(result)
+            .includes(
+                "sensitive semantic content"
+            ),
+        false
+    );
+});

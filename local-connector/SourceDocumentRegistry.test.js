@@ -35,7 +35,11 @@ function createRegistry({
     const registryStore = {
         async getOrCreate(observation, createNewEntry) {
             calls.push({ observation, createNewEntry });
-            return createNewEntry();
+
+            return {
+                ...(await createNewEntry()),
+                changeType: "new"
+            };
         },
         ...storeOverrides
     };
@@ -293,4 +297,84 @@ test("input is not mutated and sourceRecordKey is not generated", async () => {
 
     assert.strictEqual(JSON.stringify(observation), before);
     assert.strictEqual(entry.sourceRecordKey, undefined);
+});
+
+test("new observation returns changeType new", async () => {
+    const observation = createObservation();
+
+    const registryStore = {
+        async getOrCreate(observationValue, createNewEntry) {
+            return {
+                ...(await createNewEntry()),
+                changeType: "new"
+            };
+        }
+    };
+
+    const { registry } = createRegistry({
+        storeOverrides: registryStore
+    });
+
+    const entry = await registry.observe(observation);
+
+    assert.strictEqual(entry.changeType, "new");
+});
+
+test("unchanged observation returns changeType unchanged", async () => {
+    const observation = createObservation();
+
+    const registryStore = {
+        async getOrCreate() {
+            return {
+                sourceDocumentKey: "opaque-document-key-1",
+                relativePath: observation.relativePath,
+                relativePathLookupKey: observation.relativePath,
+                fileName: observation.fileName,
+                firstSeenAt: "2026-09-05T09:00:00Z",
+                lastSeenAt: "2026-09-05T09:30:00Z",
+                lastObservedUpdatedAt: observation.updatedAt,
+                lastObservedSize: observation.size,
+                changeType: "unchanged"
+            };
+        }
+    };
+
+    const { registry } = createRegistry({
+        storeOverrides: registryStore
+    });
+
+    const entry = await registry.observe(observation);
+
+    assert.strictEqual(entry.changeType, "unchanged");
+});
+
+test("updated observation returns changeType updated", async () => {
+    const observation = createObservation({
+        updatedAt: "2026-09-05T11:00:00Z",
+        size: 456
+    });
+
+    const registryStore = {
+        async getOrCreate() {
+            return {
+                sourceDocumentKey: "opaque-document-key-1",
+                relativePath: observation.relativePath,
+                relativePathLookupKey: observation.relativePath,
+                fileName: observation.fileName,
+                firstSeenAt: "2026-09-05T09:00:00Z",
+                lastSeenAt: "2026-09-05T09:30:00Z",
+                lastObservedUpdatedAt: observation.updatedAt,
+                lastObservedSize: observation.size,
+                changeType: "updated"
+            };
+        }
+    };
+
+    const { registry } = createRegistry({
+        storeOverrides: registryStore
+    });
+
+    const entry = await registry.observe(observation);
+
+    assert.strictEqual(entry.changeType, "updated");
 });

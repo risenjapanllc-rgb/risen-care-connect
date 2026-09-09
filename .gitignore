@@ -6,3 +6,6 @@ node_modules
 
 # RISEN CARE Local Connector local settings
 local-connector/.local-connector-config.json
+
+# Local development backup files
+*.before-*

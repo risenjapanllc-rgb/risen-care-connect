@@ -40,7 +40,10 @@ class SqliteSourceDocumentRegistryStore {
 
         try {
             this.insertEntry(candidate);
-            return candidate;
+            return {
+                ...candidate,
+                changeType: "new"
+            };
         } catch (error) {
             const winner = this.findByLookupKey(
                 observation.relativePathLookupKey
@@ -97,6 +100,12 @@ class SqliteSourceDocumentRegistryStore {
     }
 
     updateExisting(existing, observation) {
+        const changed =
+            existing.lastObservedUpdatedAt !==
+                observation.updatedAt ||
+            existing.lastObservedSize !==
+                observation.size;
+
         this.database.prepare(`
             UPDATE source_documents
             SET
@@ -121,7 +130,10 @@ class SqliteSourceDocumentRegistryStore {
             fileName: observation.fileName,
             lastSeenAt: observation.observedAt,
             lastObservedUpdatedAt: observation.updatedAt,
-            lastObservedSize: observation.size
+            lastObservedSize: observation.size,
+            changeType: changed
+                ? "updated"
+                : "unchanged"
         };
     }
 

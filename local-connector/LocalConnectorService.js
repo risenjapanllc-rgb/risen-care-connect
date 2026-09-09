@@ -6,6 +6,8 @@ const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
 const DocumentNormalizer = require('./DocumentNormalizer');
 const DocumentSemanticExtractor = require('./DocumentSemanticExtractor');
+const SourceMeaningInterpreter = require('./SourceMeaningInterpreter');
+const SourceFieldExtractor = require('./SourceFieldExtractor');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -37,9 +39,21 @@ class LocalConnectorService {
             options.documentSemanticExtractor ||
             new DocumentSemanticExtractor();
 
+        this.sourceMeaningInterpreter =
+            options.sourceMeaningInterpreter ||
+            new SourceMeaningInterpreter();
+
+        this.sourceFieldExtractor =
+            options.sourceFieldExtractor ||
+            new SourceFieldExtractor();
+
         this.sourceDocumentRegistry =
             options.sourceDocumentRegistry ||
             null;
+    }
+
+    async getConnectorId() {
+        return this.config.getConnectorId();
     }
 
     async getRegisteredFolderStatus() {
@@ -91,23 +105,26 @@ class LocalConnectorService {
         }
     }
 
-    async _resolveRegisteredFileDetails(fileName) {
+    async _resolveRegisteredFileDetails(relativePath) {
         if (
-            typeof fileName !== 'string' ||
-            fileName.trim() === ''
+            typeof relativePath !== 'string' ||
+            relativePath.trim() === ''
         ) {
             throw new Error(
-                'ファイル名が指定されていません'
+                'ファイルの相対パスが指定されていません'
             );
         }
 
+        const normalizedPath =
+            relativePath.replaceAll('\\', '/');
+
         if (
-            fileName.includes('/') ||
-            fileName.includes('\\') ||
-            path.isAbsolute(fileName)
+            path.isAbsolute(relativePath) ||
+            normalizedPath.split('/').includes('..') ||
+            normalizedPath.startsWith('/')
         ) {
             throw new Error(
-                'フォルダを含むファイル名は指定できません'
+                '登録フォルダ外のファイルは指定できません'
             );
         }
 
@@ -128,7 +145,9 @@ class LocalConnectorService {
         const matchedFile =
             scanResult.files.find(
                 file =>
-                    file.fileName === fileName
+                    file.relativePath
+                        .replaceAll('\\', '/') ===
+                    normalizedPath
             );
 
         if (!matchedFile) {
@@ -140,7 +159,7 @@ class LocalConnectorService {
         const filePath =
             path.resolve(
                 allowedFolder,
-                matchedFile.fileName
+                matchedFile.relativePath
             );
 
         const allowedRoot =
@@ -148,9 +167,8 @@ class LocalConnectorService {
             path.sep;
 
         if (
-            !filePath.startsWith(
-                allowedRoot
-            )
+            filePath !== path.resolve(allowedFolder) &&
+            !filePath.startsWith(allowedRoot)
         ) {
             throw new Error(
                 '登録フォルダ外のファイルは参照できません'
@@ -161,6 +179,8 @@ class LocalConnectorService {
             filePath,
             fileName:
                 matchedFile.fileName,
+            relativePath:
+                matchedFile.relativePath,
             extension:
                 matchedFile.extension,
             size:
@@ -178,7 +198,7 @@ class LocalConnectorService {
         const details = await this._resolveRegisteredFileDetails(fileName);
 
         return await this.sourceDocumentRegistry.observe({
-            relativePath: details.fileName,
+            relativePath: details.relativePath,
             fileName: details.fileName,
             updatedAt: details.updatedAt,
             size: details.size
@@ -384,9 +404,27 @@ class LocalConnectorService {
                 standardDocument
             );
 
+        const sourceFields =
+            this.sourceFieldExtractor.extractExcelRows(
+                standardDocument.content
+            );
+
+        const interpretedSourceFields =
+            sourceFields.map(record => ({
+                ...record,
+                meanings:
+                    this.sourceMeaningInterpreter.interpret(
+                        record.fields
+                    ).meanings
+            }));
+
         return {
             ...standardDocument,
-            extracted
+            extracted: {
+                ...extracted,
+                sourceFields:
+                    interpretedSourceFields
+            }
         };
     }
 
@@ -453,6 +491,8 @@ class LocalConnectorService {
         let wordCount = 0;
         let excelCount = 0;
 
+        const files = [];
+
         for (const file of scanResult.files) {
             if (file.extension === '.docx') {
                 wordCount += 1;
@@ -464,6 +504,30 @@ class LocalConnectorService {
             ) {
                 excelCount += 1;
             }
+
+            let changeType = null;
+
+            if (this.sourceDocumentRegistry) {
+                const observed =
+                    await this.sourceDocumentRegistry.observe({
+                        relativePath:
+                            file.relativePath,
+                        fileName:
+                            file.fileName,
+                        updatedAt:
+                            file.updatedAt,
+                        size:
+                            file.size
+                    });
+
+                changeType =
+                    observed.changeType;
+            }
+
+            files.push({
+                ...file,
+                changeType
+            });
         }
 
         return {
@@ -476,8 +540,7 @@ class LocalConnectorService {
             excelCount,
             checkedAt:
                 new Date().toISOString(),
-            files:
-                scanResult.files
+            files
         };
     }
 }

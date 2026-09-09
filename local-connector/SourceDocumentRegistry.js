@@ -47,7 +47,36 @@ class SourceDocumentRegistry {
             )
         );
 
-        return this.toRegistryEntry(entry, relativePathLookupKey);
+        const registryEntry =
+            this.toRegistryEntry(
+                entry,
+                relativePathLookupKey
+            );
+
+        const changeType =
+            entry.changeType || "new";
+
+        if (
+            !["new", "updated", "unchanged"]
+                .includes(changeType)
+        ) {
+            throw new Error(
+                "registryStore returned an invalid changeType"
+            );
+        }
+
+        Object.defineProperty(
+            registryEntry,
+            "changeType",
+            {
+                value: changeType,
+                enumerable: false,
+                writable: false,
+                configurable: false
+            }
+        );
+
+        return registryEntry;
     }
 
     async createEntry(observation, relativePathLookupKey, observedAt) {

@@ -47,58 +47,76 @@ class LocalFolderScanner {
             );
         }
 
-        const entries =
-            await fs.readdir(
-                rootPath,
-                {
-                    withFileTypes: true
-                }
-            );
-
         const files = [];
 
-        for (const entry of entries) {
-            if (!entry.isFile()) {
-                continue;
-            }
-
-            if (
-                entry.name.startsWith('.') ||
-                entry.name.startsWith('~$')
-            ) {
-                continue;
-            }
-
-            const extension =
-                path.extname(entry.name)
-                    .toLowerCase();
-
-            if (
-                !this.allowedExtensions.has(
-                    extension
-                )
-            ) {
-                continue;
-            }
-
-            const filePath =
-                path.join(
-                    rootPath,
-                    entry.name
+        const walk = async (currentPath, relativeDirectory = '') => {
+            const entries =
+                await fs.readdir(
+                    currentPath,
+                    {
+                        withFileTypes: true
+                    }
                 );
 
-            const stats =
-                await fs.stat(filePath);
+            for (const entry of entries) {
+                if (
+                    entry.name.startsWith('.') ||
+                    entry.name.startsWith('~$')
+                ) {
+                    continue;
+                }
 
-            files.push({
-                fileName: entry.name,
-                extension,
-                relativePath: entry.name,
-                size: stats.size,
-                updatedAt:
-                    stats.mtime.toISOString()
-            });
-        }
+                const entryPath =
+                    path.join(
+                        currentPath,
+                        entry.name
+                    );
+
+                const relativePath =
+                    path.join(
+                        relativeDirectory,
+                        entry.name
+                    );
+
+                if (entry.isDirectory()) {
+                    await walk(
+                        entryPath,
+                        relativePath
+                    );
+                    continue;
+                }
+
+                if (!entry.isFile()) {
+                    continue;
+                }
+
+                const extension =
+                    path.extname(entry.name)
+                        .toLowerCase();
+
+                if (
+                    !this.allowedExtensions.has(
+                        extension
+                    )
+                ) {
+                    continue;
+                }
+
+                const stats =
+                    await fs.stat(entryPath);
+
+                files.push({
+                    fileName: entry.name,
+                    extension,
+                    relativePath,
+                    size: stats.size,
+                    updatedAt:
+                        stats.mtime.toISOString()
+                });
+            }
+        };
+
+        await walk(rootPath);
 
         files.sort((a, b) =>
             a.fileName.localeCompare(

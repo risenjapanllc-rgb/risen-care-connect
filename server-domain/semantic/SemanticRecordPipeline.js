@@ -45,10 +45,15 @@ class SemanticRecordPipeline {
         verifiedContext,
         semanticRecord
     } = {}) {
-        const validationResult =
-            this.semanticRecordValidator.validate(
-                semanticRecord
-            );
+        let validationResult;
+        try {
+            validationResult =
+                this.semanticRecordValidator.validate(
+                    semanticRecord
+                );
+        } catch {
+            return this.unavailable();
+        }
 
         if (
             !validationResult ||
@@ -62,11 +67,16 @@ class SemanticRecordPipeline {
             };
         }
 
-        const processingResult =
-            this.semanticContentProcessor.process(
-                validationResult
-                    .validatedSemanticRecord
-            );
+        let processingResult;
+        try {
+            processingResult =
+                this.semanticContentProcessor.process(
+                    validationResult
+                        .validatedSemanticRecord
+                );
+        } catch {
+            return this.unavailable();
+        }
 
         if (
             !processingResult ||
@@ -108,17 +118,53 @@ class SemanticRecordPipeline {
                 sourceRecordKey;
         }
 
-        const identityResolution =
-            this.recordIdentityResolver.resolve(
-                identityContext
-            );
+        let identityResolution;
+        try {
+            identityResolution =
+                this.recordIdentityResolver.resolve(
+                    identityContext
+                );
+        } catch {
+            return this.unavailable();
+        }
+
+        const allowedIdentityStatuses =
+            new Set([
+                "pending_review",
+                "new_candidate",
+                "conflict",
+                "resolved",
+                "invalid"
+            ]);
+
+        if (
+            !identityResolution ||
+            Array.isArray(identityResolution) ||
+            typeof identityResolution !== "object" ||
+            !allowedIdentityStatuses.has(
+                identityResolution.status
+            )
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "semantic_identity_resolution_invalid"
+            };
+        }
 
         return {
             status:
-                identityResolution?.status ||
-                "invalid",
+                identityResolution.status,
             processedSemanticRecord,
             identityResolution
+        };
+    }
+
+    unavailable() {
+        return {
+            status: "invalid",
+            errorCode:
+                "semantic_pipeline_unavailable"
         };
     }
 }

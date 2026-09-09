@@ -21,6 +21,10 @@ const ServerTrustBoundaryHttpClient =
     require("./ServerTrustBoundaryHttpClient");
 const LocalConnectorIngestionService =
     require("./LocalConnectorIngestionService");
+const SemanticRecordBuilder =
+    require("./SemanticRecordBuilder");
+const LocalSemanticRecordPreparationService =
+    require("./LocalSemanticRecordPreparationService");
 
 function createService({
     databasePath,
@@ -57,6 +61,25 @@ function createService({
     return new LocalConnectorService({
         config,
         sourceDocumentRegistry
+    });
+}
+
+function createSemanticPreparationService({
+    databasePath,
+    configPath
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const semanticRecordBuilder =
+        new SemanticRecordBuilder();
+
+    return new LocalSemanticRecordPreparationService({
+        localConnectorService,
+        semanticRecordBuilder
     });
 }
 
@@ -102,5 +125,6 @@ async function createIngestionService({
 
 module.exports = {
     createService,
+    createSemanticPreparationService,
     createIngestionService
 };

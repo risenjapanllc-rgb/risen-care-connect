@@ -189,3 +189,69 @@ test("ingestion composition does not require facilityId", async () => {
         );
     }
 });
+
+test("creates semantic preparation service with persistent source document registry", () => {
+    const tempDir =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "risen-semantic-preparation-root-"
+            )
+        );
+
+    const databasePath =
+        path.join(
+            tempDir,
+            "registry.sqlite"
+        );
+
+    const configPath =
+        path.join(
+            tempDir,
+            ".local-connector-config.json"
+        );
+
+    fs.writeFileSync(
+        configPath,
+        JSON.stringify(
+            {
+                connectorId:
+                    "11111111-2222-4333-8444-555555555555"
+            },
+            null,
+            2
+        )
+    );
+
+    try {
+        const service =
+            LocalConnectorCompositionRoot
+                .createSemanticPreparationService({
+                    databasePath,
+                    configPath
+                });
+
+        assert.strictEqual(
+            typeof service.prepareRegisteredFile,
+            "function"
+        );
+
+        assert.ok(
+            service.localConnectorService
+                .sourceDocumentRegistry
+        );
+
+        assert.strictEqual(
+            typeof service.semanticRecordBuilder.build,
+            "function"
+        );
+    } finally {
+        fs.rmSync(
+            tempDir,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});

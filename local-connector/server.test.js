@@ -966,3 +966,14 @@ test("POST /files/:fileName/ingest fails closed on unknown result status", async
         );
     }
 });
+
+test('does not expose X-Powered-By header', async () => {
+    const response = await fetch(
+        'http://127.0.0.1:4310/health'
+    );
+
+    assert.equal(
+        response.headers.get('x-powered-by'),
+        null
+    );
+});

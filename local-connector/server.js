@@ -4,6 +4,7 @@ const path = require('path');
 const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
 
 const app = express();
+app.disable('x-powered-by');
 const service = LocalConnectorCompositionRoot.createService();
 app.locals.localConnectorService = service;
 

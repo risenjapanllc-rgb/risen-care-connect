@@ -7,6 +7,40 @@ const app = express();
 const service = LocalConnectorCompositionRoot.createService();
 app.locals.localConnectorService = service;
 
+let localConnectorIngestionServicePromise = null;
+
+app.locals.getLocalConnectorIngestionService =
+    async () => {
+        if (!localConnectorIngestionServicePromise) {
+            localConnectorIngestionServicePromise =
+                LocalConnectorCompositionRoot
+                    .createIngestionService({
+                        endpoint:
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            'RISEN-Connector',
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            'x-risen-connector-id'
+                    })
+                    .catch(error => {
+                        localConnectorIngestionServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await localConnectorIngestionServicePromise;
+    };
+
 const HOST = '127.0.0.1';
 const PORT = Number(
     process.env.RISEN_LOCAL_CONNECTOR_PORT || 4310
@@ -27,6 +61,29 @@ app.get('/', (req, res) => {
     return res.sendFile(
         path.join(__dirname, 'index.html')
     );
+});
+
+app.get('/identity', async (req, res) => {
+    try {
+        const connectorId =
+            await service.getConnectorId();
+
+        return res.json({
+            success: true,
+            connectorId
+        });
+    } catch (error) {
+        console.error(
+            'Local Connector ID取得エラー:',
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                'Local Connector IDの取得に失敗しました'
+        });
+    }
 });
 
 app.get('/health', (req, res) => {
@@ -82,6 +139,7 @@ app.get('/files', async (req, res) => {
             folderName: result.folderName,
             fileCount: result.fileCount,
             files: result.files.map(file => ({
+                relativePath: file.relativePath,
                 fileName: file.fileName,
                 extension: file.extension,
                 size: file.size,
@@ -152,6 +210,82 @@ app.post("/files/:fileName/analyze", async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "ファイルの解析に失敗しました"
+        });
+    }
+});
+
+app.post("/files/:fileName/ingest", async (req, res) => {
+    try {
+        const ingestionService =
+            await app.locals
+                .getLocalConnectorIngestionService();
+
+        const result =
+            await ingestionService
+                .ingestRegisteredFile(
+                    req.params.fileName
+                );
+
+        if (
+            result?.status === "matched" ||
+            result?.status === "needs_review" ||
+            result?.status === "unmatched"
+        ) {
+            return res.status(200).json({
+                success: true,
+                requestId:
+                    result.requestId,
+                status:
+                    result.status
+            });
+        }
+
+        if (result?.status === "denied") {
+            return res.status(401).json({
+                success: false,
+                requestId:
+                    result.requestId,
+                status:
+                    "denied",
+                errorCode:
+                    "connector_trust_denied"
+            });
+        }
+
+        if (result?.status === "invalid") {
+            return res.status(422).json({
+                success: false,
+                requestId:
+                    result.requestId,
+                status:
+                    "invalid",
+                errorCode:
+                    "connector_payload_invalid"
+            });
+        }
+
+        if (result?.status === "error") {
+            return res.status(503).json({
+                success: false,
+                requestId:
+                    result.requestId,
+                status:
+                    "error",
+                errorCode:
+                    "connector_processing_unavailable"
+            });
+        }
+
+        return res.status(503).json({
+            success: false,
+            message:
+                "Server Trust Boundaryから不正な応答を受信しました"
+        });
+    } catch (error) {
+        return res.status(503).json({
+            success: false,
+            message:
+                "Server Trust Boundaryへの送信に失敗しました"
         });
     }
 });

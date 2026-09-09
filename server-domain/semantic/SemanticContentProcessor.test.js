@@ -286,3 +286,70 @@ test("Authority failures fail safely before canonicalization", () => {
         assert.deepStrictEqual(calls, []);
     }
 });
+
+test("sourceDocumentKey is preserved through semantic processing", () => {
+    const processor =
+        new SemanticContentProcessor({
+            semanticContentCanonicalizer: {
+                canonicalize() {
+                    return {
+                        canonicalString:
+                            '{"semanticType":"support_record","fields":{"supportContent":"支援内容"},"customFields":{}}'
+                    };
+                }
+            },
+            semanticContentHasher: {
+                hash() {
+                    return {
+                        contentHash:
+                            "a".repeat(64)
+                    };
+                }
+            },
+            canonicalizationVersionAuthority: {
+                getCurrentVersion() {
+                    return "risen-semantic-canonicalization-1";
+                }
+            }
+        });
+
+    const result =
+        processor.process({
+            sourceRecordContext: {
+                sourceResidentIdentifier:
+                    "RES-001"
+            },
+            semanticContent: {
+                semanticType:
+                    "support_record",
+                fields: {
+                    supportContent:
+                        "支援内容"
+                },
+                customFields: {}
+            },
+            provenance: {
+                sourceDocumentKey:
+                    "opaque-document-key-001",
+                documentType:
+                    "support_record",
+                sourceType:
+                    "excel",
+                fileName:
+                    "support.xlsx"
+            }
+        });
+
+    assert.strictEqual(
+        result.status,
+        "processed"
+    );
+
+    assert.strictEqual(
+        result
+            .processedSemanticRecord
+            .provenance
+            .sourceDocumentKey,
+        "opaque-document-key-001"
+    );
+});

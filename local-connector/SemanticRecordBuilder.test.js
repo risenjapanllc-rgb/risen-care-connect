@@ -202,3 +202,64 @@ test("input object is not mutated", () => {
 
     assert.strictEqual(JSON.stringify(document), before);
 });
+
+test("trusted sourceDocumentKey is copied into provenance", () => {
+    const builder = new SemanticRecordBuilder();
+
+    const standardDocument = {
+        documentType: "support_record",
+        sourceType: "excel",
+        source: {
+            fileName: "support.xlsx",
+            updatedAt: "2026-09-09T10:00:00Z"
+        },
+        extracted: {
+            sourceResidentIdentifier: {
+                value: "RES-001"
+            },
+            supportContent: {
+                value: "支援内容"
+            }
+        }
+    };
+
+    const result = builder.build(
+        standardDocument,
+        {
+            sourceDocumentKey:
+                "opaque-document-key-001"
+        }
+    );
+
+    assert.strictEqual(
+        result[0].provenance.sourceDocumentKey,
+        "opaque-document-key-001"
+    );
+});
+
+test("sourceDocumentKey from normalized document is not trusted", () => {
+    const builder = new SemanticRecordBuilder();
+
+    const standardDocument = {
+        documentType: "support_record",
+        sourceDocumentKey:
+            "client-controlled-document-key",
+        sourceType: "excel",
+        source: {
+            fileName: "support.xlsx"
+        },
+        extracted: {
+            supportContent: {
+                value: "支援内容"
+            }
+        }
+    };
+
+    const result =
+        builder.build(standardDocument);
+
+    assert.strictEqual(
+        result[0].provenance.sourceDocumentKey,
+        undefined
+    );
+});

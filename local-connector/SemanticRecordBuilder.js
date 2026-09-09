@@ -6,7 +6,7 @@
  * This builder does not normalize content or resolve any server identity.
  */
 class SemanticRecordBuilder {
-    build(standardDocument = {}) {
+    build(standardDocument = {}, trustedContext = {}) {
         if (
             !standardDocument ||
             typeof standardDocument !== "object" ||
@@ -43,6 +43,11 @@ class SemanticRecordBuilder {
         const provenance = {
             documentType: "support_record"
         };
+
+        this.copyTrustedSourceDocumentKey(
+            provenance,
+            trustedContext
+        );
         this.copySafeFileName(
             provenance,
             "fileName",
@@ -72,6 +77,19 @@ class SemanticRecordBuilder {
                 provenance
             }
         ];
+    }
+
+    copyTrustedSourceDocumentKey(target, trustedContext) {
+        if (
+            trustedContext &&
+            typeof trustedContext === "object" &&
+            !Array.isArray(trustedContext) &&
+            typeof trustedContext.sourceDocumentKey === "string" &&
+            trustedContext.sourceDocumentKey.trim() !== ""
+        ) {
+            target.sourceDocumentKey =
+                trustedContext.sourceDocumentKey;
+        }
     }
 
     copySourceValue(target, key, sourceValue) {

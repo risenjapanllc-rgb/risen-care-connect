@@ -434,3 +434,86 @@ test("inherited nested fields do not propagate", () => {
 
     assert.strictEqual(result.status, "invalid");
 });
+
+test("trusted sourceDocumentKey in provenance is preserved", () => {
+    const validator =
+        new SemanticRecordValidator();
+
+    const result =
+        validator.validate({
+            sourceRecordContext: {
+                sourceResidentIdentifier:
+                    "RES-001"
+            },
+            semanticContent: {
+                semanticType:
+                    "support_record",
+                fields: {
+                    supportContent:
+                        "支援内容"
+                },
+                customFields: {}
+            },
+            provenance: {
+                sourceDocumentKey:
+                    "opaque-document-key-001",
+                documentType:
+                    "support_record",
+                sourceType:
+                    "excel",
+                fileName:
+                    "support.xlsx",
+                sourceUpdatedAt:
+                    "2026-09-09T10:00:00Z"
+            }
+        });
+
+    assert.strictEqual(
+        result.status,
+        "valid"
+    );
+
+    assert.strictEqual(
+        result
+            .validatedSemanticRecord
+            .provenance
+            .sourceDocumentKey,
+        "opaque-document-key-001"
+    );
+});
+
+test("blank sourceDocumentKey in provenance is invalid", () => {
+    const validator =
+        new SemanticRecordValidator();
+
+    const result =
+        validator.validate({
+            sourceRecordContext: {},
+            semanticContent: {
+                semanticType:
+                    "support_record",
+                fields: {
+                    supportContent:
+                        "支援内容"
+                },
+                customFields: {}
+            },
+            provenance: {
+                sourceDocumentKey:
+                    "   ",
+                documentType:
+                    "support_record",
+                sourceType:
+                    "excel"
+            }
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "invalid",
+            errorCode:
+                "semantic_provenance_source_document_key_invalid"
+        }
+    );
+});

@@ -99,6 +99,25 @@ class SemanticRecordValidator {
             return { errorCode: "semantic_provenance_invalid" };
         }
 
+        const sourceDocumentKey =
+            this.getOwn(
+                provenance,
+                "sourceDocumentKey"
+            );
+
+        if (
+            sourceDocumentKey !== undefined &&
+            (
+                typeof sourceDocumentKey !== "string" ||
+                sourceDocumentKey.trim() === ""
+            )
+        ) {
+            return {
+                errorCode:
+                    "semantic_provenance_source_document_key_invalid"
+            };
+        }
+
         const fileName = this.getOwn(provenance, "fileName");
         if (
             fileName !== undefined &&
@@ -139,6 +158,12 @@ class SemanticRecordValidator {
             documentType: "support_record",
             sourceType
         };
+
+        if (sourceDocumentKey !== undefined) {
+            value.sourceDocumentKey =
+                sourceDocumentKey;
+        }
+
         if (fileName !== undefined) {
             value.fileName = fileName;
         }

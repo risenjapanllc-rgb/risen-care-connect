@@ -344,13 +344,34 @@ test("non-resolved semantic status does not access existing record repository", 
     const result =
         await service.decide({
             verifiedContext: {
-                facilityId: "facility-1"
+                facilityId:
+                    "facility-1",
+                connectorId:
+                    "connector-1"
             },
             residentMatching: {
-                status: "matched"
+                status:
+                    "matched",
+                residentId:
+                    "resident-1"
             },
             semanticPipeline: {
-                status: "new_candidate"
+                status:
+                    "new_candidate",
+                identityResolution: {
+                    status:
+                        "new_candidate"
+                },
+                processedSemanticRecord: {
+                    provenance: {
+                        sourceDocumentKey:
+                            "document-1"
+                    },
+                    sourceRecordContext: {
+                        sourceRecordKey:
+                            "support_record:primary"
+                    }
+                }
             }
         });
 

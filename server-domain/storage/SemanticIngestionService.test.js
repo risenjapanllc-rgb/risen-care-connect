@@ -569,19 +569,38 @@ test("confirmed updated candidate persists internally but returns public decisio
     );
 });
 
-test("persistence conflict or failure converts confirmed candidate to rejected", async () => {
-    for (const persistenceResult of [
+test("persistence conflict is preserved while invalid persistence results are rejected", async () => {
+    for (const {
+        persistenceResult,
+        expectedStatus
+    } of [
         {
-            status: "conflict"
+            persistenceResult: {
+                status: "conflict"
+            },
+            expectedStatus:
+                "conflict"
         },
         {
-            status: "rejected"
+            persistenceResult: {
+                status: "rejected"
+            },
+            expectedStatus:
+                "rejected"
         },
         {
-            status: "not_required"
+            persistenceResult: {
+                status: "not_required"
+            },
+            expectedStatus:
+                "rejected"
         },
         {
-            unexpected: true
+            persistenceResult: {
+                unexpected: true
+            },
+            expectedStatus:
+                "rejected"
         }
     ]) {
         const service =
@@ -640,7 +659,8 @@ test("persistence conflict or failure converts confirmed candidate to rejected",
                 semanticRecord: {}
             }),
             {
-                status: "rejected"
+                status:
+                    expectedStatus
             }
         );
     }

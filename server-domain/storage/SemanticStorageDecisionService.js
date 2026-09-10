@@ -80,6 +80,83 @@ class SemanticStorageDecisionService {
         }
 
         let recordChange;
+        let recordCreation;
+
+        if (
+            semanticPipeline.status ===
+                "new_candidate" &&
+            this.isPlainObject(
+                residentMatching
+            ) &&
+            residentMatching.status ===
+                "matched"
+        ) {
+            const processedSemanticRecord =
+                semanticPipeline
+                    .processedSemanticRecord;
+
+            const identityResolution =
+                semanticPipeline
+                    .identityResolution;
+
+            const sourceDocumentKey =
+                processedSemanticRecord
+                    ?.provenance
+                    ?.sourceDocumentKey;
+
+            const sourceRecordContext =
+                processedSemanticRecord
+                    ?.sourceRecordContext;
+
+            if (
+                !this.isPlainObject(
+                    verifiedContext
+                ) ||
+                !this.isNonEmptyString(
+                    verifiedContext.facilityId
+                ) ||
+                !this.isNonEmptyString(
+                    verifiedContext.connectorId
+                ) ||
+                !this.isPlainObject(
+                    residentMatching
+                ) ||
+                residentMatching.status !==
+                    "matched" ||
+                !this.isNonEmptyString(
+                    residentMatching.residentId
+                ) ||
+                !this.isPlainObject(
+                    identityResolution
+                ) ||
+                identityResolution.status !==
+                    "new_candidate" ||
+                !this.isNonEmptyString(
+                    sourceDocumentKey
+                ) ||
+                !this.isPlainObject(
+                    sourceRecordContext
+                ) ||
+                !this.isNonEmptyString(
+                    sourceRecordContext
+                        .sourceRecordKey
+                )
+            ) {
+                return {
+                    decision: this.rejected()
+                };
+            }
+
+            recordCreation = {
+                status: "create_candidate",
+                residentId:
+                    residentMatching.residentId,
+                sourceDocumentKey,
+                sourceRecordKey:
+                    sourceRecordContext
+                        .sourceRecordKey
+            };
+        }
 
         if (
             semanticPipeline.status ===
@@ -235,6 +312,9 @@ class SemanticStorageDecisionService {
                     semanticPipeline,
                     ...(recordChange
                         ? { recordChange }
+                        : {}),
+                    ...(recordCreation
+                        ? { recordCreation }
                         : {})
                 });
 
@@ -254,12 +334,24 @@ class SemanticStorageDecisionService {
 
             if (
                 decision.status ===
-                    "confirmed_candidate" &&
-                recordChange
+                    "confirmed_candidate"
             ) {
+                if (recordChange) {
+                    return {
+                        decision,
+                        recordChange
+                    };
+                }
+
+                if (recordCreation) {
+                    return {
+                        decision,
+                        recordCreation
+                    };
+                }
+
                 return {
-                    decision,
-                    recordChange
+                    decision: this.rejected()
                 };
             }
 

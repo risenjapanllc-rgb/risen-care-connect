@@ -78,11 +78,33 @@ class SemanticStoragePolicy {
         }
 
         if (
-            semanticStatus === "pending_review" ||
-            semanticStatus === "new_candidate"
+            semanticStatus === "pending_review"
         ) {
             return {
                 status: "pending_review"
+            };
+        }
+
+        if (
+            semanticStatus === "new_candidate"
+        ) {
+            const identityResolution =
+                semanticPipeline
+                    .identityResolution;
+
+            if (
+                !this.isPlainObject(
+                    identityResolution
+                ) ||
+                identityResolution.status !==
+                    "new_candidate"
+            ) {
+                return this.rejected();
+            }
+
+            return {
+                status:
+                    "confirmed_candidate"
             };
         }
 

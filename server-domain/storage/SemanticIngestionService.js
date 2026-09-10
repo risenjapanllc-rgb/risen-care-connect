@@ -80,7 +80,7 @@ class SemanticIngestionService {
                     semanticRecord
                 });
         } catch {
-            return this.rejected();
+            return this.rejected("semantic_pipeline_exception");
         }
 
         if (
@@ -97,7 +97,7 @@ class SemanticIngestionService {
                 semanticPipeline.status
             )
         ) {
-            return this.rejected();
+            return this.rejected("semantic_pipeline_invalid");
         }
 
         if (
@@ -137,12 +137,12 @@ class SemanticIngestionService {
                     decision
                 )
             ) {
-                return this.rejected();
+                return this.rejected("decision_invalid");
             }
 
             return decision;
         } catch {
-            return this.rejected();
+            return this.rejected("decision_exception");
         }
     }
 
@@ -163,7 +163,7 @@ class SemanticIngestionService {
                         semanticPipeline
                     });
         } catch {
-            return this.rejected();
+            return this.rejected("storage_decision_exception");
         }
 
         if (
@@ -174,7 +174,7 @@ class SemanticIngestionService {
                 persistenceDecision.decision
             )
         ) {
-            return this.rejected();
+            return this.rejected("storage_decision_invalid");
         }
 
         const decision =
@@ -184,6 +184,18 @@ class SemanticIngestionService {
             decision.status !==
             "confirmed_candidate"
         ) {
+            if (
+                decision.status === "rejected"
+            ) {
+                return this.rejected(
+                    typeof decision.diagnosticCode === "string" &&
+                    decision.diagnosticCode.trim()
+                        ? "storage_decision_rejected:" +
+                            decision.diagnosticCode.trim()
+                        : "storage_decision_rejected"
+                );
+            }
+
             return decision;
         }
 
@@ -199,21 +211,42 @@ class SemanticIngestionService {
                         persistenceDecision
                     });
         } catch {
-            return this.rejected();
+            return this.rejected("persistence_exception");
         }
 
         if (
             !this.isPlainObject(
                 persistenceResult
-            ) ||
+            )
+        ) {
+            return this.rejected("persistence_result_invalid");
+        }
+
+        if (
+            persistenceResult.status ===
+            "conflict"
+        ) {
+            return {
+                status: "conflict"
+            };
+        }
+
+        if (
             ![
+                "created",
                 "updated",
                 "unchanged"
             ].includes(
                 persistenceResult.status
             )
         ) {
-            return this.rejected();
+            return this.rejected(
+                typeof persistenceResult.diagnosticCode === "string" &&
+                persistenceResult.diagnosticCode.trim()
+                    ? "persistence_status_rejected:" +
+                        persistenceResult.diagnosticCode.trim()
+                    : "persistence_status_rejected"
+            );
         }
 
         return decision;
@@ -249,10 +282,26 @@ class SemanticIngestionService {
         );
     }
 
-    rejected() {
-        return {
+    rejected(diagnosticCode) {
+        const result = {
             status: "rejected"
         };
+
+        if (
+            typeof diagnosticCode === "string" &&
+            diagnosticCode.trim()
+        ) {
+            Object.defineProperty(
+                result,
+                "diagnosticCode",
+                {
+                    value: diagnosticCode.trim(),
+                    enumerable: false
+                }
+            );
+        }
+
+        return result;
     }
 }
 

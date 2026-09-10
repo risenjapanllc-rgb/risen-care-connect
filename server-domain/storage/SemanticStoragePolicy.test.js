@@ -95,7 +95,7 @@ test("confirmed candidate does not depend on client-like resident fields", () =>
     );
 });
 
-test("matched + new candidate remains pending review", () => {
+test("matched + new candidate is a confirmed candidate", () => {
     const policy =
         new SemanticStoragePolicy();
 
@@ -113,7 +113,7 @@ test("matched + new candidate remains pending review", () => {
             }
         }),
         {
-            status: "pending_review"
+            status: "confirmed_candidate"
         }
     );
 });

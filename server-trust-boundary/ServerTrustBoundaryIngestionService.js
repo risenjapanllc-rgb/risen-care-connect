@@ -154,11 +154,31 @@ class ServerTrustBoundaryIngestionService {
                 "conflict"
             ].includes(semanticResult.status)
         ) {
-            return {
+            const result = {
                 status: "error",
                 errorCode:
                     "semantic_ingestion_rejected"
             };
+
+            if (
+                typeof semanticResult.diagnosticCode ===
+                    "string" &&
+                semanticResult.diagnosticCode.trim()
+            ) {
+                Object.defineProperty(
+                    result,
+                    "diagnosticCode",
+                    {
+                        value:
+                            semanticResult
+                                .diagnosticCode
+                                .trim(),
+                        enumerable: false
+                    }
+                );
+            }
+
+            return result;
         }
 
         return residentMatching;

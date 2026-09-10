@@ -93,12 +93,23 @@ class ServerTrustBoundaryHttpAdapter {
             result &&
             result.status === "error"
         ) {
-            this.diagnoseError(
-                requestId,
+            const internalErrorCode =
                 typeof result.errorCode === "string" &&
                 result.errorCode.trim()
-                    ? result.errorCode
-                    : "connector_processing_error"
+                    ? result.errorCode.trim()
+                    : "connector_processing_error";
+
+            const diagnosticCode =
+                typeof result.diagnosticCode === "string" &&
+                result.diagnosticCode.trim()
+                    ? result.diagnosticCode.trim()
+                    : null;
+
+            this.diagnoseError(
+                requestId,
+                diagnosticCode
+                    ? `${internalErrorCode}:${diagnosticCode}`
+                    : internalErrorCode
             );
 
             return {

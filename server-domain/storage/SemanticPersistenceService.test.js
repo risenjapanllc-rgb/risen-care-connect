@@ -76,6 +76,11 @@ test("updated confirmed candidate calls repository with exact trusted update con
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord(
                     input
                 ) {
@@ -135,6 +140,11 @@ test("unchanged confirmed candidate does not write", async () => {
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord() {
                     calls += 1;
                     return {
@@ -165,6 +175,11 @@ test("non-confirmed decision never writes", async () => {
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord() {
                     calls += 1;
                 }
@@ -212,6 +227,11 @@ test("client-like fields cannot override trusted persistence input", async () =>
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord(
                     value
                 ) {
@@ -265,6 +285,11 @@ test("record identity mismatch fails closed before write", async () => {
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord() {
                     calls += 1;
                 }
@@ -331,6 +356,11 @@ test("repository conflict is preserved while denied and malformed results reject
         const service =
             new SemanticPersistenceService({
                 semanticRecordPersistenceRepository: {
+                    async createConfirmedRecord() {
+                        throw new Error(
+                            "must not be called"
+                        );
+                    },
                     async updateConfirmedRecord() {
                         return repositoryResult;
                     }
@@ -350,6 +380,11 @@ test("repository exception is sanitized", async () => {
     const service =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository: {
+                async createConfirmedRecord() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                },
                 async updateConfirmedRecord() {
                     throw new Error(
                         "database secret failure"

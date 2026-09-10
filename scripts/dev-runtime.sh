@@ -324,7 +324,7 @@ try {
 
 if (
   result?.success === true &&
-  result?.status === "unmatched" &&
+  result?.status === "matched" &&
   typeof result?.requestId === "string" &&
   result.requestId.trim() !== ""
 ) {

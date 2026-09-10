@@ -126,7 +126,8 @@ function startServerTrustBoundary({
             endpointPath:
                 config.endpointPath,
             jsonBodyLimit:
-                config.jsonBodyLimit
+                config.jsonBodyLimit,
+            diagnosticLogger: console
         });
 
     const server =

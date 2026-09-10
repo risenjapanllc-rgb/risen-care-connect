@@ -36,6 +36,49 @@ test("incomplete create scope is invalid", async () => {
     );
 });
 
+test("create requires server-confirmed residentId", async () => {
+    const repository =
+        new SemanticRecordPersistenceRepository();
+
+    for (const residentId of [
+        undefined,
+        null,
+        "",
+        "   ",
+        123,
+        {},
+        []
+    ]) {
+        const result =
+            await repository.createConfirmedRecord({
+                verifiedFacilityId:
+                    "facility-1",
+                verifiedConnectorId:
+                    "connector-1",
+                ...(residentId !== undefined
+                    ? { residentId }
+                    : {}),
+                sourceDocumentKey:
+                    "document-1",
+                sourceRecordKey:
+                    "support_record:primary",
+                contentHash:
+                    HASH_A,
+                canonicalizationVersion:
+                    "risen-semantic-canonicalization-1",
+                semanticContent:
+                    createSemanticContent()
+            });
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status: "invalid"
+            }
+        );
+    }
+});
+
 test("complete create scope reaches implementation boundary", async () => {
     const repository =
         new SemanticRecordPersistenceRepository();
@@ -47,6 +90,8 @@ test("complete create scope reaches implementation boundary", async () => {
                     "facility-1",
                 verifiedConnectorId:
                     "connector-1",
+                residentId:
+                    "resident-1",
                 sourceDocumentKey:
                     "document-1",
                 sourceRecordKey:
@@ -122,6 +167,8 @@ test("create requires exact lowercase SHA-256 hash shape", async () => {
                     "facility-1",
                 verifiedConnectorId:
                     "connector-1",
+                residentId:
+                    "resident-1",
                 sourceDocumentKey:
                     "document-1",
                 sourceRecordKey:

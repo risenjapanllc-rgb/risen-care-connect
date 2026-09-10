@@ -4,6 +4,7 @@ class SemanticRecordPersistenceRepository {
     async createConfirmedRecord({
         verifiedFacilityId,
         verifiedConnectorId,
+        residentId,
         sourceDocumentKey,
         sourceRecordKey,
         contentHash,
@@ -13,6 +14,7 @@ class SemanticRecordPersistenceRepository {
         if (
             !this.isNonEmptyString(verifiedFacilityId) ||
             !this.isNonEmptyString(verifiedConnectorId) ||
+            !this.isNonEmptyString(residentId) ||
             !this.isNonEmptyString(sourceDocumentKey) ||
             !this.isNonEmptyString(sourceRecordKey) ||
             !this.isContentHash(contentHash) ||

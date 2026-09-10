@@ -149,3 +149,154 @@ test(
         );
     }
 );
+
+test(
+    "live confirmed persistence creates, retries, updates, and retries idempotently",
+    async () => {
+        const repository =
+            createRepository();
+
+        const verifiedFacilityId =
+            "b74f26b1-cbe9-41fb-b319-5ebda68b1d4c";
+
+        const verifiedConnectorId =
+            "f7d170fe-2591-43c1-920b-7014d3eb8a1d";
+
+        const residentId =
+            requireEnv("SUPABASE_TEST_RESIDENT_ID");
+
+        const sourceDocumentKey =
+            `integration:semantic-persistence:positive:${require("node:crypto").randomUUID()}`;
+
+        const sourceRecordKey =
+            "support_record:primary";
+
+        const initialContentHash =
+            "c".repeat(64);
+
+        const updatedContentHash =
+            "d".repeat(64);
+
+        const initialSemanticContent = {
+            semanticType: "support_record",
+            fields: {
+                supportContent:
+                    "synthetic persistence positive test initial"
+            },
+            customFields: {}
+        };
+
+        const updatedSemanticContent = {
+            semanticType: "support_record",
+            fields: {
+                supportContent:
+                    "synthetic persistence positive test updated"
+            },
+            customFields: {}
+        };
+
+        const created =
+            await repository.createConfirmedRecord({
+                verifiedFacilityId,
+                verifiedConnectorId,
+                residentId,
+                sourceDocumentKey,
+                sourceRecordKey,
+                contentHash:
+                    initialContentHash,
+                canonicalizationVersion:
+                    VERSION,
+                semanticContent:
+                    initialSemanticContent
+            });
+
+        assert.equal(
+            created.status,
+            "created"
+        );
+
+        assert.equal(
+            typeof created.recordId,
+            "string"
+        );
+
+        assert.notEqual(
+            created.recordId.trim(),
+            ""
+        );
+
+        const repeatedCreate =
+            await repository.createConfirmedRecord({
+                verifiedFacilityId,
+                verifiedConnectorId,
+                residentId,
+                sourceDocumentKey,
+                sourceRecordKey,
+                contentHash:
+                    initialContentHash,
+                canonicalizationVersion:
+                    VERSION,
+                semanticContent:
+                    initialSemanticContent
+            });
+
+        assert.deepStrictEqual(
+            repeatedCreate,
+            {
+                status: "unchanged",
+                recordId:
+                    created.recordId
+            }
+        );
+
+        const updated =
+            await repository.updateConfirmedRecord({
+                verifiedFacilityId,
+                verifiedConnectorId,
+                recordId:
+                    created.recordId,
+                expectedContentHash:
+                    initialContentHash,
+                contentHash:
+                    updatedContentHash,
+                canonicalizationVersion:
+                    VERSION,
+                semanticContent:
+                    updatedSemanticContent
+            });
+
+        assert.deepStrictEqual(
+            updated,
+            {
+                status: "updated",
+                recordId:
+                    created.recordId
+            }
+        );
+
+        const repeatedUpdate =
+            await repository.updateConfirmedRecord({
+                verifiedFacilityId,
+                verifiedConnectorId,
+                recordId:
+                    created.recordId,
+                expectedContentHash:
+                    updatedContentHash,
+                contentHash:
+                    updatedContentHash,
+                canonicalizationVersion:
+                    VERSION,
+                semanticContent:
+                    updatedSemanticContent
+            });
+
+        assert.deepStrictEqual(
+            repeatedUpdate,
+            {
+                status: "unchanged",
+                recordId:
+                    created.recordId
+            }
+        );
+    }
+);

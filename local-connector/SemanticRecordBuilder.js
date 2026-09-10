@@ -28,7 +28,10 @@ class SemanticRecordBuilder {
             return [];
         }
 
-        const sourceRecordContext = {};
+        const sourceRecordContext = {
+            sourceRecordKey:
+                "support_record:primary"
+        };
         this.copySourceValue(
             sourceRecordContext,
             "sourceResidentIdentifier",

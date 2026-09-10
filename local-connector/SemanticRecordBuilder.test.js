@@ -32,6 +32,7 @@ test("valid supportContent => one semantic record", () => {
     assert.strictEqual(result.length, 1);
     assert.deepStrictEqual(result[0], {
         sourceRecordContext: {
+            sourceRecordKey: "support_record:primary",
             sourceResidentIdentifier: "SRC-001",
             sourceResidentName: "山田太郎"
         },
@@ -49,6 +50,87 @@ test("valid supportContent => one semantic record", () => {
             sourceType: "word"
         }
     });
+});
+
+test("support_record receives stable primary sourceRecordKey", () => {
+    const builder = new SemanticRecordBuilder();
+
+    const first = builder.build(
+        createDocument(),
+        {
+            sourceDocumentKey:
+                "document-key-1"
+        }
+    );
+
+    const second = builder.build(
+        createDocument({
+            source: {
+                fileName: "support.docx",
+                updatedAt:
+                    "2026-09-06T10:00:00Z"
+            },
+            extracted: {
+                ...createDocument().extracted,
+                supportContent: {
+                    value: "更新後の支援内容"
+                }
+            }
+        }),
+        {
+            sourceDocumentKey:
+                "document-key-1"
+        }
+    );
+
+    assert.strictEqual(
+        first[0]
+            .sourceRecordContext
+            .sourceRecordKey,
+        "support_record:primary"
+    );
+
+    assert.strictEqual(
+        second[0]
+            .sourceRecordContext
+            .sourceRecordKey,
+        "support_record:primary"
+    );
+});
+
+test("client sourceRecordKey is never adopted", () => {
+    const builder = new SemanticRecordBuilder();
+
+    const document =
+        createDocument({
+            sourceRecordKey:
+                "client-controlled-key",
+            extracted: {
+                ...createDocument().extracted,
+                sourceRecordKey: {
+                    value:
+                        "another-client-key"
+                }
+            }
+        });
+
+    const result =
+        builder.build(
+            document,
+            {
+                sourceDocumentKey:
+                    "document-key-1",
+                sourceRecordKey:
+                    "trusted-context-key"
+            }
+        );
+
+    assert.strictEqual(
+        result[0]
+            .sourceRecordContext
+            .sourceRecordKey,
+        "support_record:primary"
+    );
 });
 
 test("supportContent body is preserved exactly", () => {

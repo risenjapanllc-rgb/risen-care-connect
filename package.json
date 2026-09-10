@@ -13,7 +13,12 @@
     "start:local": "node -r dotenv/config local-connector/server.js",
     "start:trust": "node -r dotenv/config server-trust-boundary/server.js",
     "test:integration:semantic-identity": "node --test integration-tests/SupabaseRecordIdentityCandidateProvider.integration.js",
-    "test:integration:semantic-state": "node --test integration-tests/SupabaseExistingSemanticRecordRepository.integration.js"
+    "test:integration:semantic-state": "node --test integration-tests/SupabaseExistingSemanticRecordRepository.integration.js",
+    "runtime:start": "./scripts/dev-runtime.sh start",
+    "runtime:stop": "./scripts/dev-runtime.sh stop",
+    "runtime:restart": "./scripts/dev-runtime.sh restart",
+    "runtime:status": "./scripts/dev-runtime.sh status",
+    "runtime:smoke": "./scripts/dev-runtime.sh smoke-test"
   },
   "keywords": [],
   "author": "",

@@ -2,9 +2,20 @@
 
 class SemanticStorageDecisionService {
     constructor({
+        existingSemanticRecordRepository,
         recordChangeResolver,
         semanticStoragePolicy
     } = {}) {
+        if (
+            !existingSemanticRecordRepository ||
+            typeof existingSemanticRecordRepository
+                .getByRecordId !== "function"
+        ) {
+            throw new Error(
+                "SemanticStorageDecisionService requires existingSemanticRecordRepository"
+            );
+        }
+
         if (
             !recordChangeResolver ||
             typeof recordChangeResolver.resolve !==
@@ -25,16 +36,20 @@ class SemanticStorageDecisionService {
             );
         }
 
+        this.existingSemanticRecordRepository =
+            existingSemanticRecordRepository;
+
         this.recordChangeResolver =
             recordChangeResolver;
+
         this.semanticStoragePolicy =
             semanticStoragePolicy;
     }
 
-    decide({
+    async decide({
+        verifiedContext,
         residentMatching,
-        semanticPipeline,
-        existingRecordState
+        semanticPipeline
     } = {}) {
         if (
             !this.isPlainObject(semanticPipeline)
@@ -55,6 +70,51 @@ class SemanticStorageDecisionService {
             const identityResolution =
                 semanticPipeline
                     .identityResolution;
+
+            if (
+                !this.isPlainObject(
+                    verifiedContext
+                ) ||
+                !this.isNonEmptyString(
+                    verifiedContext.facilityId
+                ) ||
+                !this.isPlainObject(
+                    identityResolution
+                ) ||
+                identityResolution.status !==
+                    "resolved" ||
+                !this.isNonEmptyString(
+                    identityResolution.recordId
+                )
+            ) {
+                return this.rejected();
+            }
+
+            let existingRecordState;
+
+            try {
+                existingRecordState =
+                    await this
+                        .existingSemanticRecordRepository
+                        .getByRecordId({
+                            facilityId:
+                                verifiedContext
+                                    .facilityId,
+                            recordId:
+                                identityResolution
+                                    .recordId
+                        });
+            } catch {
+                return this.rejected();
+            }
+
+            if (
+                !this.isPlainObject(
+                    existingRecordState
+                )
+            ) {
+                return this.rejected();
+            }
 
             const safeExistingRecordState =
                 this.createExistingRecordState(
@@ -106,6 +166,26 @@ class SemanticStorageDecisionService {
             ) {
                 return this.rejected();
             }
+
+            if (
+                !this.isNonEmptyString(
+                    recordChange.recordId
+                ) ||
+                recordChange.recordId !==
+                    identityResolution.recordId
+            ) {
+                return this.rejected();
+            }
+
+            if (
+                !this.isNonEmptyString(
+                    recordChange.recordId
+                ) ||
+                recordChange.recordId !==
+                    identityResolution.recordId
+            ) {
+                return this.rejected();
+            }
         }
 
         try {
@@ -139,14 +219,6 @@ class SemanticStorageDecisionService {
     createExistingRecordState(
         existingRecordState
     ) {
-        if (
-            !this.isPlainObject(
-                existingRecordState
-            )
-        ) {
-            return existingRecordState;
-        }
-
         return {
             recordId:
                 existingRecordState.recordId,
@@ -162,6 +234,13 @@ class SemanticStorageDecisionService {
         return {
             status: "rejected"
         };
+    }
+
+    isNonEmptyString(value) {
+        return (
+            typeof value === "string" &&
+            value.trim() !== ""
+        );
     }
 
     isPlainObject(value) {

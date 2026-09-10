@@ -6,11 +6,21 @@ const assert = require("node:assert/strict");
 const SemanticStorageDecisionService =
     require("./SemanticStorageDecisionService");
 
-test("new candidate does not call record change resolver", () => {
+test("new candidate does not call record change resolver", async () => {
     let changeCalls = 0;
 
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     changeCalls += 1;
@@ -34,7 +44,10 @@ test("new candidate does not call record change resolver", () => {
         });
 
     const result =
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -67,12 +80,22 @@ test("new candidate does not call record change resolver", () => {
     );
 });
 
-test("resolved identity calls record change resolver with allowlisted change context", () => {
+test("resolved identity calls record change resolver with allowlisted change context", async () => {
     const expectedHash =
         "b".repeat(64);
 
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve(input) {
                     assert.deepStrictEqual(
@@ -120,7 +143,10 @@ test("resolved identity calls record change resolver with allowlisted change con
         });
 
     const result =
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -138,14 +164,6 @@ test("resolved identity calls record change resolver with allowlisted change con
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1",
-                secret: "must-not-propagate"
             }
         });
 
@@ -157,9 +175,19 @@ test("resolved identity calls record change resolver with allowlisted change con
     );
 });
 
-test("record change conflict does not become confirmed", () => {
+test("record change conflict does not become confirmed", async () => {
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     return {
@@ -186,7 +214,10 @@ test("record change conflict does not become confirmed", () => {
         });
 
     assert.deepStrictEqual(
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -204,13 +235,6 @@ test("record change conflict does not become confirmed", () => {
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-2",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1"
             }
         }),
         {
@@ -219,9 +243,19 @@ test("record change conflict does not become confirmed", () => {
     );
 });
 
-test("record change invalid fails closed without exposing dependency error", () => {
+test("record change invalid fails closed without exposing dependency error", async () => {
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     return {
@@ -241,7 +275,10 @@ test("record change invalid fails closed without exposing dependency error", () 
         });
 
     const result =
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -259,13 +296,6 @@ test("record change invalid fails closed without exposing dependency error", () 
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1"
             }
         });
 
@@ -285,9 +315,19 @@ test("record change invalid fails closed without exposing dependency error", () 
     );
 });
 
-test("dependency exceptions fail closed", () => {
+test("dependency exceptions fail closed", async () => {
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     throw new Error(
@@ -305,7 +345,10 @@ test("dependency exceptions fail closed", () => {
         });
 
     assert.deepStrictEqual(
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -323,13 +366,6 @@ test("dependency exceptions fail closed", () => {
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1"
             }
         }),
         {
@@ -338,7 +374,7 @@ test("dependency exceptions fail closed", () => {
     );
 });
 
-test("only unchanged and updated record change candidates may reach storage policy for resolved identity", () => {
+test("only unchanged and updated record change candidates may reach storage policy for resolved identity", async () => {
     for (const allowedStatus of [
         "unchanged_candidate",
         "updated_candidate"
@@ -347,6 +383,17 @@ test("only unchanged and updated record change candidates may reach storage poli
 
         const service =
             new SemanticStorageDecisionService({
+                existingSemanticRecordRepository: {
+                    async getByRecordId() {
+                        return {
+                            recordId: "record-1",
+                            contentHash:
+                                "a".repeat(64),
+                            canonicalizationVersion:
+                                "risen-semantic-canonicalization-1"
+                        };
+                    }
+                },
                 recordChangeResolver: {
                     resolve() {
                         return {
@@ -372,7 +419,10 @@ test("only unchanged and updated record change candidates may reach storage poli
             });
 
         assert.deepStrictEqual(
-            service.decide({
+            await service.decide({
+                verifiedContext: {
+                    facilityId: "facility-1"
+                },
                 residentMatching: {
                     status: "matched"
                 },
@@ -390,13 +440,6 @@ test("only unchanged and updated record change candidates may reach storage poli
                         status: "resolved",
                         recordId: "record-1"
                     }
-                },
-                existingRecordState: {
-                    recordId: "record-1",
-                    contentHash:
-                        "a".repeat(64),
-                    canonicalizationVersion:
-                        "risen-semantic-canonicalization-1"
                 }
             }),
             {
@@ -411,11 +454,21 @@ test("only unchanged and updated record change candidates may reach storage poli
     }
 });
 
-test("incompatible record change fails closed before storage policy", () => {
+test("incompatible record change fails closed before storage policy", async () => {
     let policyCalls = 0;
 
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     return {
@@ -436,7 +489,10 @@ test("incompatible record change fails closed before storage policy", () => {
         });
 
     assert.deepStrictEqual(
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -454,13 +510,6 @@ test("incompatible record change fails closed before storage policy", () => {
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "older-version"
             }
         }),
         {
@@ -474,11 +523,21 @@ test("incompatible record change fails closed before storage policy", () => {
     );
 });
 
-test("identity_not_resolved record change fails closed before storage policy", () => {
+test("identity_not_resolved record change fails closed before storage policy", async () => {
     let policyCalls = 0;
 
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     return {
@@ -499,7 +558,10 @@ test("identity_not_resolved record change fails closed before storage policy", (
         });
 
     const result =
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -517,13 +579,6 @@ test("identity_not_resolved record change fails closed before storage policy", (
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1"
             }
         });
 
@@ -540,11 +595,21 @@ test("identity_not_resolved record change fails closed before storage policy", (
     );
 });
 
-test("unknown record change status fails closed before storage policy", () => {
+test("unknown record change status fails closed before storage policy", async () => {
     let policyCalls = 0;
 
     const service =
         new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash: "a".repeat(64),
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
             recordChangeResolver: {
                 resolve() {
                     return {
@@ -566,7 +631,10 @@ test("unknown record change status fails closed before storage policy", () => {
         });
 
     assert.deepStrictEqual(
-        service.decide({
+        await service.decide({
+            verifiedContext: {
+                facilityId: "facility-1"
+            },
             residentMatching: {
                 status: "matched"
             },
@@ -584,13 +652,6 @@ test("unknown record change status fails closed before storage policy", () => {
                     status: "resolved",
                     recordId: "record-1"
                 }
-            },
-            existingRecordState: {
-                recordId: "record-1",
-                contentHash:
-                    "a".repeat(64),
-                canonicalizationVersion:
-                    "risen-semantic-canonicalization-1"
             }
         }),
         {

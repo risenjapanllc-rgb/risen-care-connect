@@ -25,6 +25,10 @@ const SemanticRecordBuilder =
     require("./SemanticRecordBuilder");
 const LocalSemanticRecordPreparationService =
     require("./LocalSemanticRecordPreparationService");
+const SqliteSyncStateStore =
+    require("./SqliteSyncStateStore");
+const LocalConnectorSyncEngine =
+    require("./LocalConnectorSyncEngine");
 
 function createService({
     databasePath,
@@ -127,8 +131,79 @@ async function createIngestionService({
     });
 }
 
+async function createSyncEngine({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch,
+    clock,
+    baseRetryMs,
+    maxRetryMs
+} = {}) {
+    const resolvedDatabasePath =
+        typeof databasePath === "string" &&
+        databasePath.trim() !== ""
+            ? databasePath.trim()
+            : new DatabasePathResolver().resolve();
+
+    const localConnectorService =
+        createService({
+            databasePath:
+                resolvedDatabasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const ingestionService =
+        new LocalConnectorIngestionService({
+            localConnectorService,
+            payloadBuilder:
+                new ConnectorIngestionPayloadBuilder(),
+            semanticRecordBuilder:
+                new SemanticRecordBuilder(),
+            httpClient:
+                new ServerTrustBoundaryHttpClient({
+                    endpoint,
+                    connectorId,
+                    credential,
+                    authorizationScheme,
+                    connectorIdHeader,
+                    fetchImpl
+                })
+        });
+
+    const syncStateStore =
+        new SqliteSyncStateStore({
+            databasePath:
+                resolvedDatabasePath
+        });
+
+    return new LocalConnectorSyncEngine({
+        localConnectorService,
+        ingestionService,
+        syncStateStore,
+        ...(clock
+            ? { clock }
+            : {}),
+        ...(Number.isFinite(baseRetryMs)
+            ? { baseRetryMs }
+            : {}),
+        ...(Number.isFinite(maxRetryMs)
+            ? { maxRetryMs }
+            : {})
+    });
+}
+
 module.exports = {
     createService,
     createSemanticPreparationService,
-    createIngestionService
+    createIngestionService,
+    createSyncEngine
 };

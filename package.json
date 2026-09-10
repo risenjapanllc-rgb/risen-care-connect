@@ -20,7 +20,8 @@
     "runtime:status": "./scripts/dev-runtime.sh status",
     "runtime:smoke": "./scripts/dev-runtime.sh smoke-test",
     "test:integration:persistence": "node --test integration-tests/SupabaseSemanticRecordPersistenceRepository.integration.js",
-    "test:integration": "npm run test:integration:credential && npm run test:integration:registration && npm run test:integration:trust && npm run test:integration:ingestion && npm run test:integration:http && npm run test:integration:semantic-identity && npm run test:integration:semantic-state && npm run test:integration:persistence"
+    "test:integration": "npm run test:integration:credential && npm run test:integration:registration && npm run test:integration:trust && npm run test:integration:ingestion && npm run test:integration:http && npm run test:integration:semantic-identity && npm run test:integration:semantic-state && npm run test:integration:persistence",
+    "sync:once": "node scripts/sync-once.js"
   },
   "keywords": [],
   "author": "",

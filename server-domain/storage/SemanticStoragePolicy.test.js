@@ -13,7 +13,8 @@ test("matched + resolved is only a confirmed candidate", () => {
     assert.deepStrictEqual(
         policy.evaluate({
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "resolved",
@@ -29,6 +30,71 @@ test("matched + resolved is only a confirmed candidate", () => {
     );
 });
 
+test("matched without confirmed residentId is rejected", () => {
+    const policy =
+        new SemanticStoragePolicy();
+
+    for (const residentId of [
+        undefined,
+        null,
+        "",
+        "   ",
+        123,
+        {},
+        []
+    ]) {
+        assert.deepStrictEqual(
+            policy.evaluate({
+                residentMatching: {
+                    status: "matched",
+                    ...(residentId !== undefined
+                        ? { residentId }
+                        : {})
+                },
+                semanticPipeline: {
+                    status: "resolved",
+                    identityResolution: {
+                        status: "resolved",
+                        recordId: "record-1"
+                    }
+                }
+            }),
+            {
+                status: "rejected"
+            }
+        );
+    }
+});
+
+test("confirmed candidate does not depend on client-like resident fields", () => {
+    const policy =
+        new SemanticStoragePolicy();
+
+    const result =
+        policy.evaluate({
+            residentMatching: {
+                status: "matched",
+                residentId: "resident-server",
+                clientResidentId: "resident-client",
+                sourceResidentId: "resident-source"
+            },
+            semanticPipeline: {
+                status: "resolved",
+                identityResolution: {
+                    status: "resolved",
+                    recordId: "record-1"
+                }
+            }
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "confirmed_candidate"
+        }
+    );
+});
+
 test("matched + new candidate remains pending review", () => {
     const policy =
         new SemanticStoragePolicy();
@@ -36,7 +102,8 @@ test("matched + new candidate remains pending review", () => {
     assert.deepStrictEqual(
         policy.evaluate({
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "new_candidate",
@@ -58,7 +125,8 @@ test("missing source record identity remains pending review", () => {
     assert.deepStrictEqual(
         policy.evaluate({
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "pending_review",
@@ -80,7 +148,8 @@ test("record identity conflict remains conflict", () => {
     assert.deepStrictEqual(
         policy.evaluate({
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "conflict",
@@ -148,7 +217,8 @@ test("invalid semantic pipeline is rejected", () => {
     assert.deepStrictEqual(
         policy.evaluate({
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "invalid",
@@ -180,7 +250,8 @@ test("malformed or unknown inputs fail closed", () => {
         },
         {
             residentMatching: {
-                status: "matched"
+                status: "matched",
+                residentId: "resident-1"
             },
             semanticPipeline: {
                 status: "something_else"

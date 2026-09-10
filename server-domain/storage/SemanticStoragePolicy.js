@@ -52,6 +52,15 @@ class SemanticStoragePolicy {
         }
 
         if (
+            residentStatus === "matched" &&
+            !this.isNonEmptyString(
+                residentMatching.residentId
+            )
+        ) {
+            return this.rejected();
+        }
+
+        if (
             residentStatus === "needs_review" ||
             residentStatus === "unmatched"
         ) {

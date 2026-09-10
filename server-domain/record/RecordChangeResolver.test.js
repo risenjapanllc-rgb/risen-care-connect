@@ -56,7 +56,9 @@ test("resolved identity, compatible versions, and different hash => updated cand
 
     assert.deepStrictEqual(result, {
         status: "updated_candidate",
-        recordId: "record-1"
+        recordId: "record-1",
+            expectedContentHash:
+                "a".repeat(64)
     });
 });
 
@@ -194,4 +196,50 @@ test("input is not mutated and output contains no unrelated input fields", () =>
         status: "unchanged_candidate",
         recordId: "record-1"
     });
+});
+test("updated candidate preserves trusted existing content hash for persistence CAS", () => {
+    const existingContentHash =
+        "a".repeat(64);
+
+    const currentContentHash =
+        "b".repeat(64);
+
+    const resolver =
+        new RecordChangeResolver({
+            canonicalizationCompatibilityPolicy: {
+                evaluate() {
+                    return {
+                        status: "compatible"
+                    };
+                }
+            }
+        });
+
+    const result =
+        resolver.resolve({
+            identityResolution: {
+                status: "resolved",
+                recordId: "record-1"
+            },
+            existingRecordState: {
+                recordId: "record-1",
+                contentHash:
+                    existingContentHash,
+                canonicalizationVersion:
+                    "risen-semantic-canonicalization-1"
+            },
+            currentContentHash,
+            currentCanonicalizationVersion:
+                "risen-semantic-canonicalization-1"
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "updated_candidate",
+            recordId: "record-1",
+            expectedContentHash:
+                existingContentHash
+        }
+    );
 });

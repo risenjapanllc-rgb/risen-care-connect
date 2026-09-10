@@ -67,11 +67,23 @@ class RecordChangeResolver {
             return this.invalid("record_change_hash_invalid");
         }
 
+        if (
+            changeContext.currentContentHash ===
+            existingRecordState.contentHash
+        ) {
+            return {
+                status: "unchanged_candidate",
+                recordId:
+                    identityResolution.recordId
+            };
+        }
+
         return {
-            status: changeContext.currentContentHash === existingRecordState.contentHash
-                ? "unchanged_candidate"
-                : "updated_candidate",
-            recordId: identityResolution.recordId
+            status: "updated_candidate",
+            recordId:
+                identityResolution.recordId,
+            expectedContentHash:
+                existingRecordState.contentHash
         };
     }
 

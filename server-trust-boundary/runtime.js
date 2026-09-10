@@ -36,6 +36,9 @@ const SupabaseRecordIdentityCandidateProvider =
 const SupabaseExistingSemanticRecordRepository =
     require("./SupabaseExistingSemanticRecordRepository");
 
+const SupabaseSemanticRecordPersistenceRepository =
+    require("./SupabaseSemanticRecordPersistenceRepository");
+
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
 
@@ -74,6 +77,9 @@ const SemanticStorageDecisionService =
 
 const SemanticIngestionService =
     require("../server-domain/storage/SemanticIngestionService");
+
+const SemanticPersistenceService =
+    require("../server-domain/storage/SemanticPersistenceService");
 
 /**
  * Build the Server Trust Boundary runtime.
@@ -214,10 +220,23 @@ function createServerTrustBoundaryRuntime({
             semanticStoragePolicy
         });
 
+    const semanticRecordPersistenceRepository =
+        new SupabaseSemanticRecordPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const semanticPersistenceService =
+        new SemanticPersistenceService({
+            semanticRecordPersistenceRepository
+        });
+
     const semanticIngestionService =
         new SemanticIngestionService({
             semanticRecordPipeline,
-            semanticStorageDecisionService
+            semanticStorageDecisionService,
+            semanticPersistenceService
         });
 
     return {

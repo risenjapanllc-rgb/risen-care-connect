@@ -473,3 +473,238 @@ test("awaits asynchronous semantic pipeline before storage decision", async () =
         }
     );
 });
+
+test("confirmed updated candidate persists internally but returns public decision only", async () => {
+    const verifiedContext = {
+        connectorId: "connector-1",
+        facilityId: "facility-1"
+    };
+
+    const semanticPipeline = {
+        status: "resolved",
+        processedSemanticRecord: {
+            contentHash:
+                "b".repeat(64),
+            processingMetadata: {
+                canonicalizationVersion:
+                    "risen-semantic-canonicalization-1"
+            },
+            semanticContent: {
+                semanticType:
+                    "support_record"
+            }
+        },
+        identityResolution: {
+            status: "resolved",
+            recordId: "record-1"
+        }
+    };
+
+    const persistenceDecision = {
+        decision: {
+            status:
+                "confirmed_candidate"
+        },
+        recordChange: {
+            status:
+                "updated_candidate",
+            recordId:
+                "record-1",
+            expectedContentHash:
+                "a".repeat(64)
+        }
+    };
+
+    let persistenceInput;
+
+    const service =
+        new SemanticIngestionService({
+            semanticRecordPipeline: {
+                async process() {
+                    return semanticPipeline;
+                }
+            },
+            semanticStorageDecisionService: {
+                async decideForPersistence() {
+                    return persistenceDecision;
+                }
+            },
+            semanticPersistenceService: {
+                async persist(input) {
+                    persistenceInput = input;
+
+                    return {
+                        status: "updated"
+                    };
+                }
+            }
+        });
+
+    const result =
+        await service.ingest({
+            verifiedContext,
+            residentMatching: {
+                status: "matched",
+                residentId:
+                    "resident-1"
+            },
+            semanticRecord: {}
+        });
+
+    assert.deepStrictEqual(
+        persistenceInput,
+        {
+            verifiedContext,
+            semanticPipeline,
+            persistenceDecision
+        }
+    );
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status:
+                "confirmed_candidate"
+        }
+    );
+});
+
+test("persistence conflict or failure converts confirmed candidate to rejected", async () => {
+    for (const persistenceResult of [
+        {
+            status: "conflict"
+        },
+        {
+            status: "rejected"
+        },
+        {
+            status: "not_required"
+        },
+        {
+            unexpected: true
+        }
+    ]) {
+        const service =
+            new SemanticIngestionService({
+                semanticRecordPipeline: {
+                    async process() {
+                        return {
+                            status: "resolved",
+                            identityResolution: {
+                                status:
+                                    "resolved",
+                                recordId:
+                                    "record-1"
+                            }
+                        };
+                    }
+                },
+                semanticStorageDecisionService: {
+                    async decideForPersistence() {
+                        return {
+                            decision: {
+                                status:
+                                    "confirmed_candidate"
+                            },
+                            recordChange: {
+                                status:
+                                    "updated_candidate",
+                                recordId:
+                                    "record-1",
+                                expectedContentHash:
+                                    "a".repeat(64)
+                            }
+                        };
+                    }
+                },
+                semanticPersistenceService: {
+                    async persist() {
+                        return persistenceResult;
+                    }
+                }
+            });
+
+        assert.deepStrictEqual(
+            await service.ingest({
+                verifiedContext: {
+                    connectorId:
+                        "connector-1",
+                    facilityId:
+                        "facility-1"
+                },
+                residentMatching: {
+                    status: "matched",
+                    residentId:
+                        "resident-1"
+                },
+                semanticRecord: {}
+            }),
+            {
+                status: "rejected"
+            }
+        );
+    }
+});
+
+test("non-confirmed decisions do not call persistence", async () => {
+    for (const status of [
+        "pending_review",
+        "conflict",
+        "rejected"
+    ]) {
+        let persistenceCalls = 0;
+
+        const service =
+            new SemanticIngestionService({
+                semanticRecordPipeline: {
+                    async process() {
+                        return {
+                            status:
+                                "new_candidate"
+                        };
+                    }
+                },
+                semanticStorageDecisionService: {
+                    async decideForPersistence() {
+                        return {
+                            decision: {
+                                status
+                            }
+                        };
+                    }
+                },
+                semanticPersistenceService: {
+                    async persist() {
+                        persistenceCalls += 1;
+
+                        return {
+                            status: "updated"
+                        };
+                    }
+                }
+            });
+
+        assert.deepStrictEqual(
+            await service.ingest({
+                verifiedContext: {
+                    connectorId:
+                        "connector-1",
+                    facilityId:
+                        "facility-1"
+                },
+                residentMatching: {
+                    status: "matched"
+                },
+                semanticRecord: {}
+            }),
+            {
+                status
+            }
+        );
+
+        assert.strictEqual(
+            persistenceCalls,
+            0
+        );
+    }
+});

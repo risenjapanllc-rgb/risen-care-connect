@@ -664,3 +664,161 @@ test("unknown record change status fails closed before storage policy", async ()
         0
     );
 });
+
+test("persistence decision preserves trusted updated record change without changing public decision", async () => {
+    const expectedContentHash =
+        "a".repeat(64);
+
+    const service =
+        new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    return {
+                        recordId: "record-1",
+                        contentHash:
+                            expectedContentHash,
+                        canonicalizationVersion:
+                            "risen-semantic-canonicalization-1"
+                    };
+                }
+            },
+            recordChangeResolver: {
+                resolve(input) {
+                    assert.strictEqual(
+                        input.existingRecordState
+                            .contentHash,
+                        expectedContentHash
+                    );
+
+                    return {
+                        status:
+                            "updated_candidate",
+                        recordId:
+                            "record-1",
+                        expectedContentHash
+                    };
+                }
+            },
+            semanticStoragePolicy: {
+                evaluate() {
+                    return {
+                        status:
+                            "confirmed_candidate"
+                    };
+                }
+            }
+        });
+
+    const input = {
+        verifiedContext: {
+            facilityId:
+                "facility-1"
+        },
+        residentMatching: {
+            status:
+                "matched",
+            residentId:
+                "resident-1"
+        },
+        semanticPipeline: {
+            status:
+                "resolved",
+            processedSemanticRecord: {
+                contentHash:
+                    "b".repeat(64),
+                processingMetadata: {
+                    canonicalizationVersion:
+                        "risen-semantic-canonicalization-1"
+                }
+            },
+            identityResolution: {
+                status:
+                    "resolved",
+                recordId:
+                    "record-1"
+            }
+        }
+    };
+
+    assert.deepStrictEqual(
+        await service.decideForPersistence(
+            input
+        ),
+        {
+            decision: {
+                status:
+                    "confirmed_candidate"
+            },
+            recordChange: {
+                status:
+                    "updated_candidate",
+                recordId:
+                    "record-1",
+                expectedContentHash
+            }
+        }
+    );
+
+    assert.deepStrictEqual(
+        await service.decide(input),
+        {
+            status:
+                "confirmed_candidate"
+        }
+    );
+});
+
+test("persistence decision does not expose record change for non-confirmed result", async () => {
+    const service =
+        new SemanticStorageDecisionService({
+            existingSemanticRecordRepository: {
+                async getByRecordId() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                }
+            },
+            recordChangeResolver: {
+                resolve() {
+                    throw new Error(
+                        "must not be called"
+                    );
+                }
+            },
+            semanticStoragePolicy: {
+                evaluate() {
+                    return {
+                        status:
+                            "pending_review"
+                    };
+                }
+            }
+        });
+
+    assert.deepStrictEqual(
+        await service.decideForPersistence({
+            verifiedContext: {
+                facilityId:
+                    "facility-1"
+            },
+            residentMatching: {
+                status:
+                    "matched"
+            },
+            semanticPipeline: {
+                status:
+                    "new_candidate",
+                identityResolution: {
+                    status:
+                        "new_candidate"
+                }
+            }
+        }),
+        {
+            decision: {
+                status:
+                    "pending_review"
+            }
+        }
+    );
+});

@@ -46,7 +46,27 @@ class SemanticStorageDecisionService {
             semanticStoragePolicy;
     }
 
-    async decide({
+    async decide(input = {}) {
+        const persistenceDecision =
+            await this.decideForPersistence(
+                input
+            );
+
+        if (
+            !this.isPlainObject(
+                persistenceDecision
+            ) ||
+            !this.isPlainObject(
+                persistenceDecision.decision
+            )
+        ) {
+            return this.rejected();
+        }
+
+        return persistenceDecision.decision;
+    }
+
+    async decideForPersistence({
         verifiedContext,
         residentMatching,
         semanticPipeline
@@ -54,7 +74,9 @@ class SemanticStorageDecisionService {
         if (
             !this.isPlainObject(semanticPipeline)
         ) {
-            return this.rejected();
+            return {
+                decision: this.rejected()
+            };
         }
 
         let recordChange;
@@ -87,7 +109,9 @@ class SemanticStorageDecisionService {
                     identityResolution.recordId
                 )
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             let existingRecordState;
@@ -105,7 +129,9 @@ class SemanticStorageDecisionService {
                                     .recordId
                         });
             } catch {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             if (
@@ -113,7 +139,9 @@ class SemanticStorageDecisionService {
                     existingRecordState
                 )
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             const safeExistingRecordState =
@@ -136,7 +164,9 @@ class SemanticStorageDecisionService {
                                 ?.canonicalizationVersion
                     });
             } catch {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             if (
@@ -144,7 +174,9 @@ class SemanticStorageDecisionService {
                 typeof recordChange.status !==
                     "string"
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             if (
@@ -152,7 +184,9 @@ class SemanticStorageDecisionService {
                 "conflict"
             ) {
                 return {
-                    status: "conflict"
+                    decision: {
+                        status: "conflict"
+                    }
                 };
             }
 
@@ -164,7 +198,9 @@ class SemanticStorageDecisionService {
                     recordChange.status
                 )
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             if (
@@ -174,7 +210,9 @@ class SemanticStorageDecisionService {
                 recordChange.recordId !==
                     identityResolution.recordId
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
             if (
@@ -184,7 +222,9 @@ class SemanticStorageDecisionService {
                 recordChange.recordId !==
                     identityResolution.recordId
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
         }
 
@@ -207,12 +247,29 @@ class SemanticStorageDecisionService {
                     "rejected"
                 ].includes(decision.status)
             ) {
-                return this.rejected();
+                return {
+                    decision: this.rejected()
+                };
             }
 
-            return decision;
+            if (
+                decision.status ===
+                    "confirmed_candidate" &&
+                recordChange
+            ) {
+                return {
+                    decision,
+                    recordChange
+                };
+            }
+
+            return {
+                decision
+            };
         } catch {
-            return this.rejected();
+            return {
+                decision: this.rejected()
+            };
         }
     }
 

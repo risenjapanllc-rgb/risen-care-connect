@@ -136,6 +136,8 @@ test("complete update scope reaches implementation boundary", async () => {
             repository.updateConfirmedRecord({
                 verifiedFacilityId:
                     "facility-1",
+                verifiedConnectorId:
+                    "connector-1",
                 recordId:
                     "record-1",
                 expectedContentHash:
@@ -197,6 +199,8 @@ test("update requires expected previous content hash", async () => {
         await repository.updateConfirmedRecord({
             verifiedFacilityId:
                 "facility-1",
+            verifiedConnectorId:
+                "connector-1",
             recordId:
                 "record-1",
             contentHash:
@@ -270,6 +274,31 @@ test("update requires semanticType inside semanticContent", async () => {
             canonicalizationVersion:
                 "risen-semantic-canonicalization-1",
             semanticContent
+        });
+
+    assert.deepStrictEqual(result, {
+        status: "invalid"
+    });
+});
+
+test("update requires verified connector identity", async () => {
+    const repository =
+        new SemanticRecordPersistenceRepository();
+
+    const result =
+        await repository.updateConfirmedRecord({
+            verifiedFacilityId:
+                "facility-1",
+            recordId:
+                "record-1",
+            expectedContentHash:
+                HASH_A,
+            contentHash:
+                HASH_B,
+            canonicalizationVersion:
+                "risen-semantic-canonicalization-1",
+            semanticContent:
+                createSemanticContent()
         });
 
     assert.deepStrictEqual(result, {

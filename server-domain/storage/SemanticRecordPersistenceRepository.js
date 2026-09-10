@@ -36,6 +36,7 @@ class SemanticRecordPersistenceRepository {
 
     async updateConfirmedRecord({
         verifiedFacilityId,
+        verifiedConnectorId,
         recordId,
         expectedContentHash,
         contentHash,
@@ -44,6 +45,7 @@ class SemanticRecordPersistenceRepository {
     } = {}) {
         if (
             !this.isNonEmptyString(verifiedFacilityId) ||
+            !this.isNonEmptyString(verifiedConnectorId) ||
             !this.isNonEmptyString(recordId) ||
             !this.isContentHash(expectedContentHash) ||
             !this.isContentHash(contentHash) ||

@@ -19,7 +19,10 @@ class SemanticRecordPersistenceRepository {
             !this.isNonEmptyString(sourceRecordKey) ||
             !this.isContentHash(contentHash) ||
             !this.isNonEmptyString(canonicalizationVersion) ||
-            !this.isPlainObject(semanticContent)
+            !this.isPlainObject(semanticContent) ||
+            !this.isNonEmptyString(
+                semanticContent.semanticType
+            )
         ) {
             return {
                 status: "invalid"
@@ -45,7 +48,10 @@ class SemanticRecordPersistenceRepository {
             !this.isContentHash(expectedContentHash) ||
             !this.isContentHash(contentHash) ||
             !this.isNonEmptyString(canonicalizationVersion) ||
-            !this.isPlainObject(semanticContent)
+            !this.isPlainObject(semanticContent) ||
+            !this.isNonEmptyString(
+                semanticContent.semanticType
+            )
         ) {
             return {
                 status: "invalid"

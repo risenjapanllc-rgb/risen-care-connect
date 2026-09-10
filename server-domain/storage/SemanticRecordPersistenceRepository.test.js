@@ -215,6 +215,68 @@ test("update requires expected previous content hash", async () => {
     );
 });
 
+test("create requires semanticType inside semanticContent", async () => {
+    const repository =
+        new SemanticRecordPersistenceRepository();
+
+    const semanticContent =
+        createSemanticContent();
+
+    delete semanticContent.semanticType;
+
+    const result =
+        await repository.createConfirmedRecord({
+            verifiedFacilityId:
+                "facility-1",
+            verifiedConnectorId:
+                "connector-1",
+            residentId:
+                "resident-1",
+            sourceDocumentKey:
+                "document-1",
+            sourceRecordKey:
+                "support_record:primary",
+            contentHash:
+                HASH_A,
+            canonicalizationVersion:
+                "risen-semantic-canonicalization-1",
+            semanticContent
+        });
+
+    assert.deepStrictEqual(result, {
+        status: "invalid"
+    });
+});
+
+test("update requires semanticType inside semanticContent", async () => {
+    const repository =
+        new SemanticRecordPersistenceRepository();
+
+    const semanticContent =
+        createSemanticContent();
+
+    delete semanticContent.semanticType;
+
+    const result =
+        await repository.updateConfirmedRecord({
+            verifiedFacilityId:
+                "facility-1",
+            recordId:
+                "record-1",
+            expectedContentHash:
+                HASH_A,
+            contentHash:
+                HASH_B,
+            canonicalizationVersion:
+                "risen-semantic-canonicalization-1",
+            semanticContent
+        });
+
+    assert.deepStrictEqual(result, {
+        status: "invalid"
+    });
+});
+
 test("repository exposes only create and update persistence operations", () => {
     const repository =
         new SemanticRecordPersistenceRepository();

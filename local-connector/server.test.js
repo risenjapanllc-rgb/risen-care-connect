@@ -678,14 +678,19 @@ test("POST /files/:fileName/ingest maps denied to HTTP 401", async () => {
     app.locals.getLocalConnectorIngestionService =
         async () => ({
             async ingestRegisteredFile() {
-                return {
-                    requestId:
-                        "request-denied-001",
-                    status:
-                        "denied",
-                    errorCode:
-                        "connector_trust_denied"
-                };
+                const error =
+                    new Error(
+                        "Server Trust Boundary request failed"
+                    );
+
+                error.code =
+                    "connector_trust_denied";
+                error.httpStatus =
+                    401;
+                error.requestId =
+                    "request-denied-001";
+
+                throw error;
             }
         });
 
@@ -751,14 +756,19 @@ test("POST /files/:fileName/ingest maps invalid to HTTP 422", async () => {
     app.locals.getLocalConnectorIngestionService =
         async () => ({
             async ingestRegisteredFile() {
-                return {
-                    requestId:
-                        "request-invalid-001",
-                    status:
-                        "invalid",
-                    errorCode:
-                        "connector_payload_invalid"
-                };
+                const error =
+                    new Error(
+                        "Server Trust Boundary request failed"
+                    );
+
+                error.code =
+                    "connector_payload_invalid";
+                error.httpStatus =
+                    422;
+                error.requestId =
+                    "request-invalid-001";
+
+                throw error;
             }
         });
 
@@ -824,14 +834,19 @@ test("POST /files/:fileName/ingest maps Server Trust Boundary error to HTTP 503"
     app.locals.getLocalConnectorIngestionService =
         async () => ({
             async ingestRegisteredFile() {
-                return {
-                    requestId:
-                        "request-error-001",
-                    status:
-                        "error",
-                    errorCode:
-                        "connector_processing_unavailable"
-                };
+                const error =
+                    new Error(
+                        "Server Trust Boundary request failed"
+                    );
+
+                error.code =
+                    "connector_processing_unavailable";
+                error.httpStatus =
+                    503;
+                error.requestId =
+                    "request-error-001";
+
+                throw error;
             }
         });
 

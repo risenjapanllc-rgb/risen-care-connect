@@ -428,3 +428,151 @@ test(
         );
     }
 );
+
+test("retains only safe diagnostics from non-2xx responses", async () => {
+    const client =
+        new ServerTrustBoundaryHttpClient({
+            endpoint:
+                "https://backend.example/connector/ingest",
+            connectorId:
+                "connector-id-secret",
+            credential:
+                "credential-secret",
+            authorizationScheme:
+                "RISEN-Connector",
+            fetchImpl:
+                async () => ({
+                    ok: false,
+                    status: 503,
+                    async json() {
+                        return {
+                            requestId:
+                                "request-safe-503",
+                            status:
+                                "error",
+                            errorCode:
+                                "connector_processing_unavailable",
+                            internalErrorCode:
+                                "semantic_ingestion_exception",
+                            credential:
+                                "must-not-propagate"
+                        };
+                    }
+                })
+        });
+
+    await assert.rejects(
+        () =>
+            client.ingest({
+                sourceResident: {
+                    identifier: {
+                        value:
+                            "RES-123"
+                    }
+                }
+            }),
+        (error) => {
+            assert.strictEqual(
+                error.message,
+                "Server Trust Boundary request failed"
+            );
+
+            assert.strictEqual(
+                error.code,
+                "connector_processing_unavailable"
+            );
+
+            assert.strictEqual(
+                error.httpStatus,
+                503
+            );
+
+            assert.strictEqual(
+                error.requestId,
+                "request-safe-503"
+            );
+
+            assert.strictEqual(
+                Object.prototype.hasOwnProperty.call(
+                    error,
+                    "internalErrorCode"
+                ),
+                false
+            );
+
+            assert.strictEqual(
+                Object.prototype.hasOwnProperty.call(
+                    error,
+                    "credential"
+                ),
+                false
+            );
+
+            assert.strictEqual(
+                JSON.stringify(error).includes(
+                    "credential-secret"
+                ),
+                false
+            );
+
+            return true;
+        }
+    );
+});
+
+test("does not trust unknown non-2xx error codes", async () => {
+    const client =
+        new ServerTrustBoundaryHttpClient({
+            endpoint:
+                "https://backend.example/connector/ingest",
+            connectorId:
+                "connector-id",
+            credential:
+                "credential-value",
+            authorizationScheme:
+                "RISEN-Connector",
+            fetchImpl:
+                async () => ({
+                    ok: false,
+                    status: 500,
+                    async json() {
+                        return {
+                            requestId:
+                                "request-unknown",
+                            errorCode:
+                                "internal_database_secret"
+                        };
+                    }
+                })
+        });
+
+    await assert.rejects(
+        () =>
+            client.ingest({
+                sourceResident: {
+                    identifier: {
+                        value:
+                            "RES-123"
+                    }
+                }
+            }),
+        (error) => {
+            assert.strictEqual(
+                error.code,
+                "server_trust_boundary_request_failed"
+            );
+
+            assert.strictEqual(
+                error.httpStatus,
+                500
+            );
+
+            assert.strictEqual(
+                error.requestId,
+                "request-unknown"
+            );
+
+            return true;
+        }
+    );
+});

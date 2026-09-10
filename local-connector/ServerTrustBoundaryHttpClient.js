@@ -160,9 +160,57 @@ class ServerTrustBoundaryHttpClient {
                 );
 
             if (!response.ok) {
-                throw new Error(
-                    "Server Trust Boundary request failed"
-                );
+                const allowedErrorCodes =
+                    new Set([
+                        "connector_trust_denied",
+                        "connector_payload_invalid",
+                        "connector_processing_unavailable"
+                    ]);
+
+                let safeResponse = null;
+
+                try {
+                    const parsed =
+                        await response.json();
+
+                    if (
+                        parsed !== null &&
+                        typeof parsed === "object" &&
+                        !Array.isArray(parsed)
+                    ) {
+                        safeResponse = parsed;
+                    }
+                } catch (error) {
+                    safeResponse = null;
+                }
+
+                const error =
+                    new Error(
+                        "Server Trust Boundary request failed"
+                    );
+
+                error.code =
+                    safeResponse &&
+                    typeof safeResponse.errorCode === "string" &&
+                    allowedErrorCodes.has(
+                        safeResponse.errorCode
+                    )
+                        ? safeResponse.errorCode
+                        : "server_trust_boundary_request_failed";
+
+                error.httpStatus =
+                    Number.isInteger(response.status)
+                        ? response.status
+                        : null;
+
+                error.requestId =
+                    safeResponse &&
+                    typeof safeResponse.requestId === "string" &&
+                    safeResponse.requestId.trim() !== ""
+                        ? safeResponse.requestId.trim()
+                        : null;
+
+                throw error;
             }
 
             let result;

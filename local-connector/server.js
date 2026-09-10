@@ -241,48 +241,56 @@ app.post("/files/:fileName/ingest", async (req, res) => {
             });
         }
 
-        if (result?.status === "denied") {
-            return res.status(401).json({
-                success: false,
-                requestId:
-                    result.requestId,
-                status:
-                    "denied",
-                errorCode:
-                    "connector_trust_denied"
-            });
-        }
-
-        if (result?.status === "invalid") {
-            return res.status(422).json({
-                success: false,
-                requestId:
-                    result.requestId,
-                status:
-                    "invalid",
-                errorCode:
-                    "connector_payload_invalid"
-            });
-        }
-
-        if (result?.status === "error") {
-            return res.status(503).json({
-                success: false,
-                requestId:
-                    result.requestId,
-                status:
-                    "error",
-                errorCode:
-                    "connector_processing_unavailable"
-            });
-        }
-
         return res.status(503).json({
             success: false,
             message:
                 "Server Trust Boundaryから不正な応答を受信しました"
         });
     } catch (error) {
+        const safeRemoteErrors = {
+            connector_trust_denied: {
+                httpStatus: 401,
+                status: "denied"
+            },
+            connector_payload_invalid: {
+                httpStatus: 422,
+                status: "invalid"
+            },
+            connector_processing_unavailable: {
+                httpStatus: 503,
+                status: "error"
+            }
+        };
+
+        const mapping =
+            error &&
+            typeof error === "object"
+                ? safeRemoteErrors[error.code]
+                : null;
+
+        const hasSafeRequestId =
+            error &&
+            typeof error.requestId === "string" &&
+            error.requestId.trim() !== "";
+
+        if (
+            mapping &&
+            error.httpStatus === mapping.httpStatus &&
+            hasSafeRequestId
+        ) {
+            return res
+                .status(mapping.httpStatus)
+                .json({
+                    success: false,
+                    requestId:
+                        error.requestId.trim(),
+                    status:
+                        mapping.status,
+                    errorCode:
+                        error.code
+                });
+        }
+
         return res.status(503).json({
             success: false,
             message:

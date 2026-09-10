@@ -727,3 +727,107 @@ test("awaits asynchronous record identity resolution", async () => {
         }
     );
 });
+
+test("complete source identity reaches resolver as only the trusted four-key lookup scope", async () => {
+    let receivedIdentityContext;
+
+    const pipeline =
+        new SemanticRecordPipeline({
+            semanticRecordValidator: {
+                validate(record) {
+                    return {
+                        status: "valid",
+                        validatedSemanticRecord:
+                            record
+                    };
+                }
+            },
+            semanticContentProcessor: {
+                process(record) {
+                    return {
+                        status: "processed",
+                        processedSemanticRecord: {
+                            ...record,
+                            contentHash:
+                                "a".repeat(64),
+                            processingMetadata: {
+                                canonicalizationVersion:
+                                    "risen-semantic-canonicalization-1"
+                            }
+                        }
+                    };
+                }
+            },
+            recordIdentityResolver: {
+                async resolve(identityContext) {
+                    receivedIdentityContext =
+                        identityContext;
+
+                    return {
+                        status:
+                            "new_candidate"
+                    };
+                }
+            }
+        });
+
+    const result =
+        await pipeline.process({
+            verifiedContext: {
+                facilityId:
+                    "facility-1",
+                connectorId:
+                    "connector-1"
+            },
+            semanticRecord: {
+                sourceRecordContext: {
+                    sourceResidentIdentifier:
+                        "RES-123",
+                    sourceResidentName:
+                        "利用者A",
+                    sourceRecordKey:
+                        "source-record-1"
+                },
+                semanticContent: {
+                    semanticType:
+                        "support_record",
+                    fields: {
+                        supportContent:
+                            "support content"
+                    },
+                    customFields: {}
+                },
+                provenance: {
+                    sourceDocumentKey:
+                        "document-key-1",
+                    fileName:
+                        "document.docx",
+                    sourceUpdatedAt:
+                        "2026-09-05T10:00:00Z",
+                    documentType:
+                        "support_record",
+                    sourceType:
+                        "word"
+                }
+            }
+        });
+
+    assert.deepStrictEqual(
+        receivedIdentityContext,
+        {
+            verifiedFacilityId:
+                "facility-1",
+            verifiedConnectorId:
+                "connector-1",
+            sourceDocumentKey:
+                "document-key-1",
+            sourceRecordKey:
+                "source-record-1"
+        }
+    );
+
+    assert.strictEqual(
+        result.status,
+        "new_candidate"
+    );
+});

@@ -517,3 +517,166 @@ test("blank sourceDocumentKey in provenance is invalid", () => {
         }
     );
 });
+
+test("sourceRecordKey is preserved only inside sourceRecordContext", () => {
+    const validator =
+        new SemanticRecordValidator();
+
+    const result =
+        validator.validate({
+            sourceRecordContext: {
+                sourceResidentIdentifier:
+                    "RES-123",
+                sourceRecordKey:
+                    "source-record-1"
+            },
+            semanticContent: {
+                semanticType:
+                    "support_record",
+                fields: {
+                    supportContent:
+                        "support content"
+                },
+                customFields: {}
+            },
+            provenance: {
+                sourceDocumentKey:
+                    "document-1",
+                fileName:
+                    "document.docx",
+                sourceUpdatedAt:
+                    "2026-09-05T10:00:00Z",
+                documentType:
+                    "support_record",
+                sourceType:
+                    "word"
+            }
+        });
+
+    assert.strictEqual(
+        result.status,
+        "valid"
+    );
+
+    assert.strictEqual(
+        result
+            .validatedSemanticRecord
+            .sourceRecordContext
+            .sourceRecordKey,
+        "source-record-1"
+    );
+
+    assert.strictEqual(
+        result
+            .validatedSemanticRecord
+            .semanticContent
+            .sourceRecordKey,
+        undefined
+    );
+
+    assert.strictEqual(
+        result
+            .validatedSemanticRecord
+            .provenance
+            .sourceRecordKey,
+        undefined
+    );
+});
+
+test("blank sourceRecordKey is invalid", () => {
+    const validator =
+        new SemanticRecordValidator();
+
+    for (const sourceRecordKey of [
+        "",
+        "   "
+    ]) {
+        const result =
+            validator.validate({
+                sourceRecordContext: {
+                    sourceRecordKey
+                },
+                semanticContent: {
+                    semanticType:
+                        "support_record",
+                    fields: {
+                        supportContent:
+                            "support content"
+                    },
+                    customFields: {}
+                },
+                provenance: {
+                    sourceDocumentKey:
+                        "document-1",
+                    fileName:
+                        "document.docx",
+                    sourceUpdatedAt:
+                        "2026-09-05T10:00:00Z",
+                    documentType:
+                        "support_record",
+                    sourceType:
+                        "word"
+                }
+            });
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status:
+                    "invalid",
+                errorCode:
+                    "semantic_source_record_context_invalid"
+            }
+        );
+    }
+});
+
+test("non-string sourceRecordKey is invalid", () => {
+    const validator =
+        new SemanticRecordValidator();
+
+    for (const sourceRecordKey of [
+        null,
+        123,
+        {},
+        []
+    ]) {
+        const result =
+            validator.validate({
+                sourceRecordContext: {
+                    sourceRecordKey
+                },
+                semanticContent: {
+                    semanticType:
+                        "support_record",
+                    fields: {
+                        supportContent:
+                            "support content"
+                    },
+                    customFields: {}
+                },
+                provenance: {
+                    sourceDocumentKey:
+                        "document-1",
+                    fileName:
+                        "document.docx",
+                    sourceUpdatedAt:
+                        "2026-09-05T10:00:00Z",
+                    documentType:
+                        "support_record",
+                    sourceType:
+                        "word"
+                }
+            });
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status:
+                    "invalid",
+                errorCode:
+                    "semantic_source_record_context_invalid"
+            }
+        );
+    }
+});

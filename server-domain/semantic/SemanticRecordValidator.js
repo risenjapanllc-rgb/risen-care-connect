@@ -75,6 +75,7 @@ class SemanticRecordValidator {
         }
 
         const value = {};
+
         for (const key of ["sourceResidentIdentifier", "sourceResidentName"]) {
             if (!this.hasOwn(context, key)) {
                 continue;
@@ -88,6 +89,24 @@ class SemanticRecordValidator {
             if (fieldValue.trim() !== "") {
                 value[key] = fieldValue;
             }
+        }
+
+        if (this.hasOwn(context, "sourceRecordKey")) {
+            const sourceRecordKey =
+                context.sourceRecordKey;
+
+            if (
+                typeof sourceRecordKey !== "string" ||
+                sourceRecordKey.trim() === ""
+            ) {
+                return {
+                    errorCode:
+                        "semantic_source_record_context_invalid"
+                };
+            }
+
+            value.sourceRecordKey =
+                sourceRecordKey;
         }
 
         return { value };

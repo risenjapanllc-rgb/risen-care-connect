@@ -6,10 +6,17 @@ const assert = require("node:assert/strict");
 const SupabaseConnectorRegistrationRepository =
     require("./SupabaseConnectorRegistrationRepository");
 
-function createRepository() {
+function createRepository({
+    accessToken = "test-access-token"
+} = {}) {
     return new SupabaseConnectorRegistrationRepository({
         supabaseUrl: "https://example.supabase.co",
-        apiKey: "test-publishable-key"
+        apiKey: "test-publishable-key",
+        accessTokenProvider: {
+            async getAccessToken() {
+                return accessToken;
+            }
+        }
     });
 }
 
@@ -17,7 +24,12 @@ test("constructor requires supabaseUrl", () => {
     assert.throws(
         () =>
             new SupabaseConnectorRegistrationRepository({
-                apiKey: "test-key"
+                apiKey: "test-key",
+                accessTokenProvider: {
+                    async getAccessToken() {
+                        return "test-access-token";
+                    }
+                }
             }),
         /requires supabaseUrl/
     );
@@ -27,9 +39,25 @@ test("constructor requires apiKey", () => {
     assert.throws(
         () =>
             new SupabaseConnectorRegistrationRepository({
-                supabaseUrl: "https://example.supabase.co"
+                supabaseUrl: "https://example.supabase.co",
+                accessTokenProvider: {
+                    async getAccessToken() {
+                        return "test-access-token";
+                    }
+                }
             }),
         /requires apiKey/
+    );
+});
+
+test("constructor requires accessTokenProvider", () => {
+    assert.throws(
+        () =>
+            new SupabaseConnectorRegistrationRepository({
+                supabaseUrl: "https://example.supabase.co",
+                apiKey: "test-publishable-key"
+            }),
+        /requires accessTokenProvider/
     );
 });
 
@@ -70,6 +98,11 @@ test("maps Supabase registration row to repository contract", async () => {
         assert.strictEqual(
             options.headers.apikey,
             "test-publishable-key"
+        );
+
+        assert.strictEqual(
+            options.headers.Authorization,
+            "Bearer test-access-token"
         );
 
         assert.deepStrictEqual(

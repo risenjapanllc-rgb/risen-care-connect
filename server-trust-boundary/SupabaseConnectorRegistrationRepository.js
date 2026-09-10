@@ -9,7 +9,11 @@
  * - do not perform credential verification here
  */
 class SupabaseConnectorRegistrationRepository {
-    constructor({ supabaseUrl, apiKey } = {}) {
+    constructor({
+        supabaseUrl,
+        apiKey,
+        accessTokenProvider
+    } = {}) {
         if (!supabaseUrl) {
             throw new Error(
                 "SupabaseConnectorRegistrationRepository requires supabaseUrl"
@@ -22,6 +26,15 @@ class SupabaseConnectorRegistrationRepository {
             );
         }
 
+        if (
+            !accessTokenProvider ||
+            typeof accessTokenProvider.getAccessToken !== "function"
+        ) {
+            throw new Error(
+                "SupabaseConnectorRegistrationRepository requires accessTokenProvider"
+            );
+        }
+
         this.supabaseUrl =
             String(supabaseUrl)
                 .trim()
@@ -29,6 +42,9 @@ class SupabaseConnectorRegistrationRepository {
 
         this.apiKey =
             String(apiKey).trim();
+
+        this.accessTokenProvider =
+            accessTokenProvider;
     }
 
     async getRegistration({ connectorId } = {}) {
@@ -39,6 +55,18 @@ class SupabaseConnectorRegistrationRepository {
             return null;
         }
 
+        const accessToken =
+            await this.accessTokenProvider.getAccessToken();
+
+        if (
+            typeof accessToken !== "string" ||
+            !accessToken
+        ) {
+            throw new Error(
+                "Supabase registration lookup requires access token"
+            );
+        }
+
         const response =
             await fetch(
                 `${this.supabaseUrl}/rest/v1/rpc/get_connector_registration`,
@@ -46,7 +74,8 @@ class SupabaseConnectorRegistrationRepository {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "apikey": this.apiKey
+                        "apikey": this.apiKey,
+                        "Authorization": `Bearer ${accessToken}`
                     },
                     body: JSON.stringify({
                         p_connector_id: normalizedConnectorId

@@ -87,10 +87,19 @@ function createServerTrustBoundaryRuntime({
     connectorTrustEmail,
     connectorTrustPassword
 } = {}) {
+    const accessTokenProvider =
+        new SupabaseConnectorTrustAuthProvider({
+            supabaseUrl,
+            apiKey,
+            email: connectorTrustEmail,
+            password: connectorTrustPassword
+        });
+
     const connectorRegistrationRepository =
         new SupabaseConnectorRegistrationRepository({
             supabaseUrl,
-            apiKey
+            apiKey,
+            accessTokenProvider
         });
 
     const connectorRegistrationVerifier =
@@ -101,7 +110,8 @@ function createServerTrustBoundaryRuntime({
     const credentialVerifierBackend =
         new SupabaseConnectorCredentialVerifierBackend({
             supabaseUrl,
-            apiKey
+            apiKey,
+            accessTokenProvider
         });
 
     const connectorCredentialVerifier =
@@ -113,14 +123,6 @@ function createServerTrustBoundaryRuntime({
         new ConnectorTrustService({
             connectorRegistrationVerifier,
             connectorCredentialVerifier
-        });
-
-    const accessTokenProvider =
-        new SupabaseConnectorTrustAuthProvider({
-            supabaseUrl,
-            apiKey,
-            email: connectorTrustEmail,
-            password: connectorTrustPassword
         });
 
     const residentRepository =

@@ -9,7 +9,11 @@
  * - never retrieve or expose credential_hash
  */
 class SupabaseConnectorCredentialVerifierBackend {
-    constructor({ supabaseUrl, apiKey } = {}) {
+    constructor({
+        supabaseUrl,
+        apiKey,
+        accessTokenProvider
+    } = {}) {
         if (!supabaseUrl) {
             throw new Error(
                 "SupabaseConnectorCredentialVerifierBackend requires supabaseUrl"
@@ -22,6 +26,15 @@ class SupabaseConnectorCredentialVerifierBackend {
             );
         }
 
+        if (
+            !accessTokenProvider ||
+            typeof accessTokenProvider.getAccessToken !== "function"
+        ) {
+            throw new Error(
+                "SupabaseConnectorCredentialVerifierBackend requires accessTokenProvider"
+            );
+        }
+
         this.supabaseUrl =
             String(supabaseUrl)
                 .trim()
@@ -29,6 +42,9 @@ class SupabaseConnectorCredentialVerifierBackend {
 
         this.apiKey =
             String(apiKey).trim();
+
+        this.accessTokenProvider =
+            accessTokenProvider;
     }
 
     async verifyCredential({ connectorId, credential } = {}) {
@@ -42,6 +58,18 @@ class SupabaseConnectorCredentialVerifierBackend {
             return false;
         }
 
+        const accessToken =
+            await this.accessTokenProvider.getAccessToken();
+
+        if (
+            typeof accessToken !== "string" ||
+            !accessToken
+        ) {
+            throw new Error(
+                "Supabase credential verification requires access token"
+            );
+        }
+
         const response =
             await fetch(
                 `${this.supabaseUrl}/rest/v1/rpc/verify_connector_credential`,
@@ -50,7 +78,7 @@ class SupabaseConnectorCredentialVerifierBackend {
                     headers: {
                         "Content-Type": "application/json",
                         "apikey": this.apiKey,
-                        "Authorization": `Bearer ${this.apiKey}`
+                        "Authorization": `Bearer ${accessToken}`
                     },
                     body: JSON.stringify({
                         p_connector_id: normalizedConnectorId,

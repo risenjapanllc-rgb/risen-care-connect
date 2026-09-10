@@ -20,6 +20,9 @@ const SupabaseConnectorRegistrationRepository =
 const SupabaseConnectorCredentialVerifierBackend =
     require("../server-trust-boundary/SupabaseConnectorCredentialVerifierBackend");
 
+const SupabaseConnectorTrustAuthProvider =
+    require("../server-trust-boundary/SupabaseConnectorTrustAuthProvider");
+
 const CONNECTOR_ID =
     "f7d170fe-2591-43c1-920b-7014d3eb8a1d";
 
@@ -30,6 +33,8 @@ const hasRequiredEnvironment =
     Boolean(
         process.env.SUPABASE_URL &&
         process.env.SUPABASE_PUBLISHABLE_KEY &&
+        process.env.SUPABASE_CONNECTOR_TRUST_EMAIL &&
+        process.env.SUPABASE_CONNECTOR_TRUST_PASSWORD &&
         process.env.CONNECTOR_CREDENTIAL
     );
 
@@ -41,10 +46,21 @@ test(
             : "Supabase integration environment is not configured"
     },
     async () => {
+        const accessTokenProvider =
+            new SupabaseConnectorTrustAuthProvider({
+                supabaseUrl: process.env.SUPABASE_URL,
+                apiKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+                email:
+                    process.env.SUPABASE_CONNECTOR_TRUST_EMAIL,
+                password:
+                    process.env.SUPABASE_CONNECTOR_TRUST_PASSWORD
+            });
+
         const registrationRepository =
             new SupabaseConnectorRegistrationRepository({
                 supabaseUrl: process.env.SUPABASE_URL,
-                apiKey: process.env.SUPABASE_PUBLISHABLE_KEY
+                apiKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+                accessTokenProvider
             });
 
         const registrationVerifier =
@@ -56,7 +72,8 @@ test(
         const credentialBackend =
             new SupabaseConnectorCredentialVerifierBackend({
                 supabaseUrl: process.env.SUPABASE_URL,
-                apiKey: process.env.SUPABASE_PUBLISHABLE_KEY
+                apiKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+                accessTokenProvider
             });
 
         const credentialVerifier =

@@ -10,7 +10,10 @@ const {
 const ConnectorIngestionService =
     require("./ConnectorIngestionService");
 
-test("creates Server Trust Boundary runtime", () => {
+const SemanticIngestionService =
+    require("../server-domain/storage/SemanticIngestionService");
+
+test("creates complete Server Trust Boundary runtime", () => {
     const runtime =
         createServerTrustBoundaryRuntime({
             supabaseUrl:
@@ -24,14 +27,23 @@ test("creates Server Trust Boundary runtime", () => {
         });
 
     assert.ok(runtime);
+
     assert.ok(
         runtime.connectorIngestionService
             instanceof ConnectorIngestionService
     );
 
+    assert.ok(
+        runtime.semanticIngestionService
+            instanceof SemanticIngestionService
+    );
+
     assert.deepStrictEqual(
         Object.keys(runtime),
-        ["connectorIngestionService"]
+        [
+            "connectorIngestionService",
+            "semanticIngestionService"
+        ]
     );
 });
 

@@ -30,8 +30,50 @@ const SupabaseConnectorTrustAuthProvider =
 const SupabaseResidentRepository =
     require("./SupabaseResidentRepository");
 
+const SupabaseRecordIdentityCandidateProvider =
+    require("./SupabaseRecordIdentityCandidateProvider");
+
+const SupabaseExistingSemanticRecordRepository =
+    require("./SupabaseExistingSemanticRecordRepository");
+
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
+
+const RecordIdentityResolver =
+    require("../server-domain/record/RecordIdentityResolver");
+
+const RecordChangeResolver =
+    require("../server-domain/record/RecordChangeResolver");
+
+const SemanticRecordValidator =
+    require("../server-domain/semantic/SemanticRecordValidator");
+
+const SemanticContentCanonicalizer =
+    require("../server-domain/semantic/SemanticContentCanonicalizer");
+
+const SemanticContentHasher =
+    require("../server-domain/semantic/SemanticContentHasher");
+
+const CanonicalizationVersionAuthority =
+    require("../server-domain/semantic/CanonicalizationVersionAuthority");
+
+const CanonicalizationCompatibilityPolicy =
+    require("../server-domain/semantic/CanonicalizationCompatibilityPolicy");
+
+const SemanticContentProcessor =
+    require("../server-domain/semantic/SemanticContentProcessor");
+
+const SemanticRecordPipeline =
+    require("../server-domain/semantic/SemanticRecordPipeline");
+
+const SemanticStoragePolicy =
+    require("../server-domain/storage/SemanticStoragePolicy");
+
+const SemanticStorageDecisionService =
+    require("../server-domain/storage/SemanticStorageDecisionService");
+
+const SemanticIngestionService =
+    require("../server-domain/storage/SemanticIngestionService");
 
 /**
  * Build the Server Trust Boundary runtime.
@@ -107,8 +149,78 @@ function createServerTrustBoundaryRuntime({
             serverTrustBoundaryService
         });
 
+    const recordIdentityCandidateProvider =
+        new SupabaseRecordIdentityCandidateProvider({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const recordIdentityResolver =
+        new RecordIdentityResolver({
+            recordIdentityCandidateProvider
+        });
+
+    const semanticRecordValidator =
+        new SemanticRecordValidator();
+
+    const semanticContentCanonicalizer =
+        new SemanticContentCanonicalizer();
+
+    const semanticContentHasher =
+        new SemanticContentHasher();
+
+    const canonicalizationVersionAuthority =
+        new CanonicalizationVersionAuthority();
+
+    const semanticContentProcessor =
+        new SemanticContentProcessor({
+            semanticContentCanonicalizer,
+            semanticContentHasher,
+            canonicalizationVersionAuthority
+        });
+
+    const semanticRecordPipeline =
+        new SemanticRecordPipeline({
+            semanticRecordValidator,
+            semanticContentProcessor,
+            recordIdentityResolver
+        });
+
+    const existingSemanticRecordRepository =
+        new SupabaseExistingSemanticRecordRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const canonicalizationCompatibilityPolicy =
+        new CanonicalizationCompatibilityPolicy();
+
+    const recordChangeResolver =
+        new RecordChangeResolver({
+            canonicalizationCompatibilityPolicy
+        });
+
+    const semanticStoragePolicy =
+        new SemanticStoragePolicy();
+
+    const semanticStorageDecisionService =
+        new SemanticStorageDecisionService({
+            existingSemanticRecordRepository,
+            recordChangeResolver,
+            semanticStoragePolicy
+        });
+
+    const semanticIngestionService =
+        new SemanticIngestionService({
+            semanticRecordPipeline,
+            semanticStorageDecisionService
+        });
+
     return {
-        connectorIngestionService
+        connectorIngestionService,
+        semanticIngestionService
     };
 }
 

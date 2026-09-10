@@ -11,7 +11,8 @@
     "test:integration:ingestion": "node --test integration-tests/ConnectorIngestionService.integration.js",
     "test:integration:http": "node --test integration-tests/ServerTrustBoundaryHttp.integration.js",
     "start:local": "node -r dotenv/config local-connector/server.js",
-    "start:trust": "node -r dotenv/config server-trust-boundary/server.js"
+    "start:trust": "node -r dotenv/config server-trust-boundary/server.js",
+    "test:integration:semantic-identity": "node --test integration-tests/SupabaseRecordIdentityCandidateProvider.integration.js"
   },
   "keywords": [],
   "author": "",

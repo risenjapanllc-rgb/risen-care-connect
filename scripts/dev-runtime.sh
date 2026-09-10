@@ -7,11 +7,96 @@ cd "$ROOT_DIR"
 LOCAL_PORT="${RISEN_LOCAL_CONNECTOR_PORT:-4310}"
 STB_PORT="${SERVER_TRUST_BOUNDARY_PORT:-8787}"
 
+STATE_DIR="/tmp/risen-care-connect-runtime-${UID}"
+LOCAL_PID_FILE="${STATE_DIR}/local-${LOCAL_PORT}.pid"
+STB_PID_FILE="${STATE_DIR}/stb-${STB_PORT}.pid"
+
 LOCAL_LOG="/tmp/risen-local-${LOCAL_PORT}.log"
 STB_LOG="/tmp/risen-stb-${STB_PORT}.log"
 
+mkdir -p "$STATE_DIR"
+
 pid_on_port() {
   lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true
+}
+
+process_command() {
+  ps -p "$1" -o command= 2>/dev/null || true
+}
+
+process_cwd() {
+  lsof -a -p "$1" -d cwd -Fn 2>/dev/null \
+    | sed -n 's/^n//p' \
+    | head -n 1 || true
+}
+
+read_pid_file() {
+  local file="$1"
+
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+
+  tr -d '[:space:]' < "$file"
+}
+
+expected_command_matches() {
+  local role="$1"
+  local pid="$2"
+  local command
+
+  command="$(process_command "$pid")"
+
+  case "$role" in
+    local)
+      [[ "$command" == *"node -r dotenv/config local-connector/server.js"* ]]
+      ;;
+    stb)
+      [[ "$command" == *"node server-trust-boundary/server.js"* ]] ||
+      [[ "$command" == *"node -r dotenv/config server-trust-boundary/server.js"* ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_managed_process() {
+  local role="$1"
+  local port="$2"
+  local pid_file="$3"
+
+  local stored_pid
+  local listening_pid
+  local cwd
+
+  stored_pid="$(read_pid_file "$pid_file")"
+
+  if [ -z "$stored_pid" ]; then
+    return 1
+  fi
+
+  if ! kill -0 "$stored_pid" 2>/dev/null; then
+    return 1
+  fi
+
+  listening_pid="$(pid_on_port "$port")"
+
+  if [ "$stored_pid" != "$listening_pid" ]; then
+    return 1
+  fi
+
+  if ! expected_command_matches "$role" "$stored_pid"; then
+    return 1
+  fi
+
+  cwd="$(process_cwd "$stored_pid")"
+
+  if [ "$cwd" != "$ROOT_DIR" ]; then
+    return 1
+  fi
+
+  return 0
 }
 
 wait_port_free() {
@@ -27,11 +112,13 @@ wait_port_free() {
   return 1
 }
 
-wait_port_listening() {
-  local port="$1"
+wait_for_managed_listener() {
+  local role="$1"
+  local port="$2"
+  local pid_file="$3"
 
   for _ in {1..40}; do
-    if [ -n "$(pid_on_port "$port")" ]; then
+    if is_managed_process "$role" "$port" "$pid_file"; then
       return 0
     fi
     sleep 0.25
@@ -40,32 +127,58 @@ wait_port_listening() {
   return 1
 }
 
-stop_port() {
+stop_managed() {
   local name="$1"
-  local port="$2"
-  local pid
+  local role="$2"
+  local port="$3"
+  local pid_file="$4"
 
-  pid="$(pid_on_port "$port")"
+  local listening_pid
+  local stored_pid
 
-  if [ -z "$pid" ]; then
+  listening_pid="$(pid_on_port "$port")"
+
+  if [ -z "$listening_pid" ]; then
+    rm -f "$pid_file"
     echo "$name :$port already stopped"
     return 0
   fi
 
-  echo "Stopping $name :$port PID=$pid"
-  kill "$pid"
+  if ! is_managed_process "$role" "$port" "$pid_file"; then
+    echo "REFUSED: $name :$port is not owned by this runtime manager"
+    echo "PID=$listening_pid"
+    return 1
+  fi
+
+  stored_pid="$(read_pid_file "$pid_file")"
+
+  echo "Stopping $name :$port PID=$stored_pid"
+  kill "$stored_pid"
 
   if ! wait_port_free "$port"; then
     echo "FAILED: $name :$port did not stop"
     return 1
   fi
+
+  rm -f "$pid_file"
 }
 
 start_stb() {
-  if [ -n "$(pid_on_port "$STB_PORT")" ]; then
-    echo "Server Trust Boundary :$STB_PORT already running"
-    return 0
+  local existing
+
+  existing="$(pid_on_port "$STB_PORT")"
+
+  if [ -n "$existing" ]; then
+    if is_managed_process "stb" "$STB_PORT" "$STB_PID_FILE"; then
+      echo "Server Trust Boundary :$STB_PORT already running PID=$existing"
+      return 0
+    fi
+
+    echo "REFUSED: :$STB_PORT is occupied by an unmanaged process PID=$existing"
+    return 1
   fi
+
+  rm -f "$STB_PID_FILE"
 
   echo "Starting Server Trust Boundary :$STB_PORT"
 
@@ -73,30 +186,34 @@ start_stb() {
     > "$STB_LOG" 2>&1 &
 
   local pid=$!
+  printf '%s\n' "$pid" > "$STB_PID_FILE"
 
-  if ! wait_port_listening "$STB_PORT"; then
-    echo "FAILED: Server Trust Boundary did not start"
+  if ! wait_for_managed_listener "stb" "$STB_PORT" "$STB_PID_FILE"; then
+    echo "FAILED: Server Trust Boundary did not start as a managed process"
+    rm -f "$STB_PID_FILE"
     tail -n 40 "$STB_LOG" || true
     return 1
   fi
 
-  local actual
-  actual="$(pid_on_port "$STB_PORT")"
-
-  if [ "$actual" != "$pid" ]; then
-    echo "FAILED: unexpected process owns :$STB_PORT"
-    echo "expected PID=$pid actual PID=$actual"
-    return 1
-  fi
-
-  echo "Server Trust Boundary started PID=$actual"
+  echo "Server Trust Boundary started PID=$pid"
 }
 
 start_local() {
-  if [ -n "$(pid_on_port "$LOCAL_PORT")" ]; then
-    echo "Local Connector :$LOCAL_PORT already running"
-    return 0
+  local existing
+
+  existing="$(pid_on_port "$LOCAL_PORT")"
+
+  if [ -n "$existing" ]; then
+    if is_managed_process "local" "$LOCAL_PORT" "$LOCAL_PID_FILE"; then
+      echo "Local Connector :$LOCAL_PORT already running PID=$existing"
+      return 0
+    fi
+
+    echo "REFUSED: :$LOCAL_PORT is occupied by an unmanaged process PID=$existing"
+    return 1
   fi
+
+  rm -f "$LOCAL_PID_FILE"
 
   echo "Starting Local Connector :$LOCAL_PORT"
 
@@ -104,23 +221,16 @@ start_local() {
     > "$LOCAL_LOG" 2>&1 &
 
   local pid=$!
+  printf '%s\n' "$pid" > "$LOCAL_PID_FILE"
 
-  if ! wait_port_listening "$LOCAL_PORT"; then
-    echo "FAILED: Local Connector did not start"
+  if ! wait_for_managed_listener "local" "$LOCAL_PORT" "$LOCAL_PID_FILE"; then
+    echo "FAILED: Local Connector did not start as a managed process"
+    rm -f "$LOCAL_PID_FILE"
     tail -n 40 "$LOCAL_LOG" || true
     return 1
   fi
 
-  local actual
-  actual="$(pid_on_port "$LOCAL_PORT")"
-
-  if [ "$actual" != "$pid" ]; then
-    echo "FAILED: unexpected process owns :$LOCAL_PORT"
-    echo "expected PID=$pid actual PID=$actual"
-    return 1
-  fi
-
-  echo "Local Connector started PID=$actual"
+  echo "Local Connector started PID=$pid"
 }
 
 start_all() {
@@ -129,8 +239,17 @@ start_all() {
 }
 
 stop_all() {
-  stop_port "Local Connector" "$LOCAL_PORT"
-  stop_port "Server Trust Boundary" "$STB_PORT"
+  stop_managed \
+    "Local Connector" \
+    "local" \
+    "$LOCAL_PORT" \
+    "$LOCAL_PID_FILE"
+
+  stop_managed \
+    "Server Trust Boundary" \
+    "stb" \
+    "$STB_PORT" \
+    "$STB_PID_FILE"
 }
 
 restart_all() {
@@ -138,30 +257,45 @@ restart_all() {
   start_all
 }
 
-status_all() {
-  local local_pid
-  local stb_pid
+status_one() {
+  local name="$1"
+  local role="$2"
+  local port="$3"
+  local pid_file="$4"
 
-  local_pid="$(pid_on_port "$LOCAL_PORT")"
-  stb_pid="$(pid_on_port "$STB_PORT")"
+  local pid
+  pid="$(pid_on_port "$port")"
 
-  echo "==== STATUS ===="
-
-  if [ -n "$local_pid" ]; then
-    echo "Local Connector      :$LOCAL_PORT RUNNING PID=$local_pid"
-  else
-    echo "Local Connector      :$LOCAL_PORT STOPPED"
+  if [ -z "$pid" ]; then
+    echo "$name :$port STOPPED"
+    return 0
   fi
 
-  if [ -n "$stb_pid" ]; then
-    echo "Server Trust Boundary :$STB_PORT RUNNING PID=$stb_pid"
+  if is_managed_process "$role" "$port" "$pid_file"; then
+    echo "$name :$port RUNNING MANAGED PID=$pid"
   else
-    echo "Server Trust Boundary :$STB_PORT STOPPED"
+    echo "$name :$port RUNNING UNMANAGED PID=$pid"
   fi
 }
 
+status_all() {
+  echo "==== STATUS ===="
+
+  status_one \
+    "Local Connector     " \
+    "local" \
+    "$LOCAL_PORT" \
+    "$LOCAL_PID_FILE"
+
+  status_one \
+    "Server Trust Boundary" \
+    "stb" \
+    "$STB_PORT" \
+    "$STB_PID_FILE"
+}
+
 smoke_test() {
-  echo "==== RESTART CURRENT RUNTIME ===="
+  echo "==== RESTART CURRENT MANAGED RUNTIME ===="
   restart_all
 
   echo "==== SMOKE TEST ===="

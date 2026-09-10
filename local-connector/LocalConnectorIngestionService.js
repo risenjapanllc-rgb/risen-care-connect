@@ -16,6 +16,7 @@ class LocalConnectorIngestionService {
     constructor({
         localConnectorService,
         payloadBuilder,
+        semanticRecordBuilder,
         httpClient
     } = {}) {
         if (!localConnectorService) {
@@ -34,6 +35,15 @@ class LocalConnectorIngestionService {
         }
 
         if (
+            !semanticRecordBuilder ||
+            typeof semanticRecordBuilder.build !== "function"
+        ) {
+            throw new Error(
+                "LocalConnectorIngestionService requires semanticRecordBuilder"
+            );
+        }
+
+        if (
             !httpClient ||
             typeof httpClient.ingest !== "function"
         ) {
@@ -46,11 +56,38 @@ class LocalConnectorIngestionService {
             localConnectorService;
         this.payloadBuilder =
             payloadBuilder;
+        this.semanticRecordBuilder =
+            semanticRecordBuilder;
         this.httpClient =
             httpClient;
     }
 
     async ingestRegisteredFile(fileName) {
+        if (
+            typeof this.localConnectorService
+                .observeRegisteredFile !== "function"
+        ) {
+            throw new Error(
+                "source document observation unavailable"
+            );
+        }
+
+        const observation =
+            await this.localConnectorService
+                .observeRegisteredFile(fileName);
+
+        if (
+            !observation ||
+            typeof observation !== "object" ||
+            Array.isArray(observation) ||
+            typeof observation.sourceDocumentKey !== "string" ||
+            observation.sourceDocumentKey.trim() === ""
+        ) {
+            throw new Error(
+                "sourceDocumentKey unavailable"
+            );
+        }
+
         const extension =
             typeof fileName === "string"
                 ? path.extname(fileName).toLowerCase()
@@ -111,9 +148,28 @@ class LocalConnectorIngestionService {
             );
         }
 
-        return await this.httpClient.ingest(
-            payload
-        );
+        const semanticRecords =
+            this.semanticRecordBuilder.build(
+                normalizedDocument,
+                {
+                    sourceDocumentKey:
+                        observation.sourceDocumentKey
+                }
+            );
+
+        if (
+            !Array.isArray(semanticRecords) ||
+            semanticRecords.length === 0
+        ) {
+            throw new Error(
+                "semantic records unavailable"
+            );
+        }
+
+        return await this.httpClient.ingest({
+            payload,
+            semanticRecords
+        });
     }
 }
 

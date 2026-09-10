@@ -7,13 +7,10 @@ const {
     createServerTrustBoundaryRuntime
 } = require("./runtime");
 
-const ConnectorIngestionService =
-    require("./ConnectorIngestionService");
+const ServerTrustBoundaryIngestionService =
+    require("./ServerTrustBoundaryIngestionService");
 
-const SemanticIngestionService =
-    require("../server-domain/storage/SemanticIngestionService");
-
-test("creates complete Server Trust Boundary runtime", () => {
+test("creates complete Server Trust Boundary application runtime", () => {
     const runtime =
         createServerTrustBoundaryRuntime({
             supabaseUrl:
@@ -29,21 +26,31 @@ test("creates complete Server Trust Boundary runtime", () => {
     assert.ok(runtime);
 
     assert.ok(
-        runtime.connectorIngestionService
-            instanceof ConnectorIngestionService
-    );
-
-    assert.ok(
-        runtime.semanticIngestionService
-            instanceof SemanticIngestionService
+        runtime.serverTrustBoundaryIngestionService
+            instanceof ServerTrustBoundaryIngestionService
     );
 
     assert.deepStrictEqual(
         Object.keys(runtime),
         [
-            "connectorIngestionService",
-            "semanticIngestionService"
+            "serverTrustBoundaryIngestionService"
         ]
+    );
+
+    assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(
+            runtime,
+            "connectorIngestionService"
+        ),
+        false
+    );
+
+    assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(
+            runtime,
+            "semanticIngestionService"
+        ),
+        false
     );
 });
 

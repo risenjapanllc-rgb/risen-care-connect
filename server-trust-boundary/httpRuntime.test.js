@@ -53,9 +53,7 @@ test("requires explicit HTTP transport configuration", () => {
     );
 });
 
-test("accepts diagnostic writer without exposing logger from runtime", () => {
-    const events = [];
-
+test("accepts diagnostic logger without exposing it from runtime", () => {
     const runtime =
         createServerTrustBoundaryHttpRuntime({
             supabaseUrl:
@@ -74,8 +72,8 @@ test("accepts diagnostic writer without exposing logger from runtime", () => {
                 "/connector/ingest",
             jsonBodyLimit:
                 "100kb",
-            diagnosticWrite(event) {
-                events.push(event);
+            diagnosticLogger: {
+                error() {}
             }
         });
 
@@ -84,8 +82,11 @@ test("accepts diagnostic writer without exposing logger from runtime", () => {
         ["app"]
     );
 
-    assert.deepStrictEqual(
-        events,
-        []
+    assert.equal(
+        Object.prototype.hasOwnProperty.call(
+            runtime,
+            "diagnosticLogger"
+        ),
+        false
     );
 });

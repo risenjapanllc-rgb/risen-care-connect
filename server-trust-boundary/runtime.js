@@ -3,6 +3,9 @@
 const ConnectorIngestionService =
     require("./ConnectorIngestionService");
 
+const ServerTrustBoundaryIngestionService =
+    require("./ServerTrustBoundaryIngestionService");
+
 const ConnectorTrustService =
     require("./ConnectorTrustService");
 
@@ -239,9 +242,14 @@ function createServerTrustBoundaryRuntime({
             semanticPersistenceService
         });
 
+    const serverTrustBoundaryIngestionService =
+        new ServerTrustBoundaryIngestionService({
+            connectorIngestionService,
+            semanticIngestionService
+        });
+
     return {
-        connectorIngestionService,
-        semanticIngestionService
+        serverTrustBoundaryIngestionService
     };
 }
 

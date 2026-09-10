@@ -98,22 +98,51 @@ test("live HTTP ingestion reaches verified resident lookup and returns unmatched
                         },
                         body:
                             JSON.stringify({
-                                sourceResident: {
-                                    identifier: {
-                                        value:
-                                            "__connector_http_no_such_resident__"
+                                payload: {
+                                    sourceResident: {
+                                        identifier: {
+                                            value:
+                                                "__connector_http_no_such_resident__"
+                                        }
+                                    },
+                                    source: {
+                                        fileName:
+                                            "integration-test.docx",
+                                        updatedAt:
+                                            "2026-09-05T10:00:00Z"
+                                    },
+                                    documentType:
+                                        "support_record",
+                                    sourceType:
+                                        "word"
+                                },
+                                semanticRecords: [{
+                                    sourceRecordContext: {
+                                        sourceRecordKey:
+                                            "support_record:primary"
+                                    },
+                                    semanticContent: {
+                                        semanticType:
+                                            "support_record",
+                                        fields: {
+                                            supportContent:
+                                                "HTTP integration test"
+                                        },
+                                        customFields: {}
+                                    },
+                                    provenance: {
+                                        documentType:
+                                            "support_record",
+                                        sourceDocumentKey:
+                                            "http-integration-unmatched-document",
+                                        fileName:
+                                            "integration-test.docx",
+                                        sourceUpdatedAt:
+                                            "2026-09-05T10:00:00Z",
+                                        sourceType:
+                                            "word"
                                     }
-                                },
-                                source: {
-                                    fileName:
-                                        "integration-test.docx",
-                                    updatedAt:
-                                        "2026-09-05T10:00:00Z"
-                                },
-                                documentType:
-                                    "support_record",
-                                sourceType:
-                                    "word"
+                                }]
                             })
                     }
                 );

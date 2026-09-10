@@ -28,6 +28,30 @@ class ConnectorIngestionService {
     }
 
     async ingest({ connectorId, credential, payload } = {}) {
+        const detailedResult =
+            await this.ingestForSemanticProcessing({
+                connectorId,
+                credential,
+                payload
+            });
+
+        if (
+            detailedResult &&
+            typeof detailedResult === "object" &&
+            !Array.isArray(detailedResult) &&
+            detailedResult.status === "ready"
+        ) {
+            return detailedResult.residentMatching;
+        }
+
+        return detailedResult;
+    }
+
+    async ingestForSemanticProcessing({
+        connectorId,
+        credential,
+        payload
+    } = {}) {
         let trustResult;
         try {
             trustResult = await this.connectorTrustService.authenticate({
@@ -107,10 +131,18 @@ class ConnectorIngestionService {
         }
 
         try {
-            return await this.serverTrustBoundaryService.matchResident({
+            const residentMatching =
+                await this.serverTrustBoundaryService.matchResident({
+                    verifiedContext,
+                    sourceResident
+                });
+
+            return {
+                status: "ready",
                 verifiedContext,
-                sourceResident
-            });
+                validatedPayload,
+                residentMatching
+            };
         } catch (err) {
             return {
                 status: "error",

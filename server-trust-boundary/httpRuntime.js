@@ -31,7 +31,8 @@ function createServerTrustBoundaryHttpRuntime({
     authorizationScheme,
     connectorIdHeader,
     endpointPath,
-    jsonBodyLimit
+    jsonBodyLimit,
+    diagnosticLogger
 } = {}) {
     if (
         typeof authorizationScheme !== "string" ||
@@ -79,8 +80,9 @@ function createServerTrustBoundaryHttpRuntime({
 
     const httpAdapter =
         new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService:
-                coreRuntime.connectorIngestionService
+            ingestionService:
+                coreRuntime.serverTrustBoundaryIngestionService,
+            diagnosticLogger
         });
 
     const credentialTransport =

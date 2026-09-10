@@ -8,7 +8,7 @@ const ServerTrustBoundaryHttpAdapter =
 
 function createAdapter(result) {
     return new ServerTrustBoundaryHttpAdapter({
-        connectorIngestionService: {
+        ingestionService: {
             async ingest() {
                 return result;
             }
@@ -16,38 +16,33 @@ function createAdapter(result) {
     });
 }
 
+test("requires ingestion application service", () => {
+    assert.throws(
+        () =>
+            new ServerTrustBoundaryHttpAdapter(),
+        /requires ingestionService/
+    );
+});
+
 test("matched response exposes status only with requestId", async () => {
     const adapter =
         createAdapter({
             status: "matched",
-            residentId: "resident-secret-id",
-            matchMethod: "facility_user_code",
-            verifiedContext: {
-                facilityId: "facility-secret-id"
-            }
+            residentId: "resident-secret",
+            matchMethod: "facility_user_code"
         });
 
     const response =
         await adapter.handle({
-            requestId: "request-id",
-            connectorId: "connector-id",
-            credential: "credential-secret",
-            payload: {}
+            requestId: "request-1"
         });
 
-    assert.strictEqual(
-        response.status,
-        "matched"
-    );
-
-    assert.strictEqual(
-        response.requestId,
-        "request-id"
-    );
-
     assert.deepStrictEqual(
-        Object.keys(response).sort(),
-        ["requestId", "status"]
+        response,
+        {
+            requestId: "request-1",
+            status: "matched"
+        }
     );
 });
 
@@ -55,25 +50,25 @@ test("needs_review never exposes candidates", async () => {
     const adapter =
         createAdapter({
             status: "needs_review",
+            residentId: null,
             candidates: [
                 {
-                    id: "resident-id",
-                    name: "private-name"
+                    id: "candidate-secret"
                 }
             ]
         });
 
     const response =
-        await adapter.handle({});
+        await adapter.handle({
+            requestId: "request-2"
+        });
 
     assert.deepStrictEqual(
-        Object.keys(response).sort(),
-        ["requestId", "status"]
-    );
-
-    assert.strictEqual(
-        response.status,
-        "needs_review"
+        response,
+        {
+            requestId: "request-2",
+            status: "needs_review"
+        }
     );
 });
 
@@ -81,106 +76,29 @@ test("unmatched returns minimal response", async () => {
     const adapter =
         createAdapter({
             status: "unmatched",
-            residentId: null,
-            candidates: []
+            residentId: null
         });
 
     const response =
-        await adapter.handle({});
+        await adapter.handle({
+            requestId: "request-3"
+        });
 
     assert.deepStrictEqual(
-        Object.keys(response).sort(),
-        ["requestId", "status"]
-    );
-
-    assert.strictEqual(
-        response.status,
-        "unmatched"
+        response,
+        {
+            requestId: "request-3",
+            status: "unmatched"
+        }
     );
 });
 
-test("error response exposes allowlisted errorCode only", async () => {
-    const adapter =
-        createAdapter({
-            status: "error",
-            errorCode:
-                "connector_processing_unavailable",
-            message:
-                "internal database details",
-            stack:
-                "internal stack",
-            verifiedContext: {
-                facilityId: "facility-secret-id"
-            }
-        });
-
-    const response =
-        await adapter.handle({});
-
-    assert.deepStrictEqual(
-        Object.keys(response).sort(),
-        ["errorCode", "requestId", "status"]
-    );
-
-    assert.strictEqual(
-        response.errorCode,
-        "connector_processing_unavailable"
-    );
-});
-
-test("unknown result fails closed", async () => {
-    const adapter =
-        createAdapter({
-            status: "unexpected",
-            secret: "must-not-leak"
-        });
-
-    const response =
-        await adapter.handle({});
-
-    assert.strictEqual(
-        response.status,
-        "error"
-    );
-
-    assert.strictEqual(
-        response.errorCode,
-        "internal_result_invalid"
-    );
-});
-
-test("ingestion exception is sanitized", async () => {
-    const adapter =
-        new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService: {
-                async ingest() {
-                    throw new Error(
-                        "database password leaked here"
-                    );
-                }
-            }
-        });
-
-    const response =
-        await adapter.handle({});
-
-    assert.deepStrictEqual(
-        Object.keys(response).sort(),
-        ["errorCode", "requestId", "status"]
-    );
-
-    assert.strictEqual(
-        response.errorCode,
-        "connector_processing_unavailable"
-    );
-});
-
-test("passes only explicit ingestion fields", async () => {
+test("passes only explicit application fields", async () => {
     let received;
 
     const adapter =
         new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService: {
+            ingestionService: {
                 async ingest(input) {
                     received = input;
 
@@ -192,18 +110,34 @@ test("passes only explicit ingestion fields", async () => {
         });
 
     const payload = {
-        facilityId: "client-facility",
-        residentId: "client-resident"
+        sourceResident: {
+            identifier: {
+                value: "RES-123"
+            }
+        }
     };
 
+    const semanticRecords = [{
+        semanticContent: {
+            semanticType: "support_record"
+        }
+    }];
+
     await adapter.handle({
+        requestId: "request-4",
         connectorId: "connector-id",
         credential: "credential-secret",
         payload,
+        semanticRecords,
+
         verifiedContext: {
-            facilityId: "client-override"
+            facilityId:
+                "client-override"
         },
-        token: "client-token"
+        residentId:
+            "client-resident",
+        token:
+            "client-token"
     });
 
     assert.deepStrictEqual(
@@ -211,28 +145,26 @@ test("passes only explicit ingestion fields", async () => {
         {
             connectorId: "connector-id",
             credential: "credential-secret",
-            payload
+            payload,
+            semanticRecords
         }
     );
 });
 
-test("denied internal errorCode is replaced by external allowlist", async () => {
+test("denied internal error is replaced by external allowlist", async () => {
     const adapter =
         createAdapter({
             status: "denied",
             errorCode:
-                "connector_registration_database_internal_detail"
-        });
-
-    const response =
-        await adapter.handle({
-            requestId: "request-id"
+                "internal_registration_detail"
         });
 
     assert.deepStrictEqual(
-        response,
+        await adapter.handle({
+            requestId: "request-5"
+        }),
         {
-            requestId: "request-id",
+            requestId: "request-5",
             status: "denied",
             errorCode:
                 "connector_trust_denied"
@@ -240,23 +172,20 @@ test("denied internal errorCode is replaced by external allowlist", async () => 
     );
 });
 
-test("invalid internal errorCode is replaced by external allowlist", async () => {
+test("invalid internal error is replaced by external allowlist", async () => {
     const adapter =
         createAdapter({
             status: "invalid",
             errorCode:
-                "internal_validator_detail"
-        });
-
-    const response =
-        await adapter.handle({
-            requestId: "request-id"
+                "internal_validation_detail"
         });
 
     assert.deepStrictEqual(
-        response,
+        await adapter.handle({
+            requestId: "request-6"
+        }),
         {
-            requestId: "request-id",
+            requestId: "request-6",
             status: "invalid",
             errorCode:
                 "connector_payload_invalid"
@@ -264,41 +193,19 @@ test("invalid internal errorCode is replaced by external allowlist", async () =>
     );
 });
 
-test("error internal errorCode is never exposed", async () => {
-    const adapter =
-        createAdapter({
-            status: "error",
-            errorCode:
-                "database_table_name_and_internal_detail"
-        });
-
-    const response =
-        await adapter.handle({
-            requestId: "request-id"
-        });
-
-    assert.deepStrictEqual(
-        response,
-        {
-            requestId: "request-id",
-            status: "error",
-            errorCode:
-                "connector_processing_unavailable"
-        }
-    );
-});
-
-test("internal ingestion error is diagnosed without exposing it to connector", async () => {
+test("internal error is diagnosed but never exposed", async () => {
     const events = [];
 
     const adapter =
         new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService: {
+            ingestionService: {
                 async ingest() {
                     return {
                         status: "error",
                         errorCode:
-                            "resident_matching_unavailable"
+                            "semantic_ingestion_rejected",
+                        secret:
+                            "must-not-leak"
                     };
                 }
             },
@@ -311,22 +218,14 @@ test("internal ingestion error is diagnosed without exposing it to connector", a
 
     const response =
         await adapter.handle({
-            requestId: "request-123",
-            connectorId: "connector-id",
-            credential: "secret-value",
-            payload: {
-                sourceResident: {
-                    identifier: {
-                        value: "RES-123"
-                    }
-                }
-            }
+            requestId: "request-7",
+            credential: "secret-value"
         });
 
     assert.deepStrictEqual(
         response,
         {
-            requestId: "request-123",
+            requestId: "request-7",
             status: "error",
             errorCode:
                 "connector_processing_unavailable"
@@ -336,41 +235,29 @@ test("internal ingestion error is diagnosed without exposing it to connector", a
     assert.deepStrictEqual(
         events,
         [{
-            requestId: "request-123",
+            requestId: "request-7",
             status: "error",
             internalErrorCode:
-                "resident_matching_unavailable"
+                "semantic_ingestion_rejected"
         }]
     );
 
-    const serialized =
-        JSON.stringify(events);
-
-    assert.strictEqual(
-        serialized.includes("secret-value"),
-        false
-    );
-
-    assert.strictEqual(
-        serialized.includes("connector-id"),
-        false
-    );
-
-    assert.strictEqual(
-        serialized.includes("RES-123"),
+    assert.equal(
+        JSON.stringify(events)
+            .includes("secret-value"),
         false
     );
 });
 
-test("thrown ingestion exception is diagnosed without message or stack", async () => {
+test("application exception is sanitized", async () => {
     const events = [];
 
     const adapter =
         new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService: {
+            ingestionService: {
                 async ingest() {
                     throw new Error(
-                        "sensitive dependency failure"
+                        "database password"
                     );
                 }
             },
@@ -383,16 +270,13 @@ test("thrown ingestion exception is diagnosed without message or stack", async (
 
     const response =
         await adapter.handle({
-            requestId: "request-456",
-            connectorId: "connector-id",
-            credential: "secret-value",
-            payload: {}
+            requestId: "request-8"
         });
 
     assert.deepStrictEqual(
         response,
         {
-            requestId: "request-456",
+            requestId: "request-8",
             status: "error",
             errorCode:
                 "connector_processing_unavailable"
@@ -402,38 +286,46 @@ test("thrown ingestion exception is diagnosed without message or stack", async (
     assert.deepStrictEqual(
         events,
         [{
-            requestId: "request-456",
+            requestId: "request-8",
             status: "error",
             internalErrorCode:
-                "connector_ingestion_exception"
+                "ingestion_application_exception"
         }]
-    );
-
-    const serialized =
-        JSON.stringify(events);
-
-    assert.strictEqual(
-        serialized.includes(
-            "sensitive dependency failure"
-        ),
-        false
-    );
-
-    assert.strictEqual(
-        serialized.includes("stack"),
-        false
     );
 });
 
-test("diagnostic logger failure never affects connector response", async () => {
+test("unknown application result fails closed", async () => {
+    const adapter =
+        createAdapter({
+            status: "unexpected",
+            secret: "must-not-leak"
+        });
+
+    const response =
+        await adapter.handle({
+            requestId: "request-9"
+        });
+
+    assert.deepStrictEqual(
+        response,
+        {
+            requestId: "request-9",
+            status: "error",
+            errorCode:
+                "internal_result_invalid"
+        }
+    );
+});
+
+test("diagnostic logger failure never affects response", async () => {
     const adapter =
         new ServerTrustBoundaryHttpAdapter({
-            connectorIngestionService: {
+            ingestionService: {
                 async ingest() {
                     return {
                         status: "error",
                         errorCode:
-                            "connector_trust_unavailable"
+                            "internal_failure"
                     };
                 }
             },
@@ -446,18 +338,12 @@ test("diagnostic logger failure never affects connector response", async () => {
             }
         });
 
-    const response =
-        await adapter.handle({
-            requestId: "request-789",
-            connectorId: "connector-id",
-            credential: "secret-value",
-            payload: {}
-        });
-
     assert.deepStrictEqual(
-        response,
+        await adapter.handle({
+            requestId: "request-10"
+        }),
         {
-            requestId: "request-789",
+            requestId: "request-10",
             status: "error",
             errorCode:
                 "connector_processing_unavailable"

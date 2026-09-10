@@ -114,12 +114,41 @@ test("POST JSON reaches transport and returns HTTP response", async () => {
                         },
                         body:
                             JSON.stringify({
-                                sourceResident: {
-                                    identifier: {
-                                        value:
-                                            "RES-123"
+                                payload: {
+                                    sourceResident: {
+                                        identifier: {
+                                            value:
+                                                "RES-123"
+                                        }
                                     }
-                                }
+                                },
+                                semanticRecords: [{
+                                    sourceRecordContext: {
+                                        sourceRecordKey:
+                                            "support_record:primary"
+                                    },
+                                    semanticContent: {
+                                        semanticType:
+                                            "support_record",
+                                        fields: {
+                                            supportContent:
+                                                "App transport test"
+                                        },
+                                        customFields: {}
+                                    },
+                                    provenance: {
+                                        documentType:
+                                            "support_record",
+                                        sourceDocumentKey:
+                                            "app-transport-test-document",
+                                        fileName:
+                                            "integration-test.docx",
+                                        sourceUpdatedAt:
+                                            "2026-09-05T10:00:00Z",
+                                        sourceType:
+                                            "word"
+                                    }
+                                }]
                             })
                     }
                 );

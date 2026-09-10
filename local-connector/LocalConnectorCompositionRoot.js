@@ -116,9 +116,13 @@ async function createIngestionService({
             fetchImpl
         });
 
+    const semanticRecordBuilder =
+        new SemanticRecordBuilder();
+
     return new LocalConnectorIngestionService({
         localConnectorService,
         payloadBuilder,
+        semanticRecordBuilder,
         httpClient
     });
 }

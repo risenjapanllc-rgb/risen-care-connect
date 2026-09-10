@@ -8,7 +8,7 @@
     "test:integration:credential": "node --test integration-tests/SupabaseConnectorCredentialVerifier.integration.js",
     "test:integration:registration": "node --test integration-tests/SupabaseConnectorRegistrationRepository.integration.js",
     "test:integration:trust": "node --test integration-tests/ConnectorTrustService.integration.js",
-    "test:integration:ingestion": "node --test integration-tests/ConnectorIngestionService.integration.js",
+    "test:integration:ingestion": "node --test integration-tests/ServerTrustBoundaryIngestionService.integration.js",
     "test:integration:http": "node --test integration-tests/ServerTrustBoundaryHttp.integration.js",
     "start:local": "node -r dotenv/config local-connector/server.js",
     "start:trust": "node -r dotenv/config server-trust-boundary/server.js",

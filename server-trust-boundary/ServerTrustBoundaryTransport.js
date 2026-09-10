@@ -157,6 +157,29 @@ class ServerTrustBoundaryTransport {
             };
         }
 
+        const envelopeKeys =
+            Object.keys(body).sort();
+
+        if (
+            envelopeKeys.length !== 2 ||
+            envelopeKeys[0] !== "payload" ||
+            envelopeKeys[1] !== "semanticRecords" ||
+            !body.payload ||
+            typeof body.payload !== "object" ||
+            Array.isArray(body.payload) ||
+            !Array.isArray(body.semanticRecords) ||
+            body.semanticRecords.length === 0
+        ) {
+            return {
+                httpStatus: 400,
+                body: {
+                    requestId,
+                    errorCode:
+                        "malformed_json"
+                }
+            };
+        }
+
         const result =
             await this.httpAdapter.handle({
                 requestId,
@@ -164,7 +187,9 @@ class ServerTrustBoundaryTransport {
                     rawConnectorId.trim(),
                 credential,
                 payload:
-                    body
+                    body.payload,
+                semanticRecords:
+                    body.semanticRecords
             });
 
         if (

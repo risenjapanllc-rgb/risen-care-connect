@@ -78,7 +78,10 @@ test("rejects non-POST method", async () => {
             contentType:
                 "application/json",
             headers: {},
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -102,7 +105,10 @@ test("rejects non-JSON content type", async () => {
             contentType:
                 "text/plain",
             headers: {},
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -143,7 +149,10 @@ test("rejects missing connector header", async () => {
                 authorization:
                     "RISEN-Connector secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -167,7 +176,10 @@ test("rejects invalid authorization scheme", async () => {
                 authorization:
                     "Bearer secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -190,6 +202,8 @@ test("passes extracted credential only to adapter", async () => {
         }
     };
 
+    const semanticRecords = [{}];
+
     await transport.handle({
         method: "POST",
         contentType:
@@ -200,8 +214,10 @@ test("passes extracted credential only to adapter", async () => {
             Authorization:
                 "RISEN-Connector secret-value"
         },
-        body:
-            payload
+        body: {
+            payload,
+            semanticRecords
+        }
     });
 
     const received =
@@ -219,14 +235,17 @@ test("passes extracted credential only to adapter", async () => {
             credential:
                 received.credential,
             payload:
-                received.payload
+                received.payload,
+            semanticRecords:
+                received.semanticRecords
         },
         {
             connectorId:
                 "connector-id",
             credential:
                 "secret-value",
-            payload
+            payload,
+            semanticRecords
         }
     );
 });
@@ -251,7 +270,10 @@ test("maps unmatched to HTTP 200", async () => {
                 authorization:
                     "RISEN-Connector secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -280,7 +302,10 @@ test("maps denied to HTTP 401", async () => {
                 authorization:
                     "RISEN-Connector secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -309,7 +334,10 @@ test("maps invalid to HTTP 422", async () => {
                 authorization:
                     "RISEN-Connector secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -338,7 +366,10 @@ test("maps error to HTTP 503", async () => {
                 authorization:
                     "RISEN-Connector secret-value"
             },
-            body: {}
+            body: {
+                payload: {},
+                semanticRecords: [{}]
+            }
         });
 
     assert.strictEqual(
@@ -392,3 +423,176 @@ test("createErrorResponse exposes only requestId and errorCode", () => {
         ["errorCode", "requestId"]
     );
 });
+
+test(
+    "splits ingestion envelope into payload and semanticRecords",
+    async () => {
+        const {
+            transport,
+            getReceived
+        } = createTransport();
+
+        const payload = {
+            sourceResident: {
+                identifier: {
+                    value: "RES-123"
+                }
+            }
+        };
+
+        const semanticRecords = [{
+            sourceRecordContext: {
+                sourceRecordKey:
+                    "support_record:primary"
+            },
+            semanticContent: {
+                semanticType:
+                    "support_record",
+                fields: {
+                    supportContent:
+                        "支援内容"
+                },
+                customFields: {}
+            },
+            provenance: {
+                documentType:
+                    "support_record",
+                sourceDocumentKey:
+                    "document-key-123"
+            }
+        }];
+
+        const result =
+            await transport.handle({
+                method: "POST",
+                contentType:
+                    "application/json",
+                headers: {
+                    "x-risen-connector-id":
+                        "connector-id",
+                    authorization:
+                        "RISEN-Connector secret-value"
+                },
+                body: {
+                    payload,
+                    semanticRecords
+                }
+            });
+
+        assert.strictEqual(
+            result.httpStatus,
+            200
+        );
+
+        const received =
+            getReceived();
+
+        assert.deepStrictEqual(
+            {
+                connectorId:
+                    received.connectorId,
+                credential:
+                    received.credential,
+                payload:
+                    received.payload,
+                semanticRecords:
+                    received.semanticRecords
+            },
+            {
+                connectorId:
+                    "connector-id",
+                credential:
+                    "secret-value",
+                payload,
+                semanticRecords
+            }
+        );
+    }
+);
+
+test(
+    "rejects legacy unwrapped ingestion body",
+    async () => {
+        const {
+            transport,
+            getReceived
+        } = createTransport();
+
+        const result =
+            await transport.handle({
+                method: "POST",
+                contentType:
+                    "application/json",
+                headers: {
+                    "x-risen-connector-id":
+                        "connector-id",
+                    authorization:
+                        "RISEN-Connector secret-value"
+                },
+                body: {
+                    sourceResident: {
+                        identifier: {
+                            value:
+                                "RES-123"
+                        }
+                    }
+                }
+            });
+
+        assert.strictEqual(
+            result.httpStatus,
+            400
+        );
+
+        assert.strictEqual(
+            result.body.errorCode,
+            "malformed_json"
+        );
+
+        assert.strictEqual(
+            getReceived(),
+            undefined
+        );
+    }
+);
+
+test(
+    "rejects envelope with client-added top-level trusted fields",
+    async () => {
+        const {
+            transport,
+            getReceived
+        } = createTransport();
+
+        const result =
+            await transport.handle({
+                method: "POST",
+                contentType:
+                    "application/json",
+                headers: {
+                    "x-risen-connector-id":
+                        "connector-id",
+                    authorization:
+                        "RISEN-Connector secret-value"
+                },
+                body: {
+                    payload: {},
+                    semanticRecords: [{}],
+                    verifiedContext: {
+                        facilityId:
+                            "client-facility"
+                    }
+                }
+            });
+
+        assert.strictEqual(
+            result.httpStatus,
+            400
+        );
+
+        assert.strictEqual(
+            getReceived(),
+            undefined
+        );
+    }
+);

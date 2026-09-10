@@ -440,3 +440,119 @@ test("unknown raw payload fields never re-enter matching", async () => {
         undefined
     );
 });
+
+test(
+    "internal semantic processing result preserves only trusted processing context",
+    async () => {
+        const matchResult = {
+            status: "matched",
+            residentId:
+                "resident-server",
+            matchMethod:
+                "facility_user_code"
+        };
+
+        const { service } =
+            createService({
+                matchResult
+            });
+
+        const result =
+            await service
+                .ingestForSemanticProcessing({
+                    connectorId:
+                        "connector-input",
+                    credential:
+                        "secret",
+                    payload:
+                        rawPayload
+                });
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status:
+                    "ready",
+                verifiedContext:
+                    trustContext,
+                validatedPayload,
+                residentMatching:
+                    matchResult
+            }
+        );
+
+        const serialized =
+            JSON.stringify(result);
+
+        assert.strictEqual(
+            serialized.includes(
+                "facility-client"
+            ),
+            false
+        );
+
+        assert.strictEqual(
+            serialized.includes(
+                "resident-client"
+            ),
+            false
+        );
+
+        assert.strictEqual(
+            serialized.includes(
+                "client-secret"
+            ),
+            false
+        );
+    }
+);
+
+test(
+    "public ingest still returns resident matching result only",
+    async () => {
+        const matchResult = {
+            status:
+                "matched",
+            residentId:
+                "resident-123",
+            matchMethod:
+                "facility_user_code"
+        };
+
+        const { service } =
+            createService({
+                matchResult
+            });
+
+        const result =
+            await service.ingest({
+                connectorId:
+                    "connector-input",
+                credential:
+                    "secret",
+                payload:
+                    rawPayload
+            });
+
+        assert.deepStrictEqual(
+            result,
+            matchResult
+        );
+
+        assert.strictEqual(
+            Object.hasOwn(
+                result,
+                "verifiedContext"
+            ),
+            false
+        );
+
+        assert.strictEqual(
+            Object.hasOwn(
+                result,
+                "validatedPayload"
+            ),
+            false
+        );
+    }
+);

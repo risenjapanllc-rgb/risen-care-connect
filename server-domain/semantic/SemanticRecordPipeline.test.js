@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const SemanticRecordPipeline =
     require("./SemanticRecordPipeline");
 
-test("validated and processed record without sourceRecordKey remains pending review", () => {
+test("validated and processed record without sourceRecordKey remains pending review", async () => {
     const calls = [];
 
     const semanticRecordValidator = {
@@ -95,7 +95,7 @@ test("validated and processed record without sourceRecordKey remains pending rev
     };
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             verifiedContext: {
                 connectorId:
                     "connector-1",
@@ -133,7 +133,7 @@ test("validated and processed record without sourceRecordKey remains pending rev
     );
 });
 
-test("invalid validation short-circuits processing and identity resolution", () => {
+test("invalid validation short-circuits processing and identity resolution", async () => {
     let processorCalled = false;
     let resolverCalled = false;
 
@@ -161,7 +161,7 @@ test("invalid validation short-circuits processing and identity resolution", () 
         });
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             verifiedContext: {
                 connectorId: "connector-1",
                 facilityId: "facility-1"
@@ -189,7 +189,7 @@ test("invalid validation short-circuits processing and identity resolution", () 
     );
 });
 
-test("processing failure short-circuits identity resolution", () => {
+test("processing failure short-circuits identity resolution", async () => {
     let resolverCalled = false;
 
     const pipeline =
@@ -220,7 +220,7 @@ test("processing failure short-circuits identity resolution", () => {
         });
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             verifiedContext: {
                 connectorId: "connector-1",
                 facilityId: "facility-1"
@@ -243,7 +243,7 @@ test("processing failure short-circuits identity resolution", () => {
     );
 });
 
-test("dependency exceptions fail closed without exposing messages", () => {
+test("dependency exceptions fail closed without exposing messages", async () => {
     for (const failingDependency of [
         "validator",
         "processor",
@@ -322,25 +322,21 @@ test("dependency exceptions fail closed without exposing messages", () => {
                 recordIdentityResolver
             });
 
-        let result;
-
-        assert.doesNotThrow(() => {
-            result =
-                pipeline.process({
-                    verifiedContext: {
-                        connectorId:
-                            "connector-1",
-                        facilityId:
-                            "facility-1"
-                    },
-                    semanticRecord: {
-                        provenance: {
-                            sourceDocumentKey:
-                                "document-key-1"
-                        }
+        const result =
+            await pipeline.process({
+                verifiedContext: {
+                    connectorId:
+                        "connector-1",
+                    facilityId:
+                        "facility-1"
+                },
+                semanticRecord: {
+                    provenance: {
+                        sourceDocumentKey:
+                            "document-key-1"
                     }
-                });
-        });
+                }
+            });
 
         assert.deepStrictEqual(
             result,
@@ -360,7 +356,7 @@ test("dependency exceptions fail closed without exposing messages", () => {
     }
 });
 
-test("missing verified context does not invent trusted identity", () => {
+test("missing verified context does not invent trusted identity", async () => {
     let receivedIdentityContext;
 
     const pipeline =
@@ -396,7 +392,7 @@ test("missing verified context does not invent trusted identity", () => {
         });
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             semanticRecord: {
                 provenance: {
                     sourceDocumentKey:
@@ -423,7 +419,7 @@ test("missing verified context does not invent trusted identity", () => {
     );
 });
 
-test("malformed identity resolution fails closed", () => {
+test("malformed identity resolution fails closed", async () => {
     const malformedResults = [
         null,
         undefined,
@@ -462,7 +458,7 @@ test("malformed identity resolution fails closed", () => {
             });
 
         const result =
-            pipeline.process({
+            await pipeline.process({
                 verifiedContext: {
                     connectorId:
                         "connector-1",
@@ -488,7 +484,7 @@ test("malformed identity resolution fails closed", () => {
     }
 });
 
-test("unknown identity resolution status fails closed", () => {
+test("unknown identity resolution status fails closed", async () => {
     const pipeline =
         new SemanticRecordPipeline({
             semanticRecordValidator: {
@@ -520,7 +516,7 @@ test("unknown identity resolution status fails closed", () => {
         });
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             verifiedContext: {
                 connectorId:
                     "connector-1",
@@ -545,7 +541,7 @@ test("unknown identity resolution status fails closed", () => {
     );
 });
 
-test("invalid identity resolution returns minimal failure without semantic record", () => {
+test("invalid identity resolution returns minimal failure without semantic record", async () => {
     const pipeline =
         new SemanticRecordPipeline({
             semanticRecordValidator: {
@@ -579,7 +575,7 @@ test("invalid identity resolution returns minimal failure without semantic recor
         });
 
     const result =
-        pipeline.process({
+        await pipeline.process({
             verifiedContext: {
                 connectorId:
                     "connector-1",
@@ -634,5 +630,100 @@ test("invalid identity resolution returns minimal failure without semantic recor
                 "sensitive semantic content"
             ),
         false
+    );
+});
+
+test("awaits asynchronous record identity resolution", async () => {
+    const pipeline =
+        new SemanticRecordPipeline({
+            semanticRecordValidator: {
+                validate(record) {
+                    return {
+                        status: "valid",
+                        validatedSemanticRecord:
+                            record
+                    };
+                }
+            },
+            semanticContentProcessor: {
+                process(record) {
+                    return {
+                        status: "processed",
+                        processedSemanticRecord: {
+                            ...record,
+                            provenance: {
+                                sourceDocumentKey:
+                                    "document-key-1"
+                            },
+                            contentHash:
+                                "a".repeat(64),
+                            processingMetadata: {
+                                canonicalizationVersion:
+                                    "risen-semantic-canonicalization-1"
+                            }
+                        }
+                    };
+                }
+            },
+            recordIdentityResolver: {
+                async resolve(identityContext) {
+                    assert.deepStrictEqual(
+                        identityContext,
+                        {
+                            verifiedFacilityId:
+                                "facility-1",
+                            verifiedConnectorId:
+                                "connector-1",
+                            sourceDocumentKey:
+                                "document-key-1"
+                        }
+                    );
+
+                    return {
+                        status:
+                            "pending_review"
+                    };
+                }
+            }
+        });
+
+    const result =
+        await pipeline.process({
+            verifiedContext: {
+                connectorId:
+                    "connector-1",
+                facilityId:
+                    "facility-1"
+            },
+            semanticRecord: {
+                provenance: {
+                    sourceDocumentKey:
+                        "document-key-1"
+                }
+            }
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status:
+                "pending_review",
+            processedSemanticRecord: {
+                provenance: {
+                    sourceDocumentKey:
+                        "document-key-1"
+                },
+                contentHash:
+                    "a".repeat(64),
+                processingMetadata: {
+                    canonicalizationVersion:
+                        "risen-semantic-canonicalization-1"
+                }
+            },
+            identityResolution: {
+                status:
+                    "pending_review"
+            }
+        }
     );
 });

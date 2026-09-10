@@ -40,7 +40,7 @@ class SemanticIngestionService {
 
         try {
             semanticPipeline =
-                this.semanticRecordPipeline.process({
+                await this.semanticRecordPipeline.process({
                     verifiedContext,
                     semanticRecord
                 });

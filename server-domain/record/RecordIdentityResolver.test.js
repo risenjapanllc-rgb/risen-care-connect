@@ -13,7 +13,7 @@ function createIdentityContext(overrides = {}) {
     };
 }
 
-function resolve(identityContext = createIdentityContext(), providerOverrides = {}) {
+async function resolve(identityContext = createIdentityContext(), providerOverrides = {}) {
     const calls = [];
     const provider = {
         findCandidates(scope) {
@@ -26,21 +26,24 @@ function resolve(identityContext = createIdentityContext(), providerOverrides = 
         recordIdentityCandidateProvider: provider
     });
 
-    return { result: resolver.resolve(identityContext), calls };
+    return {
+        result: await resolver.resolve(identityContext),
+        calls
+    };
 }
 
-test("an unambiguous candidate resolves using the trusted lookup scope", () => {
+test("an unambiguous candidate resolves using the trusted lookup scope", async () => {
     const context = createIdentityContext();
     const calls = [];
     const resolver = new RecordIdentityResolver({
         recordIdentityCandidateProvider: {
-            findCandidates(scope) {
+            async findCandidates(scope) {
                 calls.push(scope);
                 return [{ recordId: "record-1" }];
             }
         }
     });
-    const result = resolver.resolve(context);
+    const result = await resolver.resolve(context);
 
     assert.deepStrictEqual(result, { status: "resolved", recordId: "record-1" });
     assert.deepStrictEqual(calls, [{
@@ -51,15 +54,15 @@ test("an unambiguous candidate resolves using the trusted lookup scope", () => {
     }]);
 });
 
-test("zero candidates with complete source identity is a new candidate", () => {
-    const { result } = resolve();
+test("zero candidates with complete source identity is a new candidate", async () => {
+    const { result } = await resolve();
 
     assert.deepStrictEqual(result, { status: "new_candidate" });
     assert.strictEqual(result.recordId, undefined);
 });
 
-test("missing sourceRecordKey is pending review without generating a key", () => {
-    const { result, calls } = resolve(createIdentityContext({
+test("missing sourceRecordKey is pending review without generating a key", async () => {
+    const { result, calls } = await resolve(createIdentityContext({
         sourceRecordKey: undefined,
         recordIdentityCandidate: { row: 3, paragraph: 2 }
     }));
@@ -69,20 +72,20 @@ test("missing sourceRecordKey is pending review without generating a key", () =>
     assert.deepStrictEqual(calls, []);
 });
 
-test("missing trusted lookup scope is pending review", () => {
+test("missing trusted lookup scope is pending review", async () => {
     for (const key of [
         "verifiedFacilityId",
         "verifiedConnectorId",
         "sourceDocumentKey"
     ]) {
-        const { result, calls } = resolve(createIdentityContext({ [key]: undefined }));
+        const { result, calls } = await resolve(createIdentityContext({ [key]: undefined }));
         assert.deepStrictEqual(result, { status: "pending_review" }, key);
         assert.deepStrictEqual(calls, [], key);
     }
 });
 
-test("duplicate candidates produce conflict without a confirmed recordId", () => {
-    const { result } = resolve(undefined, {
+test("duplicate candidates produce conflict without a confirmed recordId", async () => {
+    const { result } = await resolve(undefined, {
         findCandidates: () => [{ recordId: "record-1" }, { recordId: "record-2" }]
     });
 
@@ -90,7 +93,7 @@ test("duplicate candidates produce conflict without a confirmed recordId", () =>
     assert.strictEqual(result.recordId, undefined);
 });
 
-test("contentHash and semantic data never enter identity lookup", () => {
+test("contentHash and semantic data never enter identity lookup", async () => {
     const context = createIdentityContext({
         contentHash: "a".repeat(64),
         semanticContent: { fields: { supportContent: "本文" } },
@@ -107,7 +110,7 @@ test("contentHash and semantic data never enter identity lookup", () => {
         password: "password",
         secret: "secret"
     });
-    const { result, calls } = resolve(context);
+    const { result, calls } = await resolve(context);
 
     assert.deepStrictEqual(result, { status: "new_candidate" });
     assert.deepStrictEqual(Object.keys(calls[0]), [
@@ -118,21 +121,21 @@ test("contentHash and semantic data never enter identity lookup", () => {
     ]);
 });
 
-test("contentHash, residentId, fileName, and sourceUpdatedAt alone do not resolve", () => {
+test("contentHash, residentId, fileName, and sourceUpdatedAt alone do not resolve", async () => {
     for (const context of [
         { contentHash: "a".repeat(64) },
         { residentId: "resident-1" },
         { fileName: "support.docx" },
         { sourceUpdatedAt: "2026-09-05T10:00:00Z" }
     ]) {
-        const { result, calls } = resolve(context);
+        const { result, calls } = await resolve(context);
         assert.deepStrictEqual(result, { status: "pending_review" });
         assert.deepStrictEqual(calls, []);
     }
 });
 
-test("row, cell, and paragraph positions do not generate persistent keys", () => {
-    const { result, calls } = resolve({
+test("row, cell, and paragraph positions do not generate persistent keys", async () => {
+    const { result, calls } = await resolve({
         verifiedFacilityId: "facility-1",
         verifiedConnectorId: "connector-1",
         sourceDocumentKey: "document-key-1",
@@ -145,18 +148,18 @@ test("row, cell, and paragraph positions do not generate persistent keys", () =>
     assert.deepStrictEqual(calls, []);
 });
 
-test("dependency throw and malformed result fail safely", () => {
-    const thrown = resolve(undefined, {
+test("dependency throw and malformed result fail safely", async () => {
+    const thrown = (await resolve(undefined, {
         findCandidates() {
             throw new Error("internal lookup detail");
         }
-    }).result;
-    const malformed = resolve(undefined, {
+    })).result;
+    const malformed = (await resolve(undefined, {
         findCandidates: () => ({ recordId: "record-1" })
-    }).result;
-    const malformedCandidate = resolve(undefined, {
+    })).result;
+    const malformedCandidate = (await resolve(undefined, {
         findCandidates: () => [{ recordId: "" }]
-    }).result;
+    })).result;
 
     assert.deepStrictEqual(thrown, {
         status: "invalid",
@@ -172,17 +175,21 @@ test("dependency throw and malformed result fail safely", () => {
     });
 });
 
-test("input is not mutated", () => {
+test("input is not mutated", async () => {
     const context = createIdentityContext({ contentHash: "untrusted" });
     const before = JSON.stringify(context);
 
-    resolve(context);
+    await resolve(context);
 
     assert.strictEqual(JSON.stringify(context), before);
 });
 
-test("record identity does not create a recordId from the input", () => {
-    const { result } = resolve(createIdentityContext({ recordId: "client-record-id" }));
+test("record identity does not create a recordId from the input", async () => {
+    const { result } = await resolve(
+        createIdentityContext({
+            recordId: "client-record-id"
+        })
+    );
 
     assert.deepStrictEqual(result, { status: "new_candidate" });
 });

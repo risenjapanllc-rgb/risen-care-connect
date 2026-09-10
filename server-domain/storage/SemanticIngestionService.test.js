@@ -392,3 +392,84 @@ test("blank storage decision status fails closed", async () => {
         }
     );
 });
+
+test("awaits asynchronous semantic pipeline before storage decision", async () => {
+    const verifiedContext = {
+        connectorId:
+            "connector-1",
+        facilityId:
+            "facility-1"
+    };
+
+    const residentMatching = {
+        status:
+            "matched"
+    };
+
+    const semanticRecord = {
+        semanticContent: {
+            semanticType:
+                "support_record"
+        }
+    };
+
+    let decisionInput;
+
+    const service =
+        new SemanticIngestionService({
+            semanticRecordPipeline: {
+                async process(input) {
+                    assert.deepStrictEqual(
+                        input,
+                        {
+                            verifiedContext,
+                            semanticRecord
+                        }
+                    );
+
+                    return {
+                        status:
+                            "pending_review"
+                    };
+                }
+            },
+            semanticStorageDecisionService: {
+                async decide(input) {
+                    decisionInput =
+                        input;
+
+                    return {
+                        status:
+                            "pending_review"
+                    };
+                }
+            }
+        });
+
+    const result =
+        await service.ingest({
+            verifiedContext,
+            residentMatching,
+            semanticRecord
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status:
+                "pending_review"
+        }
+    );
+
+    assert.deepStrictEqual(
+        decisionInput,
+        {
+            verifiedContext,
+            residentMatching,
+            semanticPipeline: {
+                status:
+                    "pending_review"
+            }
+        }
+    );
+});

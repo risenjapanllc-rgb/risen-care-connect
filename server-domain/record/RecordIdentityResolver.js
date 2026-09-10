@@ -5,7 +5,7 @@ class RecordIdentityResolver {
         this.recordIdentityCandidateProvider = recordIdentityCandidateProvider;
     }
 
-    resolve(identityContext) {
+    async resolve(identityContext) {
         if (!this.isPlainObject(identityContext)) {
             return this.invalid("record_identity_context_invalid");
         }
@@ -17,7 +17,9 @@ class RecordIdentityResolver {
 
         let candidates;
         try {
-            candidates = this.recordIdentityCandidateProvider.findCandidates(lookupScope);
+            candidates = await this.recordIdentityCandidateProvider.findCandidates(
+                lookupScope
+            );
         } catch {
             return this.invalid("record_identity_lookup_failed");
         }

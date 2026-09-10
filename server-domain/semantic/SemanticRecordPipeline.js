@@ -41,7 +41,7 @@ class SemanticRecordPipeline {
             recordIdentityResolver;
     }
 
-    process({
+    async process({
         verifiedContext,
         semanticRecord
     } = {}) {
@@ -121,7 +121,7 @@ class SemanticRecordPipeline {
         let identityResolution;
         try {
             identityResolution =
-                this.recordIdentityResolver.resolve(
+                await this.recordIdentityResolver.resolve(
                     identityContext
                 );
         } catch {

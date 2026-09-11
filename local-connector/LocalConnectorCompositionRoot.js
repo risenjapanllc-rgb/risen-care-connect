@@ -29,6 +29,8 @@ const SqliteSyncStateStore =
     require("./SqliteSyncStateStore");
 const LocalConnectorSyncEngine =
     require("./LocalConnectorSyncEngine");
+const LocalConnectorStandardizationPipeline =
+    require("./LocalConnectorStandardizationPipeline");
 
 function createService({
     databasePath,
@@ -81,8 +83,14 @@ function createSemanticPreparationService({
     const semanticRecordBuilder =
         new SemanticRecordBuilder();
 
+    const standardizationPipeline =
+        new LocalConnectorStandardizationPipeline({
+            localConnectorService
+        });
+
     return new LocalSemanticRecordPreparationService({
         localConnectorService,
+        standardizationPipeline,
         semanticRecordBuilder
     });
 }
@@ -123,8 +131,14 @@ async function createIngestionService({
     const semanticRecordBuilder =
         new SemanticRecordBuilder();
 
+    const standardizationPipeline =
+        new LocalConnectorStandardizationPipeline({
+            localConnectorService
+        });
+
     return new LocalConnectorIngestionService({
         localConnectorService,
+        standardizationPipeline,
         payloadBuilder,
         semanticRecordBuilder,
         httpClient
@@ -161,9 +175,15 @@ async function createSyncEngine({
         await localConnectorService
             .getConnectorId();
 
+    const standardizationPipeline =
+        new LocalConnectorStandardizationPipeline({
+            localConnectorService
+        });
+
     const ingestionService =
         new LocalConnectorIngestionService({
             localConnectorService,
+            standardizationPipeline,
             payloadBuilder:
                 new ConnectorIngestionPayloadBuilder(),
             semanticRecordBuilder:

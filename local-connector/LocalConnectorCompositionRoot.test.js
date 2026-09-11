@@ -237,7 +237,8 @@ test("creates semantic preparation service with persistent source document regis
         );
 
         assert.ok(
-            service.localConnectorService
+            service.standardizationPipeline
+                .localConnectorService
                 .sourceDocumentRegistry
         );
 

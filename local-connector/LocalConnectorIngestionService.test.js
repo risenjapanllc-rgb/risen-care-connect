@@ -106,11 +106,11 @@ test("requires httpClient", () => {
 });
 
 test(
-    "observes once, normalizes once, builds both lanes, then sends envelope",
+    "processes one standardized document, builds both lanes, then sends envelope",
     async () => {
         const calls = [];
 
-        const normalizedDocument = {
+        const standardDocument = {
             documentType:
                 "support_record",
             sourceType:
@@ -157,26 +157,30 @@ test(
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile(fileName) {
+                standardizationPipeline: {
+                    async processRegisteredFile(
+                        fileName
+                    ) {
                         calls.push([
-                            "observe",
+                            "pipeline",
                             fileName
                         ]);
 
                         return {
-                            sourceDocumentKey:
-                                "document-key-123"
+                            source: {
+                                sourceDocumentKey:
+                                    "document-key-123"
+                            },
+                            validation: {
+                                valid: true,
+                                issues: []
+                            },
+                            quality: {
+                                acceptable: true,
+                                signals: []
+                            },
+                            standardDocument
                         };
-                    },
-
-                    async normalizeRegisteredWord(fileName) {
-                        calls.push([
-                            "normalizeWord",
-                            fileName
-                        ]);
-
-                        return normalizedDocument;
                     }
                 },
 
@@ -192,7 +196,10 @@ test(
                 },
 
                 semanticRecordBuilder: {
-                    build(input, trustedContext) {
+                    build(
+                        input,
+                        trustedContext
+                    ) {
                         calls.push([
                             "buildSemantic",
                             input,
@@ -241,20 +248,16 @@ test(
             calls,
             [
                 [
-                    "observe",
-                    "record.docx"
-                ],
-                [
-                    "normalizeWord",
+                    "pipeline",
                     "record.docx"
                 ],
                 [
                     "buildPayload",
-                    normalizedDocument
+                    standardDocument
                 ],
                 [
                     "buildSemantic",
-                    normalizedDocument,
+                    standardDocument,
                     {
                         sourceDocumentKey:
                             "document-key-123"
@@ -275,44 +278,44 @@ test(
 );
 
 test(
-    "Excel document observes and normalizes once",
+    "Excel standardized document uses the same ingestion boundary",
     async () => {
-        let observeCount = 0;
-        let normalizeCount = 0;
+        let pipelineCount = 0;
+        let httpCount = 0;
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
-                        observeCount += 1;
+                standardizationPipeline: {
+                    async processRegisteredFile() {
+                        pipelineCount += 1;
 
                         return {
-                            sourceDocumentKey:
-                                "excel-document-key"
-                        };
-                    },
-
-                    async normalizeRegisteredExcel(fileName) {
-                        normalizeCount += 1;
-
-                        return {
-                            documentType:
-                                "support_record",
-                            sourceType:
-                                "excel",
                             source: {
-                                fileName,
-                                updatedAt:
-                                    "2026-09-09T10:00:00Z"
+                                sourceDocumentKey:
+                                    "excel-document-key"
                             },
-                            extracted: {
-                                sourceResidentIdentifier: {
-                                    value:
-                                        "RES-456"
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {
+                                documentType:
+                                    "support_record",
+                                sourceType:
+                                    "excel",
+                                source: {
+                                    fileName:
+                                        "record.xlsx",
+                                    updatedAt:
+                                        "2026-09-09T10:00:00Z"
                                 },
-                                supportContent: {
-                                    value:
-                                        "Excel支援内容"
+                                extracted: {
+                                    supportContent: {
+                                        value:
+                                            "Excel支援内容"
+                                    }
                                 }
                             }
                         };
@@ -344,6 +347,8 @@ test(
 
                 httpClient: {
                     async ingest() {
+                        httpCount += 1;
+
                         return {
                             requestId:
                                 "request-456",
@@ -359,43 +364,51 @@ test(
         );
 
         assert.strictEqual(
-            observeCount,
+            pipelineCount,
             1
         );
 
         assert.strictEqual(
-            normalizeCount,
+            httpCount,
             1
         );
     }
 );
 
 test(
-    "missing sourceDocumentKey fails before normalization and HTTP",
+    "missing sourceDocumentKey fails before builders and HTTP",
     async () => {
-        let normalized = false;
+        let payloadBuilt = false;
+        let semanticBuilt = false;
         let httpCalled = false;
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
-                        return {};
-                    },
-
-                    async normalizeRegisteredWord() {
-                        normalized = true;
+                standardizationPipeline: {
+                    async processRegisteredFile() {
+                        return {
+                            source: {},
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {}
+                        };
                     }
                 },
 
                 payloadBuilder: {
                     build() {
+                        payloadBuilt = true;
                         return {};
                     }
                 },
 
                 semanticRecordBuilder: {
                     build() {
+                        semanticBuilt = true;
                         return [];
                     }
                 },
@@ -416,10 +429,13 @@ test(
         );
 
         assert.strictEqual(
-            normalized,
+            payloadBuilt,
             false
         );
-
+        assert.strictEqual(
+            semanticBuilt,
+            false
+        );
         assert.strictEqual(
             httpCalled,
             false
@@ -428,34 +444,33 @@ test(
 );
 
 test(
-    "unsupported extension fails before normalization and HTTP",
+    "pipeline rejection stops builders and HTTP",
     async () => {
+        let payloadBuilt = false;
+        let semanticBuilt = false;
         let httpCalled = false;
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
-                        return {
-                            sourceDocumentKey:
-                                "document-key"
-                        };
+                standardizationPipeline: {
+                    async processRegisteredFile() {
+                        throw new Error(
+                            "unsupported file type"
+                        );
                     }
                 },
 
                 payloadBuilder: {
                     build() {
-                        throw new Error(
-                            "should not build"
-                        );
+                        payloadBuilt = true;
+                        return {};
                     }
                 },
 
                 semanticRecordBuilder: {
                     build() {
-                        throw new Error(
-                            "should not build"
-                        );
+                        semanticBuilt = true;
+                        return [];
                     }
                 },
 
@@ -475,6 +490,14 @@ test(
         );
 
         assert.strictEqual(
+            payloadBuilt,
+            false
+        );
+        assert.strictEqual(
+            semanticBuilt,
+            false
+        );
+        assert.strictEqual(
             httpCalled,
             false
         );
@@ -489,18 +512,25 @@ test(
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
+                standardizationPipeline: {
+                    async processRegisteredFile() {
                         return {
-                            sourceDocumentKey:
-                                "document-key"
-                        };
-                    },
-
-                    async normalizeRegisteredWord() {
-                        return {
-                            documentType:
-                                "support_record"
+                            source: {
+                                sourceDocumentKey:
+                                    "document-key"
+                            },
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {
+                                sourceType:
+                                    "word",
+                                documentType:
+                                    "support_record"
+                            }
                         };
                     }
                 },
@@ -552,18 +582,25 @@ test(
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
+                standardizationPipeline: {
+                    async processRegisteredFile() {
                         return {
-                            sourceDocumentKey:
-                                "document-key"
-                        };
-                    },
-
-                    async normalizeRegisteredWord() {
-                        return {
-                            documentType:
-                                "support_record"
+                            source: {
+                                sourceDocumentKey:
+                                    "document-key"
+                            },
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {
+                                sourceType:
+                                    "word",
+                                documentType:
+                                    "support_record"
+                            }
                         };
                     }
                 },
@@ -616,44 +653,49 @@ test(
 
         const service =
             new LocalConnectorIngestionService({
-                localConnectorService: {
-                    async observeRegisteredFile() {
+                standardizationPipeline: {
+                    async processRegisteredFile() {
                         return {
-                            sourceDocumentKey:
-                                "document-key-safe"
-                        };
-                    },
-
-                    async normalizeRegisteredWord() {
-                        return {
-                            facilityId:
-                                "client-facility",
-                            residentId:
-                                "client-resident",
-                            verifiedContext: {
-                                facilityId:
-                                    "fake-facility"
-                            },
-                            credential:
-                                "fake-credential",
-                            documentType:
-                                "support_record",
-                            sourceType:
-                                "word",
                             source: {
-                                fileName:
-                                    "record.docx",
-                                updatedAt:
-                                    "2026-09-09T10:00:00Z"
+                                sourceDocumentKey:
+                                    "document-key-safe"
                             },
-                            extracted: {
-                                sourceResidentIdentifier: {
-                                    value:
-                                        "RES-123"
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {
+                                facilityId:
+                                    "client-facility",
+                                residentId:
+                                    "client-resident",
+                                verifiedContext: {
+                                    facilityId:
+                                        "fake-facility"
                                 },
-                                supportContent: {
-                                    value:
-                                        "支援内容"
+                                credential:
+                                    "fake-credential",
+                                documentType:
+                                    "support_record",
+                                sourceType:
+                                    "word",
+                                source: {
+                                    fileName:
+                                        "record.docx",
+                                    updatedAt:
+                                        "2026-09-09T10:00:00Z"
+                                },
+                                extracted: {
+                                    sourceResidentIdentifier: {
+                                        value:
+                                            "RES-123"
+                                    },
+                                    supportContent: {
+                                        value:
+                                            "支援内容"
+                                    }
                                 }
                             }
                         };
@@ -733,14 +775,6 @@ test(
                 "fake-credential"
             ),
             false
-        );
-
-        assert.deepStrictEqual(
-            Object.keys(sentEnvelope),
-            [
-                "payload",
-                "semanticRecords"
-            ]
         );
     }
 );

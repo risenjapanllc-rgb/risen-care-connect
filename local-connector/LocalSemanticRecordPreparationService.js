@@ -1,13 +1,18 @@
 "use strict";
 
-const path = require("node:path");
+const LocalConnectorStandardizationPipeline =
+    require("./LocalConnectorStandardizationPipeline");
 
 class LocalSemanticRecordPreparationService {
     constructor({
         localConnectorService,
+        standardizationPipeline,
         semanticRecordBuilder
     } = {}) {
-        if (!localConnectorService) {
+        if (
+            !standardizationPipeline &&
+            !localConnectorService
+        ) {
             throw new Error(
                 "LocalSemanticRecordPreparationService requires localConnectorService"
             );
@@ -22,79 +27,75 @@ class LocalSemanticRecordPreparationService {
             );
         }
 
-        this.localConnectorService =
-            localConnectorService;
+        this.standardizationPipeline =
+            standardizationPipeline ||
+            new LocalConnectorStandardizationPipeline({
+                localConnectorService
+            });
+
+        if (
+            typeof this.standardizationPipeline
+                .processRegisteredFile !== "function"
+        ) {
+            throw new Error(
+                "LocalSemanticRecordPreparationService requires standardizationPipeline"
+            );
+        }
+
         this.semanticRecordBuilder =
             semanticRecordBuilder;
     }
 
     async prepareRegisteredFile(fileName) {
-        const observation =
-            await this.localConnectorService
-                .observeRegisteredFile(fileName);
+        const pipelineResult =
+            await this.standardizationPipeline
+                .processRegisteredFile(
+                    fileName
+                );
 
         if (
-            !observation ||
-            typeof observation !== "object" ||
-            Array.isArray(observation) ||
-            typeof observation.sourceDocumentKey !== "string" ||
-            observation.sourceDocumentKey.trim() === ""
+            !pipelineResult ||
+            !pipelineResult.source ||
+            typeof pipelineResult.source
+                .sourceDocumentKey !== "string" ||
+            pipelineResult.source
+                .sourceDocumentKey.trim() === ""
         ) {
             throw new Error(
                 "sourceDocumentKey unavailable"
             );
         }
 
-        const extension =
-            typeof fileName === "string"
-                ? path.extname(fileName).toLowerCase()
-                : "";
+        if (
+            !pipelineResult.validation ||
+            pipelineResult.validation.valid !== true ||
+            !pipelineResult.quality ||
+            pipelineResult.quality.acceptable !== true
+        ) {
+            throw new Error(
+                "standardized document unavailable"
+            );
+        }
 
-        let normalizedDocument;
+        const standardDocument =
+            pipelineResult.standardDocument;
 
         if (
-            extension === ".docx" ||
-            extension === ".doc"
+            !standardDocument ||
+            typeof standardDocument !== "object" ||
+            Array.isArray(standardDocument)
         ) {
-            if (
-                typeof this.localConnectorService
-                    .normalizeRegisteredWord !== "function"
-            ) {
-                throw new Error(
-                    "Word normalization unavailable"
-                );
-            }
-
-            normalizedDocument =
-                await this.localConnectorService
-                    .normalizeRegisteredWord(fileName);
-        } else if (
-            extension === ".xlsx" ||
-            extension === ".xls"
-        ) {
-            if (
-                typeof this.localConnectorService
-                    .normalizeRegisteredExcel !== "function"
-            ) {
-                throw new Error(
-                    "Excel normalization unavailable"
-                );
-            }
-
-            normalizedDocument =
-                await this.localConnectorService
-                    .normalizeRegisteredExcel(fileName);
-        } else {
             throw new Error(
-                "unsupported file type"
+                "standardized document unavailable"
             );
         }
 
         return this.semanticRecordBuilder.build(
-            normalizedDocument,
+            standardDocument,
             {
                 sourceDocumentKey:
-                    observation.sourceDocumentKey
+                    pipelineResult.source
+                        .sourceDocumentKey
             }
         );
     }

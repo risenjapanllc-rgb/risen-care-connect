@@ -166,30 +166,68 @@ class SourceFieldExtractor {
             return -1;
         }
 
+        /*
+         * ヘッダーは項目名の意味ではなく、
+         * 表としての構造から判定する。
+         *
+         * 先頭付近の行について非空セル数を調べ、
+         * 最も密度の高い行の50%以上を持つ
+         * 最初の行をヘッダー候補とする。
+         *
+         * これにより、
+         * - タイトル行を持つExcel
+         * - 1行目から始まるCSV
+         * - 利用者名など特定項目を持たない表
+         * を同じルールで扱う。
+         */
+        const scanLimit =
+            Math.min(rows.length, 20);
+
+        const counts = [];
+
         for (
             let rowIndex = 0;
-            rowIndex < rows.length;
+            rowIndex < scanLimit;
             rowIndex += 1
         ) {
             const row = rows[rowIndex];
 
             if (!Array.isArray(row)) {
+                counts.push(0);
                 continue;
             }
 
-            const values = row
-                .map(value =>
-                    this.normalizeHeader(value)
-                )
-                .filter(Boolean);
+            const nonEmptyCount =
+                row.filter(value =>
+                    value !== null &&
+                    value !== undefined &&
+                    String(value).trim() !== ''
+                ).length;
 
+            counts.push(nonEmptyCount);
+        }
+
+        const maxCount =
+            Math.max(0, ...counts);
+
+        if (maxCount < 2) {
+            return -1;
+        }
+
+        const minimumHeaderCells =
+            Math.max(
+                2,
+                Math.ceil(maxCount * 0.5)
+            );
+
+        for (
+            let rowIndex = 0;
+            rowIndex < counts.length;
+            rowIndex += 1
+        ) {
             if (
-                values.includes('利用者名') &&
-                (
-                    values.includes('居室番号') ||
-                    values.includes('性格') ||
-                    values.includes('本人の意向')
-                )
+                counts[rowIndex] >=
+                minimumHeaderCells
             ) {
                 return rowIndex;
             }

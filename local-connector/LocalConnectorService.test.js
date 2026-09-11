@@ -318,3 +318,84 @@ test("getConnectorId delegates to LocalConnectorConfig", async () => {
     "connector-test-001"
   );
 });
+
+test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", async () => {
+  let receivedDocument = null;
+
+  const service = new LocalConnectorService({
+    csvReader: {
+      async read() {
+        return {
+          sheetNames: ["CSV"],
+          sheets: [
+            {
+              sheetName: "CSV",
+              rows: [
+                ["項目A", "項目B", "項目C"],
+                ["値1", "値2", "値3"]
+              ]
+            }
+          ]
+        };
+      }
+    },
+
+    sourceFieldExtractor: {
+      extractExcelRows(document) {
+        receivedDocument = document;
+
+        return [
+          {
+            sheetName: "CSV",
+            rowIndex: 2,
+            fields: {
+              "項目A": "値1",
+              "項目B": "値2",
+              "項目C": "値3"
+            }
+          }
+        ];
+      }
+    }
+  });
+
+  service._resolveRegisteredFileDetails =
+    async () => ({
+      filePath: "/test/facility.csv",
+      fileName: "facility.csv",
+      relativePath: "facility.csv",
+      extension: ".csv",
+      size: 123,
+      updatedAt: "2026-09-11T00:00:00.000Z"
+    });
+
+  const result =
+    await service.normalizeRegisteredCsv(
+      "facility.csv"
+    );
+
+  assert.ok(receivedDocument);
+
+  assert.deepStrictEqual(
+    result.extracted.sourceFields,
+    [
+      {
+        sheetName: "CSV",
+        rowIndex: 2,
+        fields: {
+          "項目A": "値1",
+          "項目B": "値2",
+          "項目C": "値3"
+        },
+        meanings: {
+          personality: null,
+          communication: null,
+          carePrecautions: null,
+          preference: null,
+          healthCharacteristics: null,
+          otherNotes: null
+        }
+      }
+    ]
+  );
+});

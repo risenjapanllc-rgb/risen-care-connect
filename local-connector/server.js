@@ -185,26 +185,31 @@ app.post("/files/:fileName/analyze", async (req, res) => {
 
         let result;
 
-        if (extension === ".docx" || extension === ".doc") {
+        if (extension === ".docx") {
             result =
                 await service.normalizeRegisteredWord(fileName);
         } else if (extension === ".xlsx" || extension === ".xls") {
             result =
                 await service.normalizeRegisteredExcel(fileName);
+        } else if (extension === ".csv") {
+            result =
+                await service.normalizeRegisteredCsv(fileName);
         } else {
             return res.status(400).json({
                 success: false,
-                message: "WordまたはExcelファイルのみ解析できます"
+                message: "Word、Excel、CSVファイルのみ解析できます"
             });
         }
 
         return res.json({
             success: true,
             fileName,
+            sourceType: result.sourceType,
             documentType: result.documentType,
             documentTypeConfidence:
                 result.documentTypeConfidence,
             source: result.source,
+            content: result.content,
             extracted: result.extracted
         });
     } catch (error) {

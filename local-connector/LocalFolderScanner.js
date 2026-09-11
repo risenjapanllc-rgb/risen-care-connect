@@ -4,9 +4,10 @@ const fs = require('fs/promises');
 const path = require('path');
 
 const DEFAULT_ALLOWED_EXTENSIONS = new Set([
-    '.xlsx',
+    '.docx',
     '.xls',
-    '.docx'
+    '.xlsx',
+    '.csv'
 ]);
 
 class LocalFolderScanner {

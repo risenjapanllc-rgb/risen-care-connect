@@ -109,7 +109,7 @@ let selectedFilePath = "";
 function renderFiles(files) {
     const supportedFiles =
         files.filter(file =>
-            [".doc", ".docx", ".xls", ".xlsx"]
+            [".docx", ".xls", ".xlsx", ".csv"]
                 .includes(
                     String(file.extension || "").toLowerCase()
                 )
@@ -117,7 +117,7 @@ function renderFiles(files) {
 
     if (supportedFiles.length === 0) {
         fileList.innerHTML =
-            "<p>Word / Excelファイルがありません。</p>";
+            "<p>Word / Excel / CSVファイルがありません。</p>";
         return;
     }
 
@@ -158,8 +158,6 @@ function renderFiles(files) {
                             </span>
 
                             <span>
-                                ${escapeHtml(file.extension)}
-                                /
                                 ${formatSize(file.size)}
                             </span>
 
@@ -315,16 +313,34 @@ async function analyzeFile(filePath) {
 }
 
 function renderAnalysis(result) {
+    const sourceType =
+        result.sourceType || "unknown";
+
     const documentType =
         result.documentType || "不明";
 
     const confidence =
         result.documentTypeConfidence || "low";
 
+    const sourceTypeLabels = {
+        word: "Word",
+        excel: "Excel",
+        csv: "CSV",
+        mysql: "MySQL"
+    };
+
     analysisSummary.innerHTML = `
         <p>
             <strong>ファイル</strong><br>
             ${escapeHtml(result.fileName || "")}
+        </p>
+
+        <p>
+            <strong>ファイル形式</strong><br>
+            ${escapeHtml(
+                sourceTypeLabels[sourceType] ||
+                sourceType
+            )}
         </p>
 
         <p>
@@ -338,35 +354,207 @@ function renderAnalysis(result) {
         </p>
     `;
 
-    const extracted =
-        result.extracted || {};
+    const content =
+        result.content || {};
 
-    const fields = [
-        ["利用者ID", extracted.residentId],
-        ["利用者名", extracted.sourceResidentName],
-        ["本人の希望", extracted.wish],
-        ["長期目標", extracted.longTermGoal],
-        ["支援内容", extracted.supportContent || extracted.supportMethod]
-    ];
+    if (sourceType === "word") {
+        const text =
+            typeof content.text === "string"
+                ? content.text.trim()
+                : "";
 
-    analysisFields.innerHTML =
-        fields.map(([label, value]) => `
-            <div style="
-                padding: 16px 0;
-                border-bottom: 1px solid #e1e7f0;
-            ">
-                <strong>${label}</strong>
+        analysisFields.innerHTML = text
+            ? `
+                <h3>読み取った原文</h3>
 
-                <div style="
-                    margin-top: 6px;
-                    color: ${value ? "#333" : "#8a94a5"};
-                ">
-                    ${value
-                        ? escapeHtml(value.value)
-                        : "読み取れませんでした"}
-                </div>
-            </div>
-        `).join("");
+                <pre style="
+                    white-space: pre-wrap;
+                    overflow-wrap: anywhere;
+                    max-height: 520px;
+                    overflow: auto;
+                    margin: 16px 0 0;
+                    padding: 16px;
+                    background: #f7f9fc;
+                    border: 1px solid #e1e7f0;
+                    border-radius: 8px;
+                    font-family: inherit;
+                    line-height: 1.7;
+                ">${escapeHtml(text)}</pre>
+            `
+            : `
+                <p>
+                    Wordファイルから表示できる本文を
+                    取得できませんでした。
+                </p>
+            `;
+
+        return;
+    }
+
+    if (
+        sourceType === "excel" ||
+        sourceType === "csv" ||
+        sourceType === "mysql"
+    ) {
+        const sheets =
+            Array.isArray(content.sheets)
+                ? content.sheets
+                : [];
+
+        if (sheets.length === 0) {
+            analysisFields.innerHTML = `
+                <p>
+                    表として表示できる内容を
+                    取得できませんでした。
+                </p>
+            `;
+            return;
+        }
+
+        analysisFields.innerHTML =
+            sheets.map(sheet => {
+                const rows =
+                    Array.isArray(sheet.rows)
+                        ? sheet.rows
+                        : [];
+
+                const maxColumns =
+                    rows.reduce(
+                        (max, row) =>
+                            Math.max(
+                                max,
+                                Array.isArray(row)
+                                    ? row.length
+                                    : 0
+                            ),
+                        0
+                    );
+
+                const previewRowCount =
+                    Math.min(rows.length, 10);
+
+                const previewColumnCount =
+                    Math.min(maxColumns, 20);
+
+                const previewRows =
+                    rows.slice(
+                        0,
+                        previewRowCount
+                    );
+
+                const tableRows =
+                    previewRows.map(
+                        (row, rowIndex) => {
+                            const cells =
+                                Array.isArray(row)
+                                    ? row.slice(
+                                        0,
+                                        previewColumnCount
+                                    )
+                                    : [];
+
+                            while (
+                                cells.length <
+                                previewColumnCount
+                            ) {
+                                cells.push("");
+                            }
+
+                            return `
+                                <tr>
+                                    <td style="
+                                        position: sticky;
+                                        left: 0;
+                                        background: #f7f9fc;
+                                        color: #6b7280;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                    ">
+                                        ${rowIndex + 1}
+                                    </td>
+
+                                    ${cells.map(cell => `
+                                        <td style="
+                                            min-width: 120px;
+                                            max-width: 280px;
+                                            vertical-align: top;
+                                            overflow-wrap: anywhere;
+                                        ">
+                                            ${escapeHtml(
+                                                cell ?? ""
+                                            )}
+                                        </td>
+                                    `).join("")}
+                                </tr>
+                            `;
+                        }
+                    ).join("");
+
+                const truncated =
+                    rows.length > previewRowCount ||
+                    maxColumns > previewColumnCount;
+
+                return `
+                    <div style="margin-bottom: 28px;">
+                        <h3>
+                            ${escapeHtml(
+                                sheet.sheetName ||
+                                "データ"
+                            )}
+                        </h3>
+
+                        <p style="
+                            color: #667085;
+                            margin: 8px 0 12px;
+                        ">
+                            ${rows.length} 行 /
+                            最大 ${maxColumns} 列
+                        </p>
+
+                        <div style="
+                            overflow: auto;
+                            border: 1px solid #e1e7f0;
+                            border-radius: 8px;
+                        ">
+                            <table style="
+                                border-collapse: collapse;
+                                width: max-content;
+                                min-width: 100%;
+                            ">
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        ${truncated
+                            ? `
+                                <p style="
+                                    margin-top: 10px;
+                                    color: #667085;
+                                    font-size: 0.9rem;
+                                ">
+                                    プレビューは先頭
+                                    ${previewRowCount}行・
+                                    ${previewColumnCount}列まで
+                                    表示しています。
+                                </p>
+                            `
+                            : ""
+                        }
+                    </div>
+                `;
+            }).join("");
+
+        return;
+    }
+
+    analysisFields.innerHTML = `
+        <p>
+            このファイルから表示できる原本構造を
+            取得できませんでした。
+        </p>
+    `;
 }
 
 function renderConfirmation() {

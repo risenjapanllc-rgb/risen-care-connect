@@ -60,11 +60,15 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
         analyzedFileName = fileName;
 
         return {
+            sourceType: "word",
             documentType: "assessment",
             documentTypeConfidence: "high",
             source: {
                 fileName: "assessment.docx",
                 updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                text: "任意のWord本文"
             },
             extracted: {
                 sourceResidentIdentifier: {
@@ -100,11 +104,15 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
         assert.deepStrictEqual(body, {
             success: true,
             fileName: "assessment.docx",
+            sourceType: "word",
             documentType: "assessment",
             documentTypeConfidence: "high",
             source: {
                 fileName: "assessment.docx",
                 updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                text: "任意のWord本文"
             },
             extracted: {
                 sourceResidentIdentifier: {
@@ -133,11 +141,24 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
         analyzedFileName = fileName;
 
         return {
+            sourceType: "excel",
             documentType: "assessment",
             documentTypeConfidence: "medium",
             source: {
                 fileName: "assessment.xlsx",
                 updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                sheetNames: ["Sheet1"],
+                sheets: [
+                    {
+                        sheetName: "Sheet1",
+                        rows: [
+                            ["項目A", "項目B"],
+                            ["値1", "値2"]
+                        ]
+                    }
+                ]
             },
             extracted: {
                 sourceResidentIdentifier: {
@@ -169,11 +190,24 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
         assert.deepStrictEqual(body, {
             success: true,
             fileName: "assessment.xlsx",
+            sourceType: "excel",
             documentType: "assessment",
             documentTypeConfidence: "medium",
             source: {
                 fileName: "assessment.xlsx",
                 updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                sheetNames: ["Sheet1"],
+                sheets: [
+                    {
+                        sheetName: "Sheet1",
+                        rows: [
+                            ["項目A", "項目B"],
+                            ["値1", "値2"]
+                        ]
+                    }
+                ]
             },
             extracted: {
                 sourceResidentIdentifier: {
@@ -184,6 +218,91 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
         });
     } finally {
         service.normalizeRegisteredExcel = original;
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
+test("POST /files/:fileName/analyze analyzes a registered CSV document", async () => {
+    const service = app.locals.localConnectorService;
+    const original = service.normalizeRegisteredCsv;
+
+    let analyzedFileName;
+
+    service.normalizeRegisteredCsv = async fileName => {
+        analyzedFileName = fileName;
+
+        return {
+            sourceType: "csv",
+            documentType: "unknown",
+            documentTypeConfidence: "low",
+            source: {
+                fileName: "records.csv",
+                updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                sheetNames: ["csv"],
+                sheets: [
+                    {
+                        sheetName: "csv",
+                        rows: [
+                            ["項目A", "項目B"],
+                            ["値1", "値2"]
+                        ]
+                    }
+                ]
+            },
+            extracted: {
+                sourceFields: []
+            }
+        };
+    };
+
+    const server = http.createServer(app);
+    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+
+    try {
+        const address = server.address();
+
+        const response = await fetch(
+            `http://127.0.0.1:${address.port}/files/records.csv/analyze`,
+            {
+                method: "POST"
+            }
+        );
+
+        const body = await response.json();
+
+        assert.strictEqual(response.status, 200);
+        assert.strictEqual(analyzedFileName, "records.csv");
+
+        assert.deepStrictEqual(body, {
+            success: true,
+            fileName: "records.csv",
+            sourceType: "csv",
+            documentType: "unknown",
+            documentTypeConfidence: "low",
+            source: {
+                fileName: "records.csv",
+                updatedAt: "2026-09-06T08:00:00.000Z"
+            },
+            content: {
+                sheetNames: ["csv"],
+                sheets: [
+                    {
+                        sheetName: "csv",
+                        rows: [
+                            ["項目A", "項目B"],
+                            ["値1", "値2"]
+                        ]
+                    }
+                ]
+            },
+            extracted: {
+                sourceFields: []
+            }
+        });
+    } finally {
+        service.normalizeRegisteredCsv = original;
         await new Promise(resolve => server.close(resolve));
     }
 });
@@ -207,7 +326,7 @@ test("POST /files/:fileName/analyze rejects unsupported file types", async () =>
         assert.strictEqual(response.status, 400);
         assert.deepStrictEqual(body, {
             success: false,
-            message: "WordまたはExcelファイルのみ解析できます"
+            message: "Word、Excel、CSVファイルのみ解析できます"
         });
     } finally {
         await new Promise(resolve => server.close(resolve));

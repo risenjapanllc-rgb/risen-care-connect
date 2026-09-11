@@ -278,6 +278,80 @@ class LocalConnectorService {
         );
     }
 
+    async normalizeRegisteredCsv(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'CSVファイル名が指定されていません'
+            );
+        }
+
+        const extension =
+            path.extname(fileName).toLowerCase();
+
+        if (extension !== '.csv') {
+            throw new Error(
+                'CSVファイルのみ指定できます'
+            );
+        }
+
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
+
+        const document =
+            await this.csvReader.read(
+                details.filePath
+            );
+
+        const documentType =
+            this.documentTypeDetector.detect(
+                document
+            );
+
+        const standardDocument =
+            this.documentNormalizer.normalize({
+                sourceType: 'csv',
+                fileName:
+                    details.fileName,
+                updatedAt:
+                    details.updatedAt,
+                document,
+                documentType
+            });
+
+        const extracted =
+            this.documentSemanticExtractor.extract(
+                standardDocument
+            );
+
+        const sourceFields =
+            this.sourceFieldExtractor.extractExcelRows(
+                standardDocument.content
+            );
+
+        const interpretedSourceFields =
+            sourceFields.map(record => ({
+                ...record,
+                meanings:
+                    this.sourceMeaningInterpreter.interpret(
+                        record.fields
+                    ).meanings
+            }));
+
+        return {
+            ...standardDocument,
+            extracted: {
+                ...extracted,
+                sourceFields:
+                    interpretedSourceFields
+            }
+        };
+    }
+
     async readRegisteredWord(fileName) {
         const filePath =
             await this.resolveRegisteredWordFile(

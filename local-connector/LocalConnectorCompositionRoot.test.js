@@ -256,3 +256,188 @@ test("creates semantic preparation service with persistent source document regis
         );
     }
 });
+
+test(
+    "creates source document ingestion service independently of semantic ingestion",
+    async () => {
+        const tempDir =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "risen-source-document-ingestion-root-"
+                )
+            );
+
+        const databasePath =
+            path.join(
+                tempDir,
+                "registry.sqlite"
+            );
+
+        const configPath =
+            path.join(
+                tempDir,
+                ".local-connector-config.json"
+            );
+
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    connectorId:
+                        "11111111-2222-4333-8444-555555555555"
+                },
+                null,
+                2
+            )
+        );
+
+        try {
+            const ingestionService =
+                await LocalConnectorCompositionRoot
+                    .createSourceDocumentIngestionService({
+                        databasePath,
+                        configPath,
+                        endpoint:
+                            "https://backend.example/connector/source-documents",
+                        credential:
+                            "test-credential",
+                        authorizationScheme:
+                            "RISEN-Connector",
+                        fetchImpl:
+                            async () => ({
+                                ok: true,
+                                status: 200,
+                                async json() {
+                                    return {
+                                        status:
+                                            "created"
+                                    };
+                                }
+                            })
+                    });
+
+            assert.strictEqual(
+                typeof ingestionService
+                    .ingestRegisteredFile,
+                "function"
+            );
+
+            assert.strictEqual(
+                ingestionService
+                    .httpClient
+                    .connectorId,
+                "11111111-2222-4333-8444-555555555555"
+            );
+
+            assert.strictEqual(
+                ingestionService
+                    .httpClient
+                    .endpoint,
+                "https://backend.example/connector/source-documents"
+            );
+
+            assert.strictEqual(
+                typeof ingestionService
+                    .sourceAdapter
+                    .acquireRaw,
+                "function"
+            );
+        } finally {
+            fs.rmSync(
+                tempDir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+
+test(
+    "creates source document sync engine with independent raw sync state",
+    async () => {
+        const fs =
+            require("node:fs");
+        const os =
+            require("node:os");
+        const path =
+            require("node:path");
+
+        const directory =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "risen-source-sync-root-"
+                )
+            );
+
+        const databasePath =
+            path.join(
+                directory,
+                "connector.sqlite"
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "connector-config.json"
+            );
+
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                connectorId:
+                    "11111111-1111-4111-8111-111111111111"
+            })
+        );
+
+        try {
+            const engine =
+                await LocalConnectorCompositionRoot
+                    .createSourceDocumentSyncEngine({
+                        databasePath,
+                        configPath,
+                        endpoint:
+                            "https://backend.example/connector/source-documents",
+                        credential:
+                            "test-credential",
+                        authorizationScheme:
+                            "RISEN-Connector",
+                        fetchImpl:
+                            async () => {
+                                throw new Error(
+                                    "network should not be called during composition"
+                                );
+                            }
+                    });
+
+            assert.strictEqual(
+                typeof engine.syncOnce,
+                "function"
+            );
+
+            assert.strictEqual(
+                engine.ingestionService
+                    .constructor.name,
+                "LocalSourceDocumentIngestionService"
+            );
+
+            assert.strictEqual(
+                engine.syncStateStore
+                    .constructor.name,
+                "SqliteSourceDocumentSyncStateStore"
+            );
+        } finally {
+            fs.rmSync(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

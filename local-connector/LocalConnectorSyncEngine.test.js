@@ -410,3 +410,185 @@ test(
         );
     }
 );
+
+test(
+    "raw source document ingestion service can be used without changing sync engine",
+    async () => {
+        const calls = [];
+
+        const localConnectorService = {
+            async getRegisteredFolderStatus() {
+                return {
+                    status: "ready",
+                    files: [
+                        {
+                            relativePath:
+                                "records/source.csv",
+                            extension:
+                                ".csv",
+                            updatedAt:
+                                "2026-09-11T10:00:00.000Z",
+                            size:
+                                42
+                        }
+                    ]
+                };
+            },
+
+            async observeRegisteredFile() {
+                return {
+                    sourceDocumentKey:
+                        "source-doc-1",
+                    relativePathLookupKey:
+                        "records/source.csv"
+                };
+            }
+        };
+
+        const ingestionService = {
+            async ingestRegisteredFile(
+                relativePath
+            ) {
+                calls.push(
+                    relativePath
+                );
+
+                return {
+                    status:
+                        "created"
+                };
+            }
+        };
+
+        let storedState = null;
+
+        const syncStateStore = {
+            get() {
+                return storedState;
+            },
+
+            markAttempt(input) {
+                storedState = {
+                    sourceDocumentKey:
+                        input.sourceDocumentKey,
+                    relativePathLookupKey:
+                        input.relativePathLookupKey,
+                    status:
+                        "in_progress",
+                    failureCount:
+                        0
+                };
+
+                return storedState;
+            },
+
+            markSucceeded(input) {
+                storedState = {
+                    ...storedState,
+                    status:
+                        "succeeded",
+                    lastSuccessfulUpdatedAt:
+                        input.updatedAt,
+                    lastSuccessfulSize:
+                        input.size,
+                    failureCount:
+                        0,
+                    nextRetryAt:
+                        null
+                };
+
+                return storedState;
+            },
+
+            markFailed() {
+                throw new Error(
+                    "raw source ingestion should not fail"
+                );
+            }
+        };
+
+        const engine =
+            new LocalConnectorSyncEngine({
+                localConnectorService,
+                ingestionService,
+                syncStateStore,
+                clock:
+                    () =>
+                        new Date(
+                            "2026-09-11T10:05:00.000Z"
+                        )
+            });
+
+        const result =
+            await engine.syncOnce();
+
+        assert.deepStrictEqual(
+            calls,
+            [
+                "records/source.csv"
+            ]
+        );
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status:
+                    "completed",
+                scanned:
+                    1,
+                attempted:
+                    1,
+                succeeded:
+                    1,
+                failed:
+                    0,
+                skipped:
+                    0
+            }
+        );
+
+        assert.strictEqual(
+            storedState.status,
+            "succeeded"
+        );
+
+        assert.strictEqual(
+            storedState
+                .lastSuccessfulSize,
+            42
+        );
+    }
+);
+
+
+test(
+    "failed ingestion preserves safe known error code",
+    async () => {
+        const harness =
+            createHarness({
+                ingestError:
+                    Object.assign(
+                        new Error(
+                            "must not be persisted"
+                        ),
+                        {
+                            code:
+                                "connector_trust_denied"
+                        }
+                    )
+            });
+
+        const result =
+            await harness.engine.syncOnce();
+
+        assert.strictEqual(
+            result.failed,
+            1
+        );
+
+        assert.strictEqual(
+            harness.getState().lastErrorCode,
+            "connector_trust_denied"
+        );
+    }
+);

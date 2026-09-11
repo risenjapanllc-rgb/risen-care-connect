@@ -216,7 +216,26 @@ class LocalConnectorSyncEngine {
                     });
 
                     summary.succeeded += 1;
-                } catch {
+                } catch (error) {
+                    const safeErrorCodes =
+                        new Set([
+                            "connector_trust_denied",
+                            "connector_payload_invalid",
+                            "connector_processing_unavailable",
+                            "server_trust_boundary_request_failed",
+                            "server_trust_boundary_unreachable",
+                            "server_trust_boundary_invalid_response"
+                        ]);
+
+                    const errorCode =
+                        error &&
+                        typeof error.code === "string" &&
+                        safeErrorCodes.has(
+                            error.code
+                        )
+                            ? error.code
+                            : "ingestion_failed";
+
                     const previousFailureCount =
                         Number.isInteger(
                             state?.failureCount
@@ -245,8 +264,7 @@ class LocalConnectorSyncEngine {
                             observation.relativePathLookupKey,
                         attemptedAt,
                         nextRetryAt,
-                        errorCode:
-                            "ingestion_failed"
+                        errorCode
                     });
 
                     summary.failed += 1;

@@ -10,6 +10,9 @@ const {
 const ServerTrustBoundaryIngestionService =
     require("./ServerTrustBoundaryIngestionService");
 
+const SourceDocumentIngestionService =
+    require("./SourceDocumentIngestionService");
+
 test("creates complete Server Trust Boundary application runtime", () => {
     const runtime =
         createServerTrustBoundaryRuntime({
@@ -30,10 +33,16 @@ test("creates complete Server Trust Boundary application runtime", () => {
             instanceof ServerTrustBoundaryIngestionService
     );
 
+    assert.ok(
+        runtime.sourceDocumentIngestionService
+            instanceof SourceDocumentIngestionService
+    );
+
     assert.deepStrictEqual(
         Object.keys(runtime),
         [
-            "serverTrustBoundaryIngestionService"
+            "serverTrustBoundaryIngestionService",
+            "sourceDocumentIngestionService"
         ]
     );
 

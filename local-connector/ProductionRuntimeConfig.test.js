@@ -172,3 +172,76 @@ test(
         );
     }
 );
+
+test(
+    "source document endpoint prefers dedicated endpoint",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SOURCE_DOCUMENT_ENDPOINT:
+                        "https://connector.example.test/connector/source-documents",
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceDocumentEndpoint(),
+            "https://connector.example.test/connector/source-documents"
+        );
+    }
+);
+
+test(
+    "source document endpoint supports trust boundary specific endpoint",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SERVER_TRUST_BOUNDARY_SOURCE_DOCUMENT_ENDPOINT:
+                        "https://connector.example.test/connector/source-documents",
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceDocumentEndpoint(),
+            "https://connector.example.test/connector/source-documents"
+        );
+    }
+);
+
+test(
+    "source document endpoint derives source route from semantic endpoint origin",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceDocumentEndpoint(),
+            "https://connector.example.test/connector/source-documents"
+        );
+    }
+);
+
+test(
+    "source document endpoint defaults to local trust boundary source route",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {}
+            });
+
+        assert.strictEqual(
+            config.resolveSourceDocumentEndpoint(),
+            "http://127.0.0.1:8787/connector/source-documents"
+        );
+    }
+);

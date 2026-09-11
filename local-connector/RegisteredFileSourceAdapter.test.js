@@ -185,7 +185,9 @@ test("raw Word acquisition returns source metadata and document", async () => {
                 fileName:
                     "record.docx",
                 updatedAt:
-                    "2026-09-11T10:00:00Z"
+                    "2026-09-11T10:00:00Z",
+                size:
+                    123
             },
             document
         }
@@ -245,7 +247,9 @@ test("raw Excel acquisition returns source metadata and document", async () => {
                 fileName:
                     "record.xlsx",
                 updatedAt:
-                    "2026-09-11T11:00:00Z"
+                    "2026-09-11T11:00:00Z",
+                size:
+                    456
             },
             document
         }
@@ -384,7 +388,9 @@ test(
                     fileName:
                         "support.csv",
                     updatedAt:
-                        "2026-09-11T00:00:00.000Z"
+                        "2026-09-11T00:00:00.000Z",
+                    size:
+                        null
                 },
                 document: {
                     sheetNames: ["csv"],
@@ -419,6 +425,53 @@ test(
                     "nested/support.csv"
                 ]
             ]
+        );
+    }
+);
+
+test(
+    "raw acquisition preserves source file size from registered metadata",
+    async () => {
+        const adapter =
+            new RegisteredFileSourceAdapter({
+                localConnectorService: {
+                    async observeRegisteredFile() {
+                        return {
+                            sourceDocumentKey:
+                                "source-key"
+                        };
+                    },
+
+                    async getRegisteredFileMetadata() {
+                        return {
+                            fileName:
+                                "source.csv",
+                            extension:
+                                ".csv",
+                            size:
+                                9520,
+                            updatedAt:
+                                "2026-09-11T10:00:00.000Z"
+                        };
+                    },
+
+                    async readRegisteredCsv() {
+                        return {
+                            sheetNames: ["csv"],
+                            sheets: []
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await adapter.acquireRaw(
+                "source.csv"
+            );
+
+        assert.strictEqual(
+            result.source.size,
+            9520
         );
     }
 );

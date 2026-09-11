@@ -477,3 +477,183 @@ test("oversized JSON returns sanitized 413 with requestId", async () => {
         }
     );
 });
+
+test("mounts source-document transport on separate endpoint without changing semantic endpoint", async () => {
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unmatched"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    let receivedSourceRequest;
+
+    const sourceDocumentTransport = {
+        async handle(input) {
+            receivedSourceRequest =
+                input;
+
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "created"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "source-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+            endpointPath:
+                "/connector/ingest",
+            sourceDocumentTransport,
+            sourceDocumentEndpointPath:
+                "/connector/source-documents"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const semanticResponse =
+                await fetch(
+                    `${baseUrl}/connector/ingest`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                payload: {},
+                                semanticRecords: [{}]
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                semanticResponse.status,
+                200
+            );
+
+            const sourceResponse =
+                await fetch(
+                    `${baseUrl}/connector/source-documents`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            "X-RISEN-Connector-Id":
+                                "connector-id",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocument: {
+                                    sourceDocumentKey:
+                                        "source-document-key",
+                                    sourceType:
+                                        "csv",
+                                    fileName:
+                                        "source.csv",
+                                    sourceContent: {
+                                        rows: [
+                                            ["A", "B"]
+                                        ]
+                                    },
+                                    sourceUpdatedAt:
+                                        null,
+                                    sourceSize:
+                                        10,
+                                    observedAt:
+                                        "2026-09-11T10:01:00.000Z"
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                sourceResponse.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await sourceResponse.json(),
+                {
+                    status: "created"
+                }
+            );
+
+            assert.strictEqual(
+                receivedSourceRequest.method,
+                "POST"
+            );
+
+            assert.strictEqual(
+                receivedSourceRequest.contentType,
+                "application/json"
+            );
+
+            assert.deepStrictEqual(
+                receivedSourceRequest.body,
+                {
+                    sourceDocument: {
+                        sourceDocumentKey:
+                            "source-document-key",
+                        sourceType:
+                            "csv",
+                        fileName:
+                            "source.csv",
+                        sourceContent: {
+                            rows: [
+                                ["A", "B"]
+                            ]
+                        },
+                        sourceUpdatedAt:
+                            null,
+                        sourceSize:
+                            10,
+                        observedAt:
+                            "2026-09-11T10:01:00.000Z"
+                    }
+                }
+            );
+        }
+    );
+});

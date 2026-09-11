@@ -42,6 +42,15 @@ const SupabaseExistingSemanticRecordRepository =
 const SupabaseSemanticRecordPersistenceRepository =
     require("./SupabaseSemanticRecordPersistenceRepository");
 
+const SourceDocumentPayloadValidator =
+    require("./SourceDocumentPayloadValidator");
+
+const SupabaseSourceDocumentPersistenceRepository =
+    require("./SupabaseSourceDocumentPersistenceRepository");
+
+const SourceDocumentIngestionService =
+    require("./SourceDocumentIngestionService");
+
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
 
@@ -248,8 +257,26 @@ function createServerTrustBoundaryRuntime({
             semanticIngestionService
         });
 
+    const sourceDocumentPayloadValidator =
+        new SourceDocumentPayloadValidator();
+
+    const sourceDocumentPersistenceRepository =
+        new SupabaseSourceDocumentPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceDocumentIngestionService =
+        new SourceDocumentIngestionService({
+            connectorTrustService,
+            sourceDocumentPayloadValidator,
+            sourceDocumentPersistenceRepository
+        });
+
     return {
-        serverTrustBoundaryIngestionService
+        serverTrustBoundaryIngestionService,
+        sourceDocumentIngestionService
     };
 }
 

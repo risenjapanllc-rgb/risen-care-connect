@@ -15,6 +15,9 @@ const express = require("express");
 function createServerTrustBoundaryApp({
     transport,
     endpointPath = "/connector/ingest",
+    sourceDocumentTransport,
+    sourceDocumentEndpointPath =
+        "/connector/source-documents",
     jsonBodyLimit = "100kb"
 } = {}) {
     if (
@@ -63,6 +66,42 @@ function createServerTrustBoundaryApp({
             }
         }
     );
+
+    if (sourceDocumentTransport) {
+        if (
+            typeof sourceDocumentTransport.handle !== "function" ||
+            typeof sourceDocumentTransport.createErrorResponse !== "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceDocumentTransport"
+            );
+        }
+
+        app.all(
+            sourceDocumentEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceDocumentTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
 
     app.use(
         (

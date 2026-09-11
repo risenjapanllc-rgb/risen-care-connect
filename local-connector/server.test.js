@@ -1136,3 +1136,315 @@ test("does not expose X-Powered-By header", async () => {
         );
     }
 });
+
+test(
+    "POST /files/:fileName/source-document persists raw source independently of semantic ingestion",
+    async () => {
+        const original =
+            app.locals
+                .getSourceDocumentIngestionService;
+
+        let ingestedFileName;
+
+        app.locals.getSourceDocumentIngestionService =
+            async () => ({
+                async ingestRegisteredFile(
+                    fileName
+                ) {
+                    ingestedFileName =
+                        fileName;
+
+                    return {
+                        status:
+                            "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/files/support.csv/source-document`,
+                    {
+                        method:
+                            "POST"
+                    }
+                );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.strictEqual(
+                ingestedFileName,
+                "support.csv"
+            );
+
+            assert.deepStrictEqual(
+                body,
+                {
+                    success:
+                        true,
+                    status:
+                        "created"
+                }
+            );
+        } finally {
+            app.locals
+                .getSourceDocumentIngestionService =
+                original;
+
+            await new Promise(
+                resolve =>
+                    server.close(
+                        resolve
+                    )
+            );
+        }
+    }
+);
+
+
+test(
+    "POST /files/:fileName/source-document maps denied invalid and unavailable safely",
+    async () => {
+        const original =
+            app.locals
+                .getSourceDocumentIngestionService;
+
+        const cases = [
+            {
+                code:
+                    "connector_trust_denied",
+                expectedStatus:
+                    401
+            },
+            {
+                code:
+                    "connector_payload_invalid",
+                expectedStatus:
+                    422
+            },
+            {
+                code:
+                    "connector_processing_unavailable",
+                expectedStatus:
+                    503
+            }
+        ];
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            for (const item of cases) {
+                app.locals
+                    .getSourceDocumentIngestionService =
+                    async () => ({
+                        async ingestRegisteredFile() {
+                            const error =
+                                new Error(
+                                    "remote failure"
+                                );
+
+                            error.code =
+                                item.code;
+
+                            error.httpStatus =
+                                item.expectedStatus;
+
+                            error.requestId =
+                                "request-safe";
+
+                            error.secret =
+                                "must-not-leak";
+
+                            throw error;
+                        }
+                    });
+
+                const response =
+                    await fetch(
+                        `http://127.0.0.1:${address.port}/files/support.csv/source-document`,
+                        {
+                            method:
+                                "POST"
+                        }
+                    );
+
+                const body =
+                    await response.json();
+
+                assert.strictEqual(
+                    response.status,
+                    item.expectedStatus
+                );
+
+                assert.strictEqual(
+                    body.success,
+                    false
+                );
+
+                assert.strictEqual(
+                    JSON.stringify(body).includes(
+                        "must-not-leak"
+                    ),
+                    false
+                );
+
+                assert.strictEqual(
+                    JSON.stringify(body).includes(
+                        "remote failure"
+                    ),
+                    false
+                );
+            }
+        } finally {
+            app.locals
+                .getSourceDocumentIngestionService =
+                original;
+
+            await new Promise(
+                resolve =>
+                    server.close(
+                        resolve
+                    )
+            );
+        }
+    }
+);
+
+
+test(
+    "POST /files/:fileName/source-document ignores facility resident and semantic fields from request body",
+    async () => {
+        const original =
+            app.locals
+                .getSourceDocumentIngestionService;
+
+        let receivedArguments;
+
+        app.locals.getSourceDocumentIngestionService =
+            async () => ({
+                async ingestRegisteredFile(...args) {
+                    receivedArguments =
+                        args;
+
+                    return {
+                        status:
+                            "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/files/support.xlsx/source-document`,
+                    {
+                        method:
+                            "POST",
+                        headers: {
+                            "content-type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                facilityId:
+                                    "untrusted-facility",
+                                residentId:
+                                    "untrusted-resident",
+                                semanticRecords: [
+                                    {
+                                        semanticType:
+                                            "untrusted"
+                                    }
+                                ]
+                            })
+                    }
+                );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                receivedArguments,
+                [
+                    "support.xlsx"
+                ]
+            );
+
+            assert.deepStrictEqual(
+                body,
+                {
+                    success:
+                        true,
+                    status:
+                        "created"
+                }
+            );
+        } finally {
+            app.locals
+                .getSourceDocumentIngestionService =
+                original;
+
+            await new Promise(
+                resolve =>
+                    server.close(
+                        resolve
+                    )
+            );
+        }
+    }
+);

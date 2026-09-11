@@ -27,10 +27,18 @@ const LocalSemanticRecordPreparationService =
     require("./LocalSemanticRecordPreparationService");
 const SqliteSyncStateStore =
     require("./SqliteSyncStateStore");
+const SqliteSourceDocumentSyncStateStore =
+    require("./SqliteSourceDocumentSyncStateStore");
 const LocalConnectorSyncEngine =
     require("./LocalConnectorSyncEngine");
 const LocalConnectorStandardizationPipeline =
     require("./LocalConnectorStandardizationPipeline");
+const SourceDocumentHttpClient =
+    require("./SourceDocumentHttpClient");
+const RegisteredFileSourceAdapter =
+    require("./RegisteredFileSourceAdapter");
+const LocalSourceDocumentIngestionService =
+    require("./LocalSourceDocumentIngestionService");
 
 function createService({
     databasePath,
@@ -145,6 +153,126 @@ async function createIngestionService({
     });
 }
 
+async function createSourceDocumentIngestionService({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch,
+    clock
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const sourceAdapter =
+        new RegisteredFileSourceAdapter({
+            localConnectorService
+        });
+
+    const httpClient =
+        new SourceDocumentHttpClient({
+            endpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    return new LocalSourceDocumentIngestionService({
+        sourceAdapter,
+        httpClient,
+        ...(clock
+            ? { clock }
+            : {})
+    });
+}
+
+async function createSourceDocumentSyncEngine({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch,
+    clock,
+    baseRetryMs,
+    maxRetryMs
+} = {}) {
+    const resolvedDatabasePath =
+        typeof databasePath === "string" &&
+        databasePath.trim() !== ""
+            ? databasePath.trim()
+            : new DatabasePathResolver()
+                .resolve();
+
+    const localConnectorService =
+        createService({
+            databasePath:
+                resolvedDatabasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const sourceAdapter =
+        new RegisteredFileSourceAdapter({
+            localConnectorService
+        });
+
+    const ingestionService =
+        new LocalSourceDocumentIngestionService({
+            sourceAdapter,
+            httpClient:
+                new SourceDocumentHttpClient({
+                    endpoint,
+                    connectorId,
+                    credential,
+                    authorizationScheme,
+                    connectorIdHeader,
+                    fetchImpl
+                }),
+            ...(clock
+                ? { clock }
+                : {})
+        });
+
+    const syncStateStore =
+        new SqliteSourceDocumentSyncStateStore({
+            databasePath:
+                resolvedDatabasePath
+        });
+
+    return new LocalConnectorSyncEngine({
+        localConnectorService,
+        ingestionService,
+        syncStateStore,
+        ...(clock
+            ? { clock }
+            : {}),
+        ...(Number.isFinite(baseRetryMs)
+            ? { baseRetryMs }
+            : {}),
+        ...(Number.isFinite(maxRetryMs)
+            ? { maxRetryMs }
+            : {})
+    });
+}
+
 async function createSyncEngine({
     databasePath,
     configPath,
@@ -225,5 +353,7 @@ module.exports = {
     createService,
     createSemanticPreparationService,
     createIngestionService,
+    createSourceDocumentIngestionService,
+    createSourceDocumentSyncEngine,
     createSyncEngine
 };

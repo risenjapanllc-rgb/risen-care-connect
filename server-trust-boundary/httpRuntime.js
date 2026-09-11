@@ -13,6 +13,12 @@ const ConnectorCredentialTransport =
 const ServerTrustBoundaryTransport =
     require("./ServerTrustBoundaryTransport");
 
+const SourceDocumentHttpAdapter =
+    require("./SourceDocumentHttpAdapter");
+
+const SourceDocumentTransport =
+    require("./SourceDocumentTransport");
+
 const {
     createServerTrustBoundaryApp
 } = require("./createServerTrustBoundaryApp");
@@ -97,10 +103,28 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const sourceDocumentHttpAdapter =
+        new SourceDocumentHttpAdapter({
+            ingestionService:
+                coreRuntime.sourceDocumentIngestionService,
+            diagnosticLogger
+        });
+
+    const sourceDocumentTransport =
+        new SourceDocumentTransport({
+            httpAdapter:
+                sourceDocumentHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
             endpointPath,
+            sourceDocumentTransport,
+            sourceDocumentEndpointPath:
+                "/connector/source-documents",
             jsonBodyLimit
         });
 

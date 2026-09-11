@@ -341,6 +341,13 @@ case "${1:-}" in
   start)
     start_all
     ;;
+  start-trust)
+    start_stb
+    ;;
+  restart-trust)
+    stop_managed       "Server Trust Boundary"       "stb"       "$STB_PORT"       "$STB_PID_FILE"
+    start_stb
+    ;;
   stop)
     stop_all
     ;;
@@ -356,6 +363,8 @@ case "${1:-}" in
   *)
     echo "Usage:"
     echo "  $0 start"
+    echo "  $0 start-trust"
+    echo "  $0 restart-trust"
     echo "  $0 stop"
     echo "  $0 restart"
     echo "  $0 status"

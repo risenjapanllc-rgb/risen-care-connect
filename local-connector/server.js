@@ -9,6 +9,43 @@ const service = LocalConnectorCompositionRoot.createService();
 app.locals.localConnectorService = service;
 
 let localConnectorIngestionServicePromise = null;
+let sourceDocumentIngestionServicePromise = null;
+
+app.locals.getSourceDocumentIngestionService =
+    async () => {
+        if (!sourceDocumentIngestionServicePromise) {
+            sourceDocumentIngestionServicePromise =
+                LocalConnectorCompositionRoot
+                    .createSourceDocumentIngestionService({
+                        endpoint:
+                            process.env
+                                .RISEN_SOURCE_DOCUMENT_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_DOCUMENT_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            'RISEN-Connector',
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            'x-risen-connector-id'
+                    })
+                    .catch(error => {
+                        sourceDocumentIngestionServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await sourceDocumentIngestionServicePromise;
+    };
 
 app.locals.getLocalConnectorIngestionService =
     async () => {
@@ -219,6 +256,69 @@ app.post("/files/:fileName/analyze", async (req, res) => {
         });
     }
 });
+
+app.post(
+    "/files/:fileName/source-document",
+    async (req, res) => {
+        try {
+            const ingestionService =
+                await app.locals
+                    .getSourceDocumentIngestionService();
+
+            const result =
+                await ingestionService
+                    .ingestRegisteredFile(
+                        req.params.fileName
+                    );
+
+            if (
+                result?.status === "created" ||
+                result?.status === "updated" ||
+                result?.status === "unchanged"
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status:
+                        result.status
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error?.code ===
+                "connector_payload_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本ファイルの送信内容が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "原本ファイルの保存に失敗しました"
+            });
+        }
+    }
+);
 
 app.post("/files/:fileName/ingest", async (req, res) => {
     try {

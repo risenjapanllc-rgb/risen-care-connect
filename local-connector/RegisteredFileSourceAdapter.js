@@ -79,7 +79,11 @@ class RegisteredFileSourceAdapter {
                     fileName:
                         metadata.fileName,
                     updatedAt:
-                        metadata.updatedAt || null
+                        metadata.updatedAt || null,
+                    size:
+                        Number.isFinite(metadata.size)
+                            ? metadata.size
+                            : null
                 },
                 document:
                     await this.localConnectorService
@@ -106,7 +110,11 @@ class RegisteredFileSourceAdapter {
                     fileName:
                         metadata.fileName,
                     updatedAt:
-                        metadata.updatedAt || null
+                        metadata.updatedAt || null,
+                    size:
+                        Number.isFinite(metadata.size)
+                            ? metadata.size
+                            : null
                 },
                 document:
                     await this.localConnectorService
@@ -136,7 +144,11 @@ class RegisteredFileSourceAdapter {
                     fileName:
                         metadata.fileName,
                     updatedAt:
-                        metadata.updatedAt || null
+                        metadata.updatedAt || null,
+                    size:
+                        Number.isFinite(metadata.size)
+                            ? metadata.size
+                            : null
                 },
                 document:
                     await this.localConnectorService

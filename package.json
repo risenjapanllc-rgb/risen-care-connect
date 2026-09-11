@@ -22,6 +22,7 @@
     "test:integration:persistence": "node --test integration-tests/SupabaseSemanticRecordPersistenceRepository.integration.js",
     "test:integration": "npm run test:integration:credential && npm run test:integration:registration && npm run test:integration:trust && npm run test:integration:ingestion && npm run test:integration:http && npm run test:integration:semantic-identity && npm run test:integration:semantic-state && npm run test:integration:persistence",
     "sync:once": "node scripts/sync-once.js",
+    "sync:source-documents:once": "node scripts/source-document-sync-once.js",
     "start:trust:production": "node server-trust-boundary/server.js"
   },
   "keywords": [],

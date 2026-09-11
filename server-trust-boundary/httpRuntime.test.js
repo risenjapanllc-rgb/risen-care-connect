@@ -90,3 +90,104 @@ test("accepts diagnostic logger without exposing it from runtime", () => {
         false
     );
 });
+
+
+async function withServer(app, fn) {
+    const server =
+        app.listen(0, "127.0.0.1");
+
+    await new Promise((resolve, reject) => {
+        server.once("listening", resolve);
+        server.once("error", reject);
+    });
+
+    try {
+        const address =
+            server.address();
+
+        await fn(
+            `http://127.0.0.1:${address.port}`
+        );
+    } finally {
+        await new Promise((resolve) => {
+            server.close(resolve);
+        });
+    }
+}
+
+test("mounts source-document endpoint in HTTP runtime", async () => {
+    const runtime =
+        createServerTrustBoundaryHttpRuntime({
+            supabaseUrl:
+                "https://example.supabase.co",
+            apiKey:
+                "test-publishable-key",
+            connectorTrustEmail:
+                "connector@example.local",
+            connectorTrustPassword:
+                "test-password",
+            authorizationScheme:
+                "RISEN-Connector",
+            connectorIdHeader:
+                "x-risen-connector-id",
+            endpointPath:
+                "/connector/ingest",
+            jsonBodyLimit:
+                "100kb"
+        });
+
+    await withServer(
+        runtime.app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-documents`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocument: {
+                                    sourceDocumentKey:
+                                        "source-document-key",
+                                    sourceType:
+                                        "csv",
+                                    fileName:
+                                        "source.csv",
+                                    sourceContent: {
+                                        rows: []
+                                    },
+                                    sourceUpdatedAt:
+                                        null,
+                                    sourceSize:
+                                        0,
+                                    observedAt:
+                                        "2026-09-11T10:01:00.000Z"
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                401
+            );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                body.errorCode,
+                "connector_trust_denied"
+            );
+
+            assert.strictEqual(
+                typeof body.requestId,
+                "string"
+            );
+        }
+    );
+});

@@ -130,6 +130,18 @@ function startServerTrustBoundary({
             diagnosticLogger: console
         });
 
+    runtime.app.get(
+        "/health",
+        (req, res) => {
+            return res.json({
+                success: true,
+                service:
+                    "RISEN CARE Server Trust Boundary",
+                status: "ready"
+            });
+        }
+    );
+
     const server =
         runtime.app.listen(
             config.port,

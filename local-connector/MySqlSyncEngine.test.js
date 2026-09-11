@@ -239,17 +239,25 @@ test(
         let received = null;
 
         const sourceAdapter = {
-            async observe(sourceId) {
+            async observe(
+                sourceId,
+                {
+                    sourceDocumentKey
+                } = {}
+            ) {
                 assert.strictEqual(
                     sourceId,
                     "support"
                 );
 
+                assert.strictEqual(
+                    sourceDocumentKey,
+                    "persistent-opaque-source-key"
+                );
+
                 return {
                     sourceId,
-                    sourceDocumentKey:
-                        store.state
-                            .sourceDocumentKey,
+                    sourceDocumentKey,
                     revision:
                         observedRevision
                 };
@@ -258,19 +266,17 @@ test(
 
         const ingestionService = {
             async ingestSource(
-                sourceId
+                sourceId,
+                trustedObservation
             ) {
-                const observation =
-                    await sourceAdapter
-                        .observe(
-                            sourceId
-                        );
-
                 received = {
                     sourceId,
                     sourceDocumentKey:
-                        observation
-                            .sourceDocumentKey
+                        trustedObservation
+                            .sourceDocumentKey,
+                    revision:
+                        trustedObservation
+                            .revision
                 };
 
                 return {
@@ -306,7 +312,9 @@ test(
             {
                 sourceId: "support",
                 sourceDocumentKey:
-                    "persistent-opaque-source-key"
+                    "persistent-opaque-source-key",
+                revision:
+                    observedRevision
             }
         );
 

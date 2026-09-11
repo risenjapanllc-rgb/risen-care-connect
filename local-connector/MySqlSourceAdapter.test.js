@@ -82,7 +82,11 @@ test(
 
         const observation =
             await adapter.observe(
-                "resident-support"
+                "resident-support",
+                {
+                    sourceDocumentKey:
+                        "opaque-resident-support-key"
+                }
             );
 
         const result =
@@ -92,7 +96,7 @@ test(
 
         assert.strictEqual(
             observation.sourceDocumentKey,
-            "mysql:resident-support"
+            "opaque-resident-support-key"
         );
 
         assert.match(
@@ -188,7 +192,11 @@ test(
 
             const result =
                 await adapter.observe(
-                    "support"
+                    "support",
+                    {
+                        sourceDocumentKey:
+                            "opaque-support-key"
+                    }
                 );
 
             revisions.push(
@@ -245,7 +253,11 @@ test(
 
         const observation =
             await adapter.observe(
-                "support"
+                "support",
+                {
+                    sourceDocumentKey:
+                        "opaque-support-key"
+                }
             );
 
         const acquisition =
@@ -308,7 +320,11 @@ test(
 
         await assert.rejects(
             adapter.observe(
-                "support"
+                "support",
+                {
+                    sourceDocumentKey:
+                        "opaque-support-key"
+                }
             ),
             /database failed/
         );

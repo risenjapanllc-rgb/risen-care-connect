@@ -57,10 +57,31 @@ class MySqlSourceAdapter {
             null;
     }
 
-    async observe(sourceReference) {
+    async observe(
+        sourceReference,
+        {
+            sourceDocumentKey
+        } = {}
+    ) {
         this.assertSourceReference(
             sourceReference
         );
+
+        if (
+            typeof sourceDocumentKey !== "string" ||
+            sourceDocumentKey.trim() === "" ||
+            sourceDocumentKey === sourceReference ||
+            sourceDocumentKey === this.sourceId ||
+            sourceDocumentKey ===
+                `mysql:${this.sourceId}`
+        ) {
+            throw new Error(
+                "opaque sourceDocumentKey unavailable"
+            );
+        }
+
+        const trustedSourceDocumentKey =
+            sourceDocumentKey.trim();
 
         const acquisition =
             await this.executeQuery();
@@ -83,7 +104,7 @@ class MySqlSourceAdapter {
 
         return {
             sourceDocumentKey:
-                `mysql:${this.sourceId}`,
+                trustedSourceDocumentKey,
             sourceReference,
             revision,
             observedAt
@@ -103,8 +124,8 @@ class MySqlSourceAdapter {
             observation.sourceReference !==
                 sourceReference
         ) {
-            await this.observe(
-                sourceReference
+            throw new Error(
+                "MySQL observation unavailable"
             );
 
             observation =

@@ -86,7 +86,12 @@ class MySqlSyncEngine {
             const observation =
                 await this.sourceAdapter
                     .observe(
-                        sourceId
+                        sourceId,
+                        {
+                            sourceDocumentKey:
+                                state
+                                    .sourceDocumentKey
+                        }
                     );
 
             if (
@@ -118,7 +123,15 @@ class MySqlSyncEngine {
             try {
                 await this.ingestionService
                     .ingestSource(
-                        sourceId
+                        sourceId,
+                        {
+                            sourceDocumentKey:
+                                observation
+                                    .sourceDocumentKey,
+                            revision:
+                                observation
+                                    .revision
+                        }
                     );
 
                 this.stateStore.markSuccess(

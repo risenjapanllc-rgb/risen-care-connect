@@ -982,13 +982,38 @@ test("POST /files/:fileName/ingest fails closed on unknown result status", async
     }
 });
 
-test('does not expose X-Powered-By header', async () => {
-    const response = await fetch(
-        'http://127.0.0.1:4310/health'
+test("does not expose X-Powered-By header", async () => {
+    const server =
+        http.createServer(app);
+
+    await new Promise(
+        resolve =>
+            server.listen(
+                0,
+                "127.0.0.1",
+                resolve
+            )
     );
 
-    assert.equal(
-        response.headers.get('x-powered-by'),
-        null
-    );
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/health`
+            );
+
+        assert.equal(
+            response.headers.get(
+                "x-powered-by"
+            ),
+            null
+        );
+    } finally {
+        await new Promise(
+            resolve =>
+                server.close(resolve)
+        );
+    }
 });

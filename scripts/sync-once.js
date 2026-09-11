@@ -1,77 +1,204 @@
 "use strict";
 
-require("dotenv").config();
+require("dotenv").config({
+    quiet: true
+});
 
 const {
-    createSyncEngine
+    DatabaseSync
+} = require("node:sqlite");
+
+const mysql =
+    require("mysql2/promise");
+
+const {
+    createSyncEngine,
+    createIngestionService
 } = require(
     "../local-connector/LocalConnectorCompositionRoot"
 );
 
-async function main() {
-    const host =
-        process.env
-            .SERVER_TRUST_BOUNDARY_HOST ||
-        "127.0.0.1";
+const DatabasePathResolver =
+    require(
+        "../local-connector/DatabasePathResolver"
+    );
 
-    const port =
-        process.env
-            .SERVER_TRUST_BOUNDARY_PORT ||
-        "8787";
+const MySqlSourceAdapter =
+    require(
+        "../local-connector/MySqlSourceAdapter"
+    );
 
-    const endpointPath =
-        process.env
-            .SERVER_TRUST_BOUNDARY_ENDPOINT ||
-        "/connector/ingest";
+const MySqlSyncEngine =
+    require(
+        "../local-connector/MySqlSyncEngine"
+    );
 
-    const endpoint =
-        `http://${host}:${port}${endpointPath}`;
+const SqliteMySqlSourceStateStore =
+    require(
+        "../local-connector/SqliteMySqlSourceStateStore"
+    );
 
-    const credential =
-        process.env
-            .CONNECTOR_CREDENTIAL;
+const ProductionRuntimeConfig =
+    require(
+        "../local-connector/ProductionRuntimeConfig"
+    );
 
-    const authorizationScheme =
-        process.env
-            .SERVER_TRUST_BOUNDARY_AUTH_SCHEME ||
-        "RISEN-Connector";
+function commonTrustOptions(
+    runtimeConfig
+) {
+    return {
+        endpoint:
+            runtimeConfig
+                .resolveServerTrustBoundaryEndpoint(),
+        credential:
+            runtimeConfig
+                .requireConnectorCredential(),
+        authorizationScheme:
+            runtimeConfig
+                .resolveAuthorizationScheme(),
+        connectorIdHeader:
+            runtimeConfig
+                .resolveConnectorIdHeader()
+    };
+}
 
-    const connectorIdHeader =
-        process.env
-            .SERVER_TRUST_BOUNDARY_CONNECTOR_ID_HEADER ||
-        "x-risen-connector-id";
-
+async function syncFiles({
+    runtimeConfig,
+    databasePath
+}) {
     const engine =
         await createSyncEngine({
-            endpoint,
-            credential,
-            authorizationScheme,
-            connectorIdHeader
+            databasePath,
+            ...commonTrustOptions(
+                runtimeConfig
+            )
         });
 
     const relativePath =
         process.env
             .RISEN_SYNC_RELATIVE_PATH;
 
-    const result =
-        await engine.syncOnce({
-            ...(typeof relativePath === "string" &&
-                relativePath.trim() !== ""
-                ? {
-                    relativePaths: [
-                        relativePath
-                    ]
-                }
-                : {})
+    return await engine.syncOnce({
+        ...(typeof relativePath === "string" &&
+            relativePath.trim() !== ""
+            ? {
+                relativePaths: [
+                    relativePath.trim()
+                ]
+            }
+            : {})
+    });
+}
+
+async function syncMySql({
+    runtimeConfig,
+    databasePath
+}) {
+    const source =
+        runtimeConfig
+            .resolveMySqlSource();
+
+    if (!source) {
+        return null;
+    }
+
+    const ingestionService =
+        await createIngestionService({
+            databasePath,
+            ...commonTrustOptions(
+                runtimeConfig
+            )
         });
+
+    const database =
+        new DatabaseSync(
+            databasePath
+        );
+
+    try {
+        const stateStore =
+            new SqliteMySqlSourceStateStore({
+                database
+            });
+
+        const sourceAdapter =
+            new MySqlSourceAdapter({
+                sourceId:
+                    source.sourceId,
+                query:
+                    source.query,
+                connectionFactory:
+                    async () =>
+                        mysql.createConnection({
+                            host:
+                                source.host,
+                            port:
+                                source.port,
+                            user:
+                                source.user,
+                            password:
+                                source.password,
+                            database:
+                                source.database
+                        })
+            });
+
+        const engine =
+            new MySqlSyncEngine({
+                sourceAdapter,
+                ingestionService,
+                stateStore
+            });
+
+        return await engine.syncOnce(
+            source.sourceId
+        );
+    } finally {
+        database.close();
+    }
+}
+
+async function main() {
+    const runtimeConfig =
+        new ProductionRuntimeConfig();
+
+    const databasePath =
+        new DatabasePathResolver()
+            .resolve();
+
+    const files =
+        await syncFiles({
+            runtimeConfig,
+            databasePath
+        });
+
+    const mysqlResult =
+        await syncMySql({
+            runtimeConfig,
+            databasePath
+        });
+
+    const result = {
+        files,
+        mysql:
+            mysqlResult
+    };
 
     process.stdout.write(
         `${JSON.stringify(result)}\n`
     );
 
+    const fileSuccess =
+        files.status === "completed" &&
+        files.failed === 0;
+
+    const mysqlSuccess =
+        mysqlResult === null ||
+        mysqlResult.failed === 0;
+
     if (
-        result.status === "completed" &&
-        result.failed === 0
+        fileSuccess &&
+        mysqlSuccess
     ) {
         return;
     }

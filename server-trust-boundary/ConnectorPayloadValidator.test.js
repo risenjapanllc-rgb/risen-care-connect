@@ -936,3 +936,47 @@ test("updatedAt valid calendar and time boundaries => valid", () => {
         assert.strictEqual(result.validatedPayload.source.updatedAt, updatedAt);
     }
 });
+
+test(
+    "CSV and MySQL source types are accepted",
+    () => {
+        const validator =
+            new ConnectorPayloadValidator();
+
+        for (const sourceType of [
+            "csv",
+            "mysql"
+        ]) {
+            const result =
+                validator.validate({
+                    sourceResident: {
+                        identifier: {
+                            value: "RES-123"
+                        }
+                    },
+                    source: {
+                        fileName:
+                            sourceType === "csv"
+                                ? "support.csv"
+                                : "query-result",
+                        updatedAt:
+                            "2026-09-11T00:00:00.000Z"
+                    },
+                    documentType:
+                        "support_record",
+                    sourceType
+                });
+
+            assert.strictEqual(
+                result.status,
+                "valid"
+            );
+
+            assert.strictEqual(
+                result.validatedPayload
+                    .sourceType,
+                sourceType
+            );
+        }
+    }
+);

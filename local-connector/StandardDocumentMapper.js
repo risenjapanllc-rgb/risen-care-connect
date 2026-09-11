@@ -70,10 +70,16 @@ class StandardDocumentMapper {
                 standardDocument
             );
 
-        if (
-            standardDocument.sourceType !==
-            "excel"
-        ) {
+        const isTabularSource =
+            [
+                "excel",
+                "csv",
+                "mysql"
+            ].includes(
+                standardDocument.sourceType
+            );
+
+        if (!isTabularSource) {
             return {
                 ...standardDocument,
                 extracted

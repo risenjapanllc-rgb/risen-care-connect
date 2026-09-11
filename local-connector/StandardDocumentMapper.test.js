@@ -179,3 +179,124 @@ test("mapping does not mutate the standard document", () => {
         before
     );
 });
+
+test(
+    "CSV uses the common tabular mapping path",
+    () => {
+        const sourceFields = [
+            {
+                sheetName: "csv",
+                rowIndex: 2,
+                fields: {
+                    利用者名: "山田太郎",
+                    支援内容: "支援内容"
+                }
+            }
+        ];
+
+        const mapper =
+            new StandardDocumentMapper({
+                documentSemanticExtractor: {
+                    extract() {
+                        return {
+                            supportContent: {
+                                value: "支援内容"
+                            }
+                        };
+                    }
+                },
+                sourceFieldExtractor: {
+                    extractExcelRows(document) {
+                        assert.deepStrictEqual(
+                            document,
+                            {
+                                sheetNames: ["csv"],
+                                sheets: []
+                            }
+                        );
+
+                        return sourceFields;
+                    }
+                },
+                sourceMeaningInterpreter: {
+                    interpret(fields) {
+                        return {
+                            meanings: {
+                                sourceResidentName:
+                                    fields.利用者名
+                            }
+                        };
+                    }
+                }
+            });
+
+        const result =
+            mapper.map({
+                sourceType: "csv",
+                documentType: "support_record",
+                content: {
+                    sheetNames: ["csv"],
+                    sheets: []
+                },
+                extracted: {}
+            });
+
+        assert.deepStrictEqual(
+            result.extracted.sourceFields,
+            [
+                {
+                    ...sourceFields[0],
+                    meanings: {
+                        sourceResidentName:
+                            "山田太郎"
+                    }
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "MySQL uses the common tabular mapping path",
+    () => {
+        let extractedRows = 0;
+
+        const mapper =
+            new StandardDocumentMapper({
+                documentSemanticExtractor: {
+                    extract() {
+                        return {};
+                    }
+                },
+                sourceFieldExtractor: {
+                    extractExcelRows() {
+                        extractedRows += 1;
+
+                        return [];
+                    }
+                },
+                sourceMeaningInterpreter: {
+                    interpret() {
+                        return {
+                            meanings: {}
+                        };
+                    }
+                }
+            });
+
+        mapper.map({
+            sourceType: "mysql",
+            documentType: "support_record",
+            content: {
+                sheetNames: ["query"],
+                sheets: []
+            },
+            extracted: {}
+        });
+
+        assert.strictEqual(
+            extractedRows,
+            1
+        );
+    }
+);

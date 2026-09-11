@@ -65,8 +65,12 @@ class LocalConnectorIngestionService {
 
         if (
             !this.standardizationPipeline ||
-            typeof this.standardizationPipeline
-                .processRegisteredFile !== "function"
+            (
+                typeof this.standardizationPipeline
+                    .processSource !== "function" &&
+                typeof this.standardizationPipeline
+                    .processRegisteredFile !== "function"
+            )
         ) {
             throw new Error(
                 "LocalConnectorIngestionService requires standardizationPipeline"
@@ -81,12 +85,23 @@ class LocalConnectorIngestionService {
             httpClient;
     }
 
-    async ingestRegisteredFile(fileName) {
+    async ingestSource(sourceReference) {
+        const processSource =
+            typeof this.standardizationPipeline
+                .processSource === "function"
+                ? this.standardizationPipeline
+                    .processSource.bind(
+                        this.standardizationPipeline
+                    )
+                : this.standardizationPipeline
+                    .processRegisteredFile.bind(
+                        this.standardizationPipeline
+                    );
+
         const pipelineResult =
-            await this.standardizationPipeline
-                .processRegisteredFile(
-                    fileName
-                );
+            await processSource(
+                sourceReference
+            );
 
         if (
             !pipelineResult ||
@@ -165,6 +180,11 @@ class LocalConnectorIngestionService {
             payload,
             semanticRecords
         });
+    }
+    async ingestRegisteredFile(fileName) {
+        return await this.ingestSource(
+            fileName
+        );
     }
 }
 

@@ -778,3 +778,123 @@ test(
         );
     }
 );
+
+test(
+    "generic source entry ingests a MySQL standardized source",
+    async () => {
+        const calls = [];
+
+        const service =
+            new LocalConnectorIngestionService({
+                standardizationPipeline: {
+                    async processSource(
+                        sourceReference
+                    ) {
+                        calls.push([
+                            "pipeline",
+                            sourceReference
+                        ]);
+
+                        return {
+                            source: {
+                                sourceDocumentKey:
+                                    "opaque-mysql-key"
+                            },
+                            validation: {
+                                valid: true
+                            },
+                            quality: {
+                                acceptable: true
+                            },
+                            standardDocument: {
+                                sourceType:
+                                    "mysql",
+                                documentType:
+                                    "support_record",
+                                source: {
+                                    fileName:
+                                        "resident-support.mysql",
+                                    updatedAt:
+                                        "2026-09-11T00:00:00.000Z"
+                                },
+                                extracted: {
+                                    sourceResidentIdentifier: {
+                                        value:
+                                            "RES-001"
+                                    },
+                                    supportContent: {
+                                        value:
+                                            "見守り"
+                                    }
+                                }
+                            }
+                        };
+                    }
+                },
+                payloadBuilder: {
+                    build(document) {
+                        calls.push([
+                            "payload",
+                            document.sourceType
+                        ]);
+
+                        return {
+                            payload: true
+                        };
+                    }
+                },
+                semanticRecordBuilder: {
+                    build(
+                        document,
+                        trustedContext
+                    ) {
+                        calls.push([
+                            "semantic",
+                            trustedContext
+                                .sourceDocumentKey
+                        ]);
+
+                        return [
+                            {
+                                semantic: true
+                            }
+                        ];
+                    }
+                },
+                httpClient: {
+                    async ingest(envelope) {
+                        calls.push([
+                            "http",
+                            envelope
+                        ]);
+
+                        return {
+                            status: "matched"
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await service.ingestSource(
+                "resident-support"
+            );
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status: "matched"
+            }
+        );
+
+        assert.strictEqual(
+            calls[0][0],
+            "pipeline"
+        );
+
+        assert.strictEqual(
+            calls[2][1],
+            "opaque-mysql-key"
+        );
+    }
+);

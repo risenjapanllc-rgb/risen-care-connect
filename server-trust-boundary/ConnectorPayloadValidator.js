@@ -25,7 +25,9 @@ class ConnectorPayloadValidator {
 
         this.allowedSourceTypes = new Set([
             "word",
-            "excel"
+            "excel",
+            "csv",
+            "mysql"
         ]);
 
         this.maxIdentifierLength = 128;

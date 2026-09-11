@@ -73,7 +73,11 @@ class DocumentNormalizer {
             };
         }
 
-        if (sourceType === 'excel') {
+        if (
+            sourceType === 'excel' ||
+            sourceType === 'csv' ||
+            sourceType === 'mysql'
+        ) {
             return {
                 sheetNames:
                     Array.isArray(document.sheetNames)

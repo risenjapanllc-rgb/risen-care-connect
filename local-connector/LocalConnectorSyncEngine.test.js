@@ -389,3 +389,24 @@ test(
         );
     }
 );
+
+test(
+    "legacy .doc is not eligible for synchronization",
+    () => {
+        const engine =
+            Object.create(
+                LocalConnectorSyncEngine.prototype
+            );
+
+        assert.strictEqual(
+            engine.isSupportedFile({
+                relativePath: "legacy.doc",
+                updatedAt:
+                    "2026-09-11T00:00:00.000Z",
+                size: 100,
+                extension: ".doc"
+            }),
+            false
+        );
+    }
+);

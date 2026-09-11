@@ -311,3 +311,114 @@ test("raw acquisition does not perform normalization or mapping", async () => {
         }
     );
 });
+
+test(
+    "raw CSV acquisition returns source metadata and document",
+    async () => {
+        const calls = [];
+
+        const adapter =
+            new RegisteredFileSourceAdapter({
+                localConnectorService: {
+                    async observeRegisteredFile() {
+                        return {
+                            sourceDocumentKey:
+                                "source-doc-key"
+                        };
+                    },
+                    async getRegisteredFileMetadata(
+                        relativePath
+                    ) {
+                        calls.push([
+                            "metadata",
+                            relativePath
+                        ]);
+
+                        return {
+                            fileName:
+                                "support.csv",
+                            updatedAt:
+                                "2026-09-11T00:00:00.000Z"
+                        };
+                    },
+                    async readRegisteredCsv(
+                        relativePath
+                    ) {
+                        calls.push([
+                            "read",
+                            relativePath
+                        ]);
+
+                        return {
+                            sheetNames: ["csv"],
+                            sheets: [
+                                {
+                                    sheetName: "csv",
+                                    rows: [
+                                        [
+                                            "利用者名",
+                                            "支援内容"
+                                        ],
+                                        [
+                                            "山田太郎",
+                                            "声かけ"
+                                        ]
+                                    ]
+                                }
+                            ]
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await adapter.acquireRaw(
+                "nested/support.csv"
+            );
+
+        assert.deepStrictEqual(
+            result,
+            {
+                sourceType: "csv",
+                source: {
+                    fileName:
+                        "support.csv",
+                    updatedAt:
+                        "2026-09-11T00:00:00.000Z"
+                },
+                document: {
+                    sheetNames: ["csv"],
+                    sheets: [
+                        {
+                            sheetName: "csv",
+                            rows: [
+                                [
+                                    "利用者名",
+                                    "支援内容"
+                                ],
+                                [
+                                    "山田太郎",
+                                    "声かけ"
+                                ]
+                            ]
+                        }
+                    ]
+                }
+            }
+        );
+
+        assert.deepStrictEqual(
+            calls,
+            [
+                [
+                    "metadata",
+                    "nested/support.csv"
+                ],
+                [
+                    "read",
+                    "nested/support.csv"
+                ]
+            ]
+        );
+    }
+);

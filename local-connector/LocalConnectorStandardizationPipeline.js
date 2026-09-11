@@ -124,19 +124,19 @@ class LocalConnectorStandardizationPipeline {
             qualityEvaluator;
     }
 
-    async processRegisteredFile(relativePath) {
+    async processSource(sourceReference) {
         if (
-            typeof relativePath !== "string" ||
-            relativePath.trim() === ""
+            typeof sourceReference !== "string" ||
+            sourceReference.trim() === ""
         ) {
             throw new TypeError(
-                "relativePath is required"
+                "sourceReference is required"
             );
         }
 
         const observation =
             await this.sourceAdapter.observe(
-                relativePath
+                sourceReference
             );
 
         if (
@@ -152,7 +152,7 @@ class LocalConnectorStandardizationPipeline {
 
         const acquisition =
             await this.sourceAdapter.acquireRaw(
-                relativePath
+                sourceReference
             );
 
         if (
@@ -208,7 +208,7 @@ class LocalConnectorStandardizationPipeline {
 
         return {
             source: {
-                relativePath,
+                sourceReference,
                 sourceDocumentKey:
                     observation.sourceDocumentKey
             },
@@ -225,6 +225,20 @@ class LocalConnectorStandardizationPipeline {
             validation,
             quality,
             standardDocument
+        };
+    }
+    async processRegisteredFile(relativePath) {
+        const result =
+            await this.processSource(
+                relativePath
+            );
+
+        return {
+            ...result,
+            source: {
+                ...result.source,
+                relativePath
+            }
         };
     }
 }

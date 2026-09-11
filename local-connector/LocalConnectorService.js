@@ -2,6 +2,7 @@ const path = require('path');
 const LocalFolderScanner = require('./LocalFolderScanner');
 const LocalConnectorConfig = require('./LocalConnectorConfig');
 const ExcelReader = require('./ExcelReader');
+const CsvReader = require('./CsvReader');
 const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
 const DocumentNormalizer = require('./DocumentNormalizer');
@@ -22,6 +23,10 @@ class LocalConnectorService {
         this.excelReader =
             options.excelReader ||
             new ExcelReader();
+
+        this.csvReader =
+            options.csvReader ||
+            new CsvReader();
 
         this.wordReader =
             options.wordReader ||
@@ -231,6 +236,45 @@ class LocalConnectorService {
 
         return await this.excelReader.read(
             filePath
+        );
+    }
+
+    async readRegisteredCsv(fileName) {
+        if (
+            typeof fileName !== 'string' ||
+            fileName.trim() === ''
+        ) {
+            throw new Error(
+                'CSVファイル名が指定されていません'
+            );
+        }
+
+        const extension =
+            path.extname(
+                fileName
+            ).toLowerCase();
+
+        if (extension !== '.csv') {
+            throw new Error(
+                'CSVファイルのみ指定できます'
+            );
+        }
+
+        const details =
+            await this._resolveRegisteredFileDetails(
+                fileName
+            );
+
+        if (
+            details.extension !== '.csv'
+        ) {
+            throw new Error(
+                'CSVファイルのみ指定できます'
+            );
+        }
+
+        return await this.csvReader.read(
+            details.filePath
         );
     }
 

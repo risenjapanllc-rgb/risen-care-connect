@@ -344,10 +344,10 @@ class LocalConnectorSyncEngine {
         }
 
         return [
-            ".doc",
             ".docx",
             ".xls",
-            ".xlsx"
+            ".xlsx",
+            ".csv"
         ].includes(
             String(
                 file.extension || ""

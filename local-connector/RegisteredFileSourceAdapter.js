@@ -89,6 +89,33 @@ class RegisteredFileSourceAdapter {
             };
         }
 
+        if (extension === ".csv") {
+            if (
+                typeof this.localConnectorService
+                    .readRegisteredCsv !==
+                    "function"
+            ) {
+                throw new Error(
+                    "CSV acquisition unavailable"
+                );
+            }
+
+            return {
+                sourceType: "csv",
+                source: {
+                    fileName:
+                        metadata.fileName,
+                    updatedAt:
+                        metadata.updatedAt || null
+                },
+                document:
+                    await this.localConnectorService
+                        .readRegisteredCsv(
+                            relativePath
+                        )
+            };
+        }
+
         if (
             extension === ".xls" ||
             extension === ".xlsx"

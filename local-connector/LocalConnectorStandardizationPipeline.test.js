@@ -352,3 +352,79 @@ test(
         );
     }
 );
+
+test(
+    "generic source entry processes an injected MySQL source adapter",
+    async () => {
+        const pipeline =
+            new LocalConnectorStandardizationPipeline({
+                sourceAdapter: {
+                    async observe(sourceReference) {
+                        assert.strictEqual(
+                            sourceReference,
+                            "resident-support"
+                        );
+
+                        return {
+                            sourceDocumentKey:
+                                "opaque-mysql-key"
+                        };
+                    },
+                    async acquireRaw(sourceReference) {
+                        assert.strictEqual(
+                            sourceReference,
+                            "resident-support"
+                        );
+
+                        return {
+                            sourceType: "mysql",
+                            source: {
+                                fileName:
+                                    "resident-support.mysql",
+                                updatedAt:
+                                    "2026-09-11T00:00:00.000Z"
+                            },
+                            document: {
+                                sheetNames: [
+                                    "resident-support"
+                                ],
+                                sheets: [
+                                    {
+                                        sheetName:
+                                            "resident-support",
+                                        rows: [
+                                            [
+                                                "利用者名",
+                                                "居室番号",
+                                                "本人の意向"
+                                            ],
+                                            [
+                                                "山田太郎",
+                                                "101",
+                                                "自宅生活を続けたい"
+                                            ]
+                                        ]
+                                    }
+                                ]
+                            }
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await pipeline.processSource(
+                "resident-support"
+            );
+
+        assert.strictEqual(
+            result.source.sourceDocumentKey,
+            "opaque-mysql-key"
+        );
+
+        assert.strictEqual(
+            result.standardDocument.sourceType,
+            "mysql"
+        );
+    }
+);

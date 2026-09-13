@@ -51,6 +51,30 @@ const SupabaseSourceDocumentPersistenceRepository =
 const SourceDocumentIngestionService =
     require("./SourceDocumentIngestionService");
 
+const SourceFieldMappingPayloadValidator =
+    require("./SourceFieldMappingPayloadValidator");
+
+const SupabaseSourceFieldMappingPersistenceRepository =
+    require("./SupabaseSourceFieldMappingPersistenceRepository");
+
+const SourceFieldMappingIngestionService =
+    require("./SourceFieldMappingIngestionService");
+
+const SourceFieldInterpretationPayloadValidator =
+    require("./SourceFieldInterpretationPayloadValidator");
+
+const SupabaseSourceFieldInterpretationPersistenceRepository =
+    require("./SupabaseSourceFieldInterpretationPersistenceRepository");
+
+const SourceFieldInterpretationIngestionService =
+    require("./SourceFieldInterpretationIngestionService");
+
+const SupabaseSourceFieldInterpretationQueryRepository =
+    require("./SupabaseSourceFieldInterpretationQueryRepository");
+
+const SourceFieldInterpretationQueryService =
+    require("./SourceFieldInterpretationQueryService");
+
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
 
@@ -274,9 +298,60 @@ function createServerTrustBoundaryRuntime({
             sourceDocumentPersistenceRepository
         });
 
+    const sourceFieldMappingPayloadValidator =
+        new SourceFieldMappingPayloadValidator();
+
+    const sourceFieldMappingPersistenceRepository =
+        new SupabaseSourceFieldMappingPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceFieldMappingIngestionService =
+        new SourceFieldMappingIngestionService({
+            connectorTrustService,
+            sourceFieldMappingPayloadValidator,
+            sourceFieldMappingPersistenceRepository
+        });
+
+    const sourceFieldInterpretationPayloadValidator =
+        new SourceFieldInterpretationPayloadValidator();
+
+    const sourceFieldInterpretationPersistenceRepository =
+        new SupabaseSourceFieldInterpretationPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceFieldInterpretationIngestionService =
+        new SourceFieldInterpretationIngestionService({
+            connectorTrustService,
+            sourceFieldInterpretationPayloadValidator,
+            sourceFieldInterpretationPersistenceRepository
+        });
+
+    const sourceFieldInterpretationQueryRepository =
+        new SupabaseSourceFieldInterpretationQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceFieldInterpretationQueryService =
+        new SourceFieldInterpretationQueryService({
+            connectorTrustService,
+            sourceFieldInterpretationQueryRepository
+        });
+
+
     return {
         serverTrustBoundaryIngestionService,
-        sourceDocumentIngestionService
+        sourceDocumentIngestionService,
+        sourceFieldMappingIngestionService,
+        sourceFieldInterpretationIngestionService,
+        sourceFieldInterpretationQueryService
     };
 }
 

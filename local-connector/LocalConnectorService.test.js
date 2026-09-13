@@ -255,6 +255,32 @@ test("normalizeRegisteredExcel uses SourceFieldExtractor for facility fields", a
             }
           }
         ];
+      },
+
+      extractFieldDefinitions() {
+        return [
+          {
+            sourceFieldKey: "sheet:0:column:0",
+            sheetIndex: 0,
+            sheetName: "テスト",
+            columnIndex: 0,
+            headerLabel: "居室番号"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:1",
+            sheetIndex: 0,
+            sheetName: "テスト",
+            columnIndex: 1,
+            headerLabel: "利用者名"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:2",
+            sheetIndex: 0,
+            sheetName: "テスト",
+            columnIndex: 2,
+            headerLabel: "性格"
+          }
+        ];
       }
     }
   });
@@ -275,6 +301,33 @@ test("normalizeRegisteredExcel uses SourceFieldExtractor for facility fields", a
     );
 
   assert.ok(receivedDocument);
+
+  assert.deepStrictEqual(
+    result.extracted.fieldDefinitions,
+    [
+      {
+        sourceFieldKey: "sheet:0:column:0",
+        sheetIndex: 0,
+        sheetName: "テスト",
+        columnIndex: 0,
+        headerLabel: "居室番号"
+      },
+      {
+        sourceFieldKey: "sheet:0:column:1",
+        sheetIndex: 0,
+        sheetName: "テスト",
+        columnIndex: 1,
+        headerLabel: "利用者名"
+      },
+      {
+        sourceFieldKey: "sheet:0:column:2",
+        sheetIndex: 0,
+        sheetName: "テスト",
+        columnIndex: 2,
+        headerLabel: "性格"
+      }
+    ]
+  );
 
   assert.deepStrictEqual(
     result.extracted.sourceFields,
@@ -355,6 +408,32 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
             }
           }
         ];
+      },
+
+      extractFieldDefinitions() {
+        return [
+          {
+            sourceFieldKey: "sheet:0:column:0",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 0,
+            headerLabel: "項目A"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:1",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 1,
+            headerLabel: "項目B"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:2",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 2,
+            headerLabel: "項目C"
+          }
+        ];
       }
     }
   });
@@ -375,6 +454,33 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
     );
 
   assert.ok(receivedDocument);
+
+  assert.deepStrictEqual(
+    result.extracted.fieldDefinitions,
+    [
+      {
+        sourceFieldKey: "sheet:0:column:0",
+        sheetIndex: 0,
+        sheetName: "CSV",
+        columnIndex: 0,
+        headerLabel: "項目A"
+      },
+      {
+        sourceFieldKey: "sheet:0:column:1",
+        sheetIndex: 0,
+        sheetName: "CSV",
+        columnIndex: 1,
+        headerLabel: "項目B"
+      },
+      {
+        sourceFieldKey: "sheet:0:column:2",
+        sheetIndex: 0,
+        sheetName: "CSV",
+        columnIndex: 2,
+        headerLabel: "項目C"
+      }
+    ]
+  );
 
   assert.deepStrictEqual(
     result.extracted.sourceFields,

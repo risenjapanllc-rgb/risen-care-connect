@@ -18,6 +18,13 @@ function createServerTrustBoundaryApp({
     sourceDocumentTransport,
     sourceDocumentEndpointPath =
         "/connector/source-documents",
+    sourceFieldMappingTransport,
+    sourceFieldMappingEndpointPath =
+        "/connector/source-field-mappings",
+    sourceFieldInterpretationTransport,
+    sourceFieldInterpretationQueryTransport,
+    sourceFieldInterpretationEndpointPath =
+        "/connector/source-field-interpretations",
     jsonBodyLimit = "100kb"
 } = {}) {
     if (
@@ -101,6 +108,115 @@ function createServerTrustBoundaryApp({
                 }
             }
         );
+    }
+
+    if (sourceFieldMappingTransport) {
+        if (
+            typeof sourceFieldMappingTransport.handle !== "function" ||
+            typeof sourceFieldMappingTransport.createErrorResponse !== "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceFieldMappingTransport"
+            );
+        }
+
+        app.all(
+            sourceFieldMappingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceFieldMappingTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceFieldInterpretationTransport) {
+        if (
+            typeof sourceFieldInterpretationTransport.handle !== "function" ||
+            typeof sourceFieldInterpretationTransport.createErrorResponse !== "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceFieldInterpretationTransport"
+            );
+        }
+
+        if (
+            sourceFieldInterpretationQueryTransport &&
+            (
+                typeof sourceFieldInterpretationQueryTransport.handle !== "function" ||
+                typeof sourceFieldInterpretationQueryTransport.createErrorResponse !== "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceFieldInterpretationQueryTransport"
+            );
+        }
+
+        app.post(
+            sourceFieldInterpretationEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceFieldInterpretationTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (sourceFieldInterpretationQueryTransport) {
+            app.get(
+                sourceFieldInterpretationEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await sourceFieldInterpretationQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
     }
 
     app.use(

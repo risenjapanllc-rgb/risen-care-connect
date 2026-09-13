@@ -35,6 +35,13 @@ const LocalConnectorStandardizationPipeline =
     require("./LocalConnectorStandardizationPipeline");
 const SourceDocumentHttpClient =
     require("./SourceDocumentHttpClient");
+
+const SourceFieldMappingHttpClient =
+    require("./SourceFieldMappingHttpClient");
+
+const SourceFieldInterpretationHttpClient =
+    require("./SourceFieldInterpretationHttpClient");
+
 const RegisteredFileSourceAdapter =
     require("./RegisteredFileSourceAdapter");
 const LocalSourceDocumentIngestionService =
@@ -198,6 +205,66 @@ async function createSourceDocumentIngestionService({
     });
 }
 
+async function createSourceFieldMappingIngestionService({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    return new SourceFieldMappingHttpClient({
+        endpoint,
+        connectorId,
+        credential,
+        authorizationScheme,
+        connectorIdHeader,
+        fetchImpl
+    });
+}
+
+async function createSourceFieldInterpretationIngestionService({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    return new SourceFieldInterpretationHttpClient({
+        endpoint,
+        connectorId,
+        credential,
+        authorizationScheme,
+        connectorIdHeader,
+        fetchImpl
+    });
+}
+
 async function createSourceDocumentSyncEngine({
     databasePath,
     configPath,
@@ -354,6 +421,8 @@ module.exports = {
     createSemanticPreparationService,
     createIngestionService,
     createSourceDocumentIngestionService,
+    createSourceFieldMappingIngestionService,
+    createSourceFieldInterpretationIngestionService,
     createSourceDocumentSyncEngine,
     createSyncEngine
 };

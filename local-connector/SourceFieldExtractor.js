@@ -161,6 +161,73 @@ class SourceFieldExtractor {
         return results;
     }
 
+    extractFieldDefinitions(document = {}) {
+        if (
+            !document ||
+            typeof document !== 'object' ||
+            !Array.isArray(document.sheets)
+        ) {
+            return [];
+        }
+
+        const results = [];
+
+        document.sheets.forEach(
+            (sheet, sheetIndex) => {
+                if (
+                    !sheet ||
+                    typeof sheet !== 'object' ||
+                    !Array.isArray(sheet.rows)
+                ) {
+                    return;
+                }
+
+                const headerIndex =
+                    this.findHeaderRowIndex(
+                        sheet.rows
+                    );
+
+                if (headerIndex === -1) {
+                    return;
+                }
+
+                const headerRow =
+                    sheet.rows[headerIndex];
+
+                if (!Array.isArray(headerRow)) {
+                    return;
+                }
+
+                const sheetName =
+                    typeof sheet.sheetName === 'string'
+                        ? sheet.sheetName
+                        : '';
+
+                headerRow.forEach(
+                    (value, columnIndex) => {
+                        const headerLabel =
+                            this.normalizeHeader(value);
+
+                        if (!headerLabel) {
+                            return;
+                        }
+
+                        results.push({
+                            sourceFieldKey:
+                                `sheet:${sheetIndex}:column:${columnIndex}`,
+                            sheetIndex,
+                            sheetName,
+                            columnIndex,
+                            headerLabel
+                        });
+                    }
+                );
+            }
+        );
+
+        return results;
+    }
+
     findHeaderRowIndex(rows) {
         if (!Array.isArray(rows)) {
             return -1;

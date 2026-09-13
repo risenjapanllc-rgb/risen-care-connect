@@ -53,6 +53,12 @@ test("POST /files/:fileName/observe observes a registered file", async () => {
 test("POST /files/:fileName/analyze analyzes a registered Word document", async () => {
     const service = app.locals.localConnectorService;
     const original = service.normalizeRegisteredWord;
+    const originalObserve = service.observeRegisteredFile;
+
+    service.observeRegisteredFile = async fileName => ({
+        sourceDocumentKey: "opaque-document-key-word",
+        fileName
+    });
 
     let analyzedFileName;
 
@@ -104,6 +110,7 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
         assert.deepStrictEqual(body, {
             success: true,
             fileName: "assessment.docx",
+            sourceDocumentKey: "opaque-document-key-word",
             sourceType: "word",
             documentType: "assessment",
             documentTypeConfidence: "high",
@@ -127,6 +134,7 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
         });
     } finally {
         service.normalizeRegisteredWord = original;
+        service.observeRegisteredFile = originalObserve;
         await new Promise(resolve => server.close(resolve));
     }
 });
@@ -134,6 +142,12 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
 test("POST /files/:fileName/analyze analyzes a registered Excel document", async () => {
     const service = app.locals.localConnectorService;
     const original = service.normalizeRegisteredExcel;
+    const originalObserve = service.observeRegisteredFile;
+
+    service.observeRegisteredFile = async fileName => ({
+        sourceDocumentKey: "opaque-document-key-excel",
+        fileName
+    });
 
     let analyzedFileName;
 
@@ -161,6 +175,22 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
                 ]
             },
             extracted: {
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey: "sheet:0:column:0",
+                        sheetIndex: 0,
+                        sheetName: "Sheet1",
+                        columnIndex: 0,
+                        headerLabel: "項目A"
+                    },
+                    {
+                        sourceFieldKey: "sheet:0:column:1",
+                        sheetIndex: 0,
+                        sheetName: "Sheet1",
+                        columnIndex: 1,
+                        headerLabel: "項目B"
+                    }
+                ],
                 sourceResidentIdentifier: {
                     value: "resident-001",
                     sourceLabel: "利用者ID"
@@ -190,6 +220,7 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
         assert.deepStrictEqual(body, {
             success: true,
             fileName: "assessment.xlsx",
+            sourceDocumentKey: "opaque-document-key-excel",
             sourceType: "excel",
             documentType: "assessment",
             documentTypeConfidence: "medium",
@@ -210,6 +241,22 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
                 ]
             },
             extracted: {
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey: "sheet:0:column:0",
+                        sheetIndex: 0,
+                        sheetName: "Sheet1",
+                        columnIndex: 0,
+                        headerLabel: "項目A"
+                    },
+                    {
+                        sourceFieldKey: "sheet:0:column:1",
+                        sheetIndex: 0,
+                        sheetName: "Sheet1",
+                        columnIndex: 1,
+                        headerLabel: "項目B"
+                    }
+                ],
                 sourceResidentIdentifier: {
                     value: "resident-001",
                     sourceLabel: "利用者ID"
@@ -218,6 +265,7 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
         });
     } finally {
         service.normalizeRegisteredExcel = original;
+        service.observeRegisteredFile = originalObserve;
         await new Promise(resolve => server.close(resolve));
     }
 });
@@ -225,6 +273,12 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
 test("POST /files/:fileName/analyze analyzes a registered CSV document", async () => {
     const service = app.locals.localConnectorService;
     const original = service.normalizeRegisteredCsv;
+    const originalObserve = service.observeRegisteredFile;
+
+    service.observeRegisteredFile = async fileName => ({
+        sourceDocumentKey: "opaque-document-key-csv",
+        fileName
+    });
 
     let analyzedFileName;
 
@@ -252,6 +306,22 @@ test("POST /files/:fileName/analyze analyzes a registered CSV document", async (
                 ]
             },
             extracted: {
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey: "sheet:0:column:0",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 0,
+                        headerLabel: "項目A"
+                    },
+                    {
+                        sourceFieldKey: "sheet:0:column:1",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 1,
+                        headerLabel: "項目B"
+                    }
+                ],
                 sourceFields: []
             }
         };
@@ -278,6 +348,7 @@ test("POST /files/:fileName/analyze analyzes a registered CSV document", async (
         assert.deepStrictEqual(body, {
             success: true,
             fileName: "records.csv",
+            sourceDocumentKey: "opaque-document-key-csv",
             sourceType: "csv",
             documentType: "unknown",
             documentTypeConfidence: "low",
@@ -298,11 +369,28 @@ test("POST /files/:fileName/analyze analyzes a registered CSV document", async (
                 ]
             },
             extracted: {
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey: "sheet:0:column:0",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 0,
+                        headerLabel: "項目A"
+                    },
+                    {
+                        sourceFieldKey: "sheet:0:column:1",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 1,
+                        headerLabel: "項目B"
+                    }
+                ],
                 sourceFields: []
             }
         });
     } finally {
         service.normalizeRegisteredCsv = original;
+        service.observeRegisteredFile = originalObserve;
         await new Promise(resolve => server.close(resolve));
     }
 });
@@ -1444,6 +1532,430 @@ test(
                     server.close(
                         resolve
                     )
+            );
+        }
+    }
+);
+
+
+test(
+    "source field mapping route allowlists browser payload before ingestion",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldMappingIngestionService;
+
+        let received = null;
+
+        app.locals.getSourceFieldMappingIngestionService =
+            async () => ({
+                async ingest(mapping) {
+                    received = mapping;
+
+                    return {
+                        status: "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-field-mappings`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceFieldMapping: {
+                                    sourceDocumentKey:
+                                        "document-key",
+                                    sourceFieldKey:
+                                        "sheet:0:column:3",
+                                    standardEntityName:
+                                        "user",
+                                    standardFieldName:
+                                        "blood_type",
+                                    sheetName:
+                                        "Sheet1",
+                                    headerLabel:
+                                        "血液型",
+
+                                    facilityId:
+                                        "must-not-pass",
+                                    connectorId:
+                                        "must-not-pass",
+                                    confirmedAt:
+                                        "2000-01-01T00:00:00.000Z",
+                                    standardFieldId:
+                                        15
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "created"
+                }
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceFieldKey:
+                        "sheet:0:column:3",
+                    standardEntityName:
+                        "user",
+                    standardFieldName:
+                        "blood_type",
+                    sheetName:
+                        "Sheet1",
+                    headerLabel:
+                        "血液型"
+                }
+            );
+        } finally {
+            app.locals.getSourceFieldMappingIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(
+                        resolve
+                    )
+            );
+        }
+    }
+);
+
+
+test(
+    "source field interpretation route allowlists browser payload before ingestion",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldInterpretationIngestionService;
+
+        let received = null;
+
+        app.locals.getSourceFieldInterpretationIngestionService =
+            async () => ({
+                async ingest(interpretation) {
+                    received =
+                        interpretation;
+
+                    return {
+                        status: "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-field-interpretations`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceFieldInterpretation: {
+                                    sourceDocumentKey:
+                                        "document-key",
+                                    sourceFieldKey:
+                                        "sheet:0:column:3",
+                                    interpretationStatus:
+                                        "confirmed",
+                                    mappingStatus:
+                                        "no_standard_match",
+                                    confirmedMeaning:
+                                        null,
+                                    facilityId:
+                                        "must-not-pass",
+                                    connectorId:
+                                        "must-not-pass",
+                                    confirmedAt:
+                                        "2000-01-01T00:00:00.000Z",
+                                    model:
+                                        "must-not-pass"
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "created"
+                }
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceFieldKey:
+                        "sheet:0:column:3",
+                    interpretationStatus:
+                        "confirmed",
+                    mappingStatus:
+                        "no_standard_match",
+                    confirmedMeaning:
+                        null
+                }
+            );
+        } finally {
+            app.locals.getSourceFieldInterpretationIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET /source-field-interpretations returns persisted review states",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldInterpretationIngestionService;
+
+        let receivedSourceDocumentKey = null;
+
+        app.locals.getSourceFieldInterpretationIngestionService =
+            async () => ({
+                async list(sourceDocumentKey) {
+                    receivedSourceDocumentKey =
+                        sourceDocumentKey;
+
+                    return {
+                        status: "found",
+                        interpretations: [
+                            {
+                                sourceFieldKey:
+                                    "sheet:0:column:1",
+                                interpretationStatus:
+                                    "deferred",
+                                mappingStatus:
+                                    "unmapped",
+                                confirmedMeaning:
+                                    null,
+                                confirmedByHuman:
+                                    true
+                            },
+                            {
+                                sourceFieldKey:
+                                    "sheet:0:column:2",
+                                interpretationStatus:
+                                    "confirmed",
+                                mappingStatus:
+                                    "no_standard_match",
+                                confirmedMeaning:
+                                    null,
+                                confirmedByHuman:
+                                    true
+                            }
+                        ]
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-field-interpretations?sourceDocumentKey=document-key`
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.strictEqual(
+                receivedSourceDocumentKey,
+                "document-key"
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "found",
+                    interpretations: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:1",
+                            interpretationStatus:
+                                "deferred",
+                            mappingStatus:
+                                "unmapped",
+                            confirmedMeaning:
+                                null,
+                            confirmedByHuman:
+                                true
+                        },
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:2",
+                            interpretationStatus:
+                                "confirmed",
+                            mappingStatus:
+                                "no_standard_match",
+                            confirmedMeaning:
+                                null,
+                            confirmedByHuman:
+                                true
+                        }
+                    ]
+                }
+            );
+        } finally {
+            app.locals.getSourceFieldInterpretationIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET /source-field-interpretations rejects missing sourceDocumentKey",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldInterpretationIngestionService;
+
+        let factoryCalled = false;
+
+        app.locals.getSourceFieldInterpretationIngestionService =
+            async () => {
+                factoryCalled = true;
+
+                throw new Error(
+                    "must not be called"
+                );
+            };
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-field-interpretations`
+                );
+
+            assert.strictEqual(
+                response.status,
+                422
+            );
+
+            assert.strictEqual(
+                factoryCalled,
+                false
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: false,
+                    message:
+                        "原本識別子が指定されていません"
+                }
+            );
+        } finally {
+            app.locals.getSourceFieldInterpretationIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
             );
         }
     }

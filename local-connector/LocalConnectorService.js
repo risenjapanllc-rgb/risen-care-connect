@@ -333,6 +333,11 @@ class LocalConnectorService {
                 standardDocument.content
             );
 
+        const fieldDefinitions =
+            this.sourceFieldExtractor.extractFieldDefinitions(
+                standardDocument.content
+            );
+
         const interpretedSourceFields =
             sourceFields.map(record => ({
                 ...record,
@@ -346,6 +351,7 @@ class LocalConnectorService {
             ...standardDocument,
             extracted: {
                 ...extracted,
+                fieldDefinitions,
                 sourceFields:
                     interpretedSourceFields
             }
@@ -527,6 +533,11 @@ class LocalConnectorService {
                 standardDocument.content
             );
 
+        const fieldDefinitions =
+            this.sourceFieldExtractor.extractFieldDefinitions(
+                standardDocument.content
+            );
+
         const interpretedSourceFields =
             sourceFields.map(record => ({
                 ...record,
@@ -540,6 +551,7 @@ class LocalConnectorService {
             ...standardDocument,
             extracted: {
                 ...extracted,
+                fieldDefinitions,
                 sourceFields:
                     interpretedSourceFields
             }

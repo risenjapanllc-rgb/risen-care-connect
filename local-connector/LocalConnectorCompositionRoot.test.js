@@ -441,3 +441,156 @@ test(
         }
     }
 );
+
+
+test(
+    "creates source field mapping ingestion client with local connector identity",
+    async () => {
+        const tempDir =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "risen-source-field-mapping-root-"
+                )
+            );
+
+        const databasePath =
+            path.join(
+                tempDir,
+                "registry.sqlite"
+            );
+
+        const configPath =
+            path.join(
+                tempDir,
+                ".local-connector-config.json"
+            );
+
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                connectorId:
+                    "11111111-2222-4333-8444-555555555555"
+            })
+        );
+
+        try {
+            const client =
+                await LocalConnectorCompositionRoot
+                    .createSourceFieldMappingIngestionService({
+                        databasePath,
+                        configPath,
+                        endpoint:
+                            "https://backend.example/connector/source-field-mappings",
+                        credential:
+                            "test-credential",
+                        authorizationScheme:
+                            "RISEN-Connector",
+                        fetchImpl:
+                            async () => {
+                                throw new Error(
+                                    "network should not be called during composition"
+                                );
+                            }
+                    });
+
+            assert.strictEqual(
+                typeof client.ingest,
+                "function"
+            );
+
+            assert.strictEqual(
+                client.connectorId,
+                "11111111-2222-4333-8444-555555555555"
+            );
+
+            assert.strictEqual(
+                client.endpoint,
+                "https://backend.example/connector/source-field-mappings"
+            );
+        } finally {
+            fs.rmSync(
+                tempDir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+
+test("creates source field interpretation ingestion client from local connector identity", async () => {
+    const tempDir =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "risen-source-field-interpretation-root-"
+            )
+        );
+
+    const databasePath =
+        path.join(
+            tempDir,
+            "registry.sqlite"
+        );
+
+    const configPath =
+        path.join(
+            tempDir,
+            ".local-connector-config.json"
+        );
+
+    fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+            connectorId:
+                "11111111-2222-4333-8444-555555555555"
+        })
+    );
+
+    try {
+        const client =
+            await LocalConnectorCompositionRoot
+                .createSourceFieldInterpretationIngestionService({
+                    databasePath,
+                    configPath,
+                    endpoint:
+                        "https://backend.example/connector/source-field-interpretations",
+                    credential:
+                        "test-credential",
+                    authorizationScheme:
+                        "RISEN-Connector",
+                    fetchImpl:
+                        async () => {
+                            throw new Error(
+                                "network should not be called during composition"
+                            );
+                        }
+                });
+
+        assert.strictEqual(
+            typeof client.ingest,
+            "function"
+        );
+
+        assert.strictEqual(
+            client.connectorId,
+            "11111111-2222-4333-8444-555555555555"
+        );
+
+        assert.strictEqual(
+            client.endpoint,
+            "https://backend.example/connector/source-field-interpretations"
+        );
+    } finally {
+        fs.rmSync(
+            tempDir,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});

@@ -72,6 +72,36 @@ class ProductionRuntimeConfig {
         );
     }
 
+    resolveSourceFieldMappingEndpoint() {
+        const explicitEndpoint =
+            this.readOptional(
+                "RISEN_SOURCE_FIELD_MAPPING_ENDPOINT"
+            ) ||
+            this.readOptional(
+                "RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT"
+            );
+
+        if (explicitEndpoint) {
+            return this.validateEndpoint(
+                explicitEndpoint
+            );
+        }
+
+        const semanticEndpoint =
+            new URL(
+                this.resolveServerTrustBoundaryEndpoint()
+            );
+
+        semanticEndpoint.pathname =
+            "/connector/source-field-mappings";
+        semanticEndpoint.search = "";
+        semanticEndpoint.hash = "";
+
+        return this.validateEndpoint(
+            semanticEndpoint.toString()
+        );
+    }
+
     requireConnectorCredential() {
         return this.requireValue(
             "CONNECTOR_CREDENTIAL"

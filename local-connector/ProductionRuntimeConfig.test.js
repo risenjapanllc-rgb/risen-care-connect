@@ -245,3 +245,77 @@ test(
         );
     }
 );
+
+
+test(
+    "source field mapping endpoint prefers dedicated endpoint",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SOURCE_FIELD_MAPPING_ENDPOINT:
+                        "https://connector.example.test/connector/source-field-mappings",
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceFieldMappingEndpoint(),
+            "https://connector.example.test/connector/source-field-mappings"
+        );
+    }
+);
+
+test(
+    "source field mapping endpoint supports trust boundary specific endpoint",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT:
+                        "https://connector.example.test/connector/source-field-mappings",
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceFieldMappingEndpoint(),
+            "https://connector.example.test/connector/source-field-mappings"
+        );
+    }
+);
+
+test(
+    "source field mapping endpoint derives mapping route from semantic endpoint origin",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {
+                    RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT:
+                        "https://connector.example.test/connector/ingest"
+                }
+            });
+
+        assert.strictEqual(
+            config.resolveSourceFieldMappingEndpoint(),
+            "https://connector.example.test/connector/source-field-mappings"
+        );
+    }
+);
+
+test(
+    "source field mapping endpoint defaults to local trust boundary mapping route",
+    () => {
+        const config =
+            new ProductionRuntimeConfig({
+                env: {}
+            });
+
+        assert.strictEqual(
+            config.resolveSourceFieldMappingEndpoint(),
+            "http://127.0.0.1:8787/connector/source-field-mappings"
+        );
+    }
+);

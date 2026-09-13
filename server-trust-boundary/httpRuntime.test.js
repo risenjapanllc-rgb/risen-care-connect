@@ -191,3 +191,78 @@ test("mounts source-document endpoint in HTTP runtime", async () => {
         }
     );
 });
+
+
+test("mounts source-field-mapping endpoint in HTTP runtime", async () => {
+    const runtime =
+        createServerTrustBoundaryHttpRuntime({
+            supabaseUrl:
+                "https://example.supabase.co",
+            apiKey:
+                "test-publishable-key",
+            connectorTrustEmail:
+                "connector@example.local",
+            connectorTrustPassword:
+                "test-password",
+            authorizationScheme:
+                "RISEN-Connector",
+            connectorIdHeader:
+                "x-risen-connector-id",
+            endpointPath:
+                "/connector/ingest",
+            jsonBodyLimit:
+                "100kb"
+        });
+
+    await withServer(
+        runtime.app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-field-mappings`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceFieldMapping: {
+                                    sourceDocumentKey:
+                                        "source-document-key",
+                                    sourceFieldKey:
+                                        "sheet:0:column:3",
+                                    standardEntityName:
+                                        "user",
+                                    standardFieldName:
+                                        "blood_type",
+                                    sheetName:
+                                        "Sheet1",
+                                    headerLabel:
+                                        "血液型"
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                401
+            );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                body.errorCode,
+                "connector_trust_denied"
+            );
+
+            assert.strictEqual(
+                typeof body.requestId,
+                "string"
+            );
+        }
+    );
+});

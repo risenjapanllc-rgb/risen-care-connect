@@ -13,6 +13,10 @@ const ServerTrustBoundaryIngestionService =
 const SourceDocumentIngestionService =
     require("./SourceDocumentIngestionService");
 
+const SourceFieldMappingIngestionService =
+    require("./SourceFieldMappingIngestionService");
+
+
 test("creates complete Server Trust Boundary application runtime", () => {
     const runtime =
         createServerTrustBoundaryRuntime({
@@ -38,11 +42,19 @@ test("creates complete Server Trust Boundary application runtime", () => {
             instanceof SourceDocumentIngestionService
     );
 
+    assert.ok(
+        runtime.sourceFieldMappingIngestionService
+            instanceof SourceFieldMappingIngestionService
+    );
+
     assert.deepStrictEqual(
         Object.keys(runtime),
         [
             "serverTrustBoundaryIngestionService",
-            "sourceDocumentIngestionService"
+            "sourceDocumentIngestionService",
+            "sourceFieldMappingIngestionService",
+            "sourceFieldInterpretationIngestionService",
+            "sourceFieldInterpretationQueryService"
         ]
     );
 

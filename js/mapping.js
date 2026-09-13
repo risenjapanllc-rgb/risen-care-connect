@@ -784,90 +784,13 @@ function getEntityDisplayName(entityName) {
  * カラム名から標準項目を自動推定する
  */
 function findAutomaticMapping(columnName) {
-    const normalized =
-        normalizeFieldName(columnName);
-
-    const aliases = {
-        name: [
-            "name",
-            "user_name",
-            "client_name",
-            "full_name"
-        ],
-
-        birthday: [
-            "birthday",
-            "birth_date",
-            "date_of_birth",
-            "dob"
-        ],
-
-        gender: [
-            "gender",
-            "sex"
-        ],
-
-        postal_code: [
-            "postal_code",
-            "postcode",
-            "zip",
-            "zip_code"
-        ],
-
-        address: [
-            "address",
-            "user_address"
-        ],
-
-        phone: [
-            "phone",
-            "telephone",
-            "tel",
-            "phone_number"
-        ],
-
-        mobile: [
-            "mobile",
-            "mobile_phone",
-            "cell_phone",
-            "mobile_number"
-        ],
-
-        email: [
-            "email",
-            "mail",
-            "email_address"
-        ]
-    };
-
-    const targetFieldName =
-        Object.entries(aliases)
-            .find(([, aliasList]) => {
-                return aliasList.includes(
-                    normalized
-                );
-            })?.[0];
-
-    if (!targetFieldName) {
-        return standardFields.find(
-            field => {
-                return (
-                    normalizeFieldName(
-                        field.field_name
-                    ) === normalized
-                );
-            }
-        );
-    }
-
-    return standardFields.find(
-        field => {
-            return (
-                normalizeFieldName(
-                    field.field_name
-                ) === targetFieldName
-            );
-        }
+    return (
+        window.RisenStandardFieldMapping
+            ?.findStandardFieldSuggestion(
+                columnName,
+                standardFields
+            ) ||
+        null
     );
 }
 

@@ -35,6 +35,34 @@ const importReadyButton =
 
 let latestAnalysis = null;
 
+let standardFields = [];
+
+const sourceFieldMeaningSelections = new Map();
+const confirmedSourceFieldSelections = new Set();
+const sourceFieldReviewStates = new Map();
+
+function createSourceFieldSelectionKey(
+    sourceDocumentKey,
+    sourceFieldKey
+) {
+    return `${String(sourceDocumentKey || "")}::${String(
+        sourceFieldKey || ""
+    )}`;
+}
+
+async function loadStandardFields() {
+    const response = await fetch("/api/standard-fields");
+    const result = await response.json();
+
+    if (!response.ok || !Array.isArray(result)) {
+        throw new Error(
+            "RISEN標準項目を取得できませんでした"
+        );
+    }
+
+    standardFields = result;
+}
+
 function setStatus(message, type = "") {
     if (!statusElement) {
         return;
@@ -270,6 +298,97 @@ function selectFile(filePath) {
     }
 }
 
+async function loadPersistedSourceFieldReviewStates(
+    sourceDocumentKey
+) {
+    if (
+        typeof sourceDocumentKey !== "string" ||
+        !sourceDocumentKey.trim()
+    ) {
+        return;
+    }
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-field-interpretations?sourceDocumentKey=${encodeURIComponent(
+                sourceDocumentKey.trim()
+            )}`
+        );
+
+    const result =
+        await response.json();
+
+    if (
+        !response.ok ||
+        !result.success ||
+        result.status !== "found" ||
+        !Array.isArray(result.interpretations)
+    ) {
+        throw new Error(
+            result.message ||
+            "保存済みの項目確認状態を取得できませんでした"
+        );
+    }
+
+    for (const interpretation of result.interpretations) {
+        if (
+            !interpretation ||
+            typeof interpretation !== "object" ||
+            typeof interpretation.sourceFieldKey !== "string" ||
+            !interpretation.sourceFieldKey.trim() ||
+            interpretation.confirmedByHuman !== true
+        ) {
+            continue;
+        }
+
+        const selectionKey =
+            createSourceFieldSelectionKey(
+                sourceDocumentKey,
+                interpretation.sourceFieldKey.trim()
+            );
+
+        if (
+            interpretation.interpretationStatus ===
+            "deferred"
+        ) {
+            sourceFieldMeaningSelections.set(
+                selectionKey,
+                ""
+            );
+
+            confirmedSourceFieldSelections.delete(
+                selectionKey
+            );
+
+            sourceFieldReviewStates.set(
+                selectionKey,
+                "deferred"
+            );
+
+            continue;
+        }
+
+        if (
+            interpretation.mappingStatus ===
+            "no_standard_match"
+        ) {
+            sourceFieldMeaningSelections.set(
+                selectionKey,
+                ""
+            );
+
+            confirmedSourceFieldSelections.delete(
+                selectionKey
+            );
+
+            sourceFieldReviewStates.set(
+                selectionKey,
+                "unmapped"
+            );
+        }
+    }
+}
+
 async function analyzeFile(filePath) {
     try {
         setStatus("ファイルを解析しています...");
@@ -295,7 +414,28 @@ async function analyzeFile(filePath) {
             );
         }
 
+        try {
+            await loadStandardFields();
+        } catch (error) {
+            standardFields = [];
+            console.warn(
+                "標準項目の取得に失敗しました:",
+                error.message
+            );
+        }
+
         latestAnalysis = result;
+
+        try {
+            await loadPersistedSourceFieldReviewStates(
+                result.sourceDocumentKey
+            );
+        } catch (error) {
+            console.warn(
+                "保存済みの項目確認状態を復元できませんでした:",
+                error.message
+            );
+        }
 
         renderAnalysis(result);
         showStep(2);
@@ -562,6 +702,326 @@ function renderConfirmation() {
         return;
     }
 
+    const fieldDefinitions =
+        Array.isArray(
+            latestAnalysis.extracted?.fieldDefinitions
+        )
+            ? latestAnalysis.extracted.fieldDefinitions
+            : [];
+
+    const standardMeaningOptions =
+        standardFields.map(field => ({
+            value: `${field.entity_name}.${field.field_name}`,
+            label:
+                `${field.display_name} ` +
+                `(${field.entity_name}.${field.field_name})`
+        }));
+
+    const sourceFieldRows =
+        fieldDefinitions.length > 0
+            ? fieldDefinitions.map(field => {
+                const sourceFieldKey =
+                    field.sourceFieldKey || "";
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                const selectedMeaning =
+                    sourceFieldMeaningSelections.get(
+                        selectionKey
+                    ) || "";
+
+                const suggestedField =
+                    window.RisenStandardFieldMapping
+                        ?.findStandardFieldSuggestion(
+                            field.headerLabel || "",
+                            standardFields
+                        ) || null;
+
+                const suggestedMeaning =
+                    suggestedField
+                        ? `${suggestedField.entity_name}.${suggestedField.field_name}`
+                        : "";
+
+                const suggestedLabel =
+                    suggestedField
+                        ? `${suggestedField.display_name} (${suggestedMeaning})`
+                        : "";
+
+                const reviewState =
+                    sourceFieldReviewStates.get(
+                        selectionKey
+                    ) ||
+                    (
+                        confirmedSourceFieldSelections.has(
+                            selectionKey
+                        )
+                            ? "confirmed"
+                            : "pending"
+                    );
+
+                const stateLabel =
+                    reviewState === "confirmed"
+                        ? "確認済み"
+                        : reviewState === "unmapped"
+                            ? "標準項目なし"
+                            : reviewState === "deferred"
+                                ? "保留"
+                                : suggestedField
+                                    ? "おすすめ候補あり"
+                                    : "要確認";
+
+                const options =
+                    standardMeaningOptions.map(option => `
+                        <option
+                            value="${escapeHtml(option.value)}"
+                            ${
+                                option.value === selectedMeaning
+                                    ? "selected"
+                                    : ""
+                            }
+                        >
+                            ${escapeHtml(option.label)}
+                        </option>
+                    `).join("");
+
+                return `
+                    <tr
+                        data-source-field-row="${escapeHtml(
+                            sourceFieldKey
+                        )}"
+                    >
+                        <td>
+                            ${escapeHtml(
+                                field.sheetName || "-"
+                            )}
+                        </td>
+
+                        <td>
+                            <strong>
+                                ${escapeHtml(
+                                    field.headerLabel || "-"
+                                )}
+                            </strong>
+                        </td>
+
+                        <td style="
+                            color: #667085;
+                            font-family: monospace;
+                            font-size: 0.85rem;
+                        ">
+                            ${escapeHtml(sourceFieldKey)}
+                        </td>
+
+                        <td style="min-width: 300px;">
+                            <div style="
+                                display: grid;
+                                gap: 8px;
+                            ">
+                                <div>
+                                    <span style="
+                                        display: inline-block;
+                                        padding: 3px 8px;
+                                        border-radius: 999px;
+                                        background: #f2f4f7;
+                                        color: #475467;
+                                        font-size: 0.8rem;
+                                    ">
+                                        ${escapeHtml(stateLabel)}
+                                    </span>
+                                </div>
+
+                                ${
+                                    suggestedField
+                                        ? `
+                                            <div style="
+                                                padding: 10px;
+                                                border: 1px solid #d9e4ff;
+                                                border-radius: 8px;
+                                                background: #f7f9ff;
+                                            ">
+                                                <div style="
+                                                    color: #475467;
+                                                    font-size: 0.8rem;
+                                                    margin-bottom: 4px;
+                                                ">
+                                                    おすすめ候補
+                                                </div>
+
+                                                <strong>
+                                                    ${escapeHtml(
+                                                        suggestedLabel
+                                                    )}
+                                                </strong>
+
+                                                <div style="
+                                                    margin-top: 8px;
+                                                ">
+                                                    <button
+                                                        type="button"
+                                                        class="secondary-button source-field-confirm-suggestion"
+                                                        data-source-field-key="${escapeHtml(
+                                                            sourceFieldKey
+                                                        )}"
+                                                        data-standard-meaning="${escapeHtml(
+                                                            suggestedMeaning
+                                                        )}"
+                                                    >
+                                                        この候補を確認
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `
+                                        : `
+                                            <div style="
+                                                color: #667085;
+                                                font-size: 0.9rem;
+                                            ">
+                                                明確なおすすめ候補はありません。
+                                            </div>
+                                        `
+                                }
+
+                                ${
+                                    reviewState === "confirmed" &&
+                                    selectedMeaning
+                                        ? `
+                                            <div style="
+                                                color: #176b36;
+                                                font-size: 0.9rem;
+                                            ">
+                                                確認済み：
+                                                ${escapeHtml(
+                                                    standardMeaningOptions
+                                                        .find(
+                                                            option =>
+                                                                option.value ===
+                                                                selectedMeaning
+                                                        )
+                                                        ?.label ||
+                                                    selectedMeaning
+                                                )}
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
+                                <details>
+                                    <summary style="
+                                        cursor: pointer;
+                                        color: #3157a4;
+                                    ">
+                                        すべてのRISEN標準項目から探す
+                                    </summary>
+
+                                    <div style="
+                                        margin-top: 8px;
+                                    ">
+                                        <select
+                                            class="source-field-meaning-select"
+                                            data-source-field-key="${escapeHtml(
+                                                sourceFieldKey
+                                            )}"
+                                        >
+                                            <option value="">
+                                                標準項目を選択
+                                            </option>
+                                            ${options}
+                                        </select>
+                                    </div>
+                                </details>
+
+                                <div style="
+                                    display: flex;
+                                    gap: 8px;
+                                    flex-wrap: wrap;
+                                ">
+                                    <button
+                                        type="button"
+                                        class="secondary-button source-field-mark-unmapped"
+                                        data-source-field-key="${escapeHtml(
+                                            sourceFieldKey
+                                        )}"
+                                    >
+                                        標準項目なし
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="secondary-button source-field-defer"
+                                        data-source-field-key="${escapeHtml(
+                                            sourceFieldKey
+                                        )}"
+                                    >
+                                        保留
+                                    </button>
+                                </div>
+
+                                ${
+                                    reviewState === "unmapped" ||
+                                    reviewState === "deferred"
+                                        ? `
+                                            <div style="
+                                                color: #667085;
+                                                font-size: 0.8rem;
+                                            ">
+                                                「取り込み準備を完了する」で、この確認状態を保存します。
+                                            </div>
+                                        `
+                                        : ""
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join("")
+            : "";
+
+    const sourceFieldSection =
+        sourceFieldRows
+            ? `
+                <h3 style="margin-top: 24px;">
+                    原本項目
+                </h3>
+
+                <p style="
+                    color: #667085;
+                    margin-bottom: 12px;
+                ">
+                    おすすめ候補は自動提案です。
+                    人が確認するまでRISEN標準項目として確定しません。
+                    候補にない場合は全標準項目から探せます。
+                </p>
+
+                <div style="
+                    overflow: auto;
+                    border: 1px solid #e1e7f0;
+                    border-radius: 8px;
+                ">
+                    <table style="
+                        width: 100%;
+                        border-collapse: collapse;
+                    ">
+                        <thead>
+                            <tr>
+                                <th>シート</th>
+                                <th>原本項目</th>
+                                <th>内部識別子</th>
+                                <th>RISEN標準項目</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            ${sourceFieldRows}
+                        </tbody>
+                    </table>
+                </div>
+            `
+            : "";
+
     importConfirmation.innerHTML = `
         <h3>今回の確認内容</h3>
 
@@ -572,14 +1032,486 @@ function renderConfirmation() {
 
         <p>
             <strong>文書種別：</strong>
-            ${escapeHtml(latestAnalysis.documentType)}
+            ${escapeHtml(
+                latestAnalysis.documentType || "不明"
+            )}
         </p>
 
         <p>
             読み取った内容を確認しました。
-            この段階ではまだデータベースへの登録は行いません。
+            原本データ自体の業務データ登録はまだ行いません。
         </p>
+
+        ${sourceFieldSection}
     `;
+
+    importConfirmation
+        .querySelectorAll(
+            ".source-field-confirm-suggestion"
+        )
+        .forEach(button => {
+            button.addEventListener("click", event => {
+                const sourceFieldKey =
+                    event.currentTarget.dataset
+                        .sourceFieldKey || "";
+
+                const standardMeaning =
+                    event.currentTarget.dataset
+                        .standardMeaning || "";
+
+                if (
+                    !sourceFieldKey ||
+                    !standardMeaning
+                ) {
+                    return;
+                }
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis?.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                sourceFieldMeaningSelections.set(
+                    selectionKey,
+                    standardMeaning
+                );
+
+                confirmedSourceFieldSelections.add(
+                    selectionKey
+                );
+
+                sourceFieldReviewStates.set(
+                    selectionKey,
+                    "confirmed"
+                );
+
+                renderConfirmation();
+            });
+        });
+
+    importConfirmation
+        .querySelectorAll(".source-field-meaning-select")
+        .forEach(select => {
+            select.addEventListener("change", event => {
+                const sourceFieldKey =
+                    event.currentTarget.dataset
+                        .sourceFieldKey || "";
+
+                const standardMeaning =
+                    event.currentTarget.value || "";
+
+                if (!sourceFieldKey) {
+                    return;
+                }
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis?.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                sourceFieldMeaningSelections.set(
+                    selectionKey,
+                    standardMeaning
+                );
+
+                if (standardMeaning) {
+                    confirmedSourceFieldSelections.add(
+                        selectionKey
+                    );
+
+                    sourceFieldReviewStates.set(
+                        selectionKey,
+                        "confirmed"
+                    );
+                } else {
+                    confirmedSourceFieldSelections.delete(
+                        selectionKey
+                    );
+
+                    sourceFieldReviewStates.set(
+                        selectionKey,
+                        "pending"
+                    );
+                }
+
+                renderConfirmation();
+            });
+        });
+
+    importConfirmation
+        .querySelectorAll(".source-field-mark-unmapped")
+        .forEach(button => {
+            button.addEventListener("click", event => {
+                const sourceFieldKey =
+                    event.currentTarget.dataset
+                        .sourceFieldKey || "";
+
+                if (!sourceFieldKey) {
+                    return;
+                }
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis?.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                sourceFieldMeaningSelections.set(
+                    selectionKey,
+                    ""
+                );
+
+                confirmedSourceFieldSelections.delete(
+                    selectionKey
+                );
+
+                sourceFieldReviewStates.set(
+                    selectionKey,
+                    "unmapped"
+                );
+
+                renderConfirmation();
+            });
+        });
+
+    importConfirmation
+        .querySelectorAll(".source-field-defer")
+        .forEach(button => {
+            button.addEventListener("click", event => {
+                const sourceFieldKey =
+                    event.currentTarget.dataset
+                        .sourceFieldKey || "";
+
+                if (!sourceFieldKey) {
+                    return;
+                }
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis?.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                sourceFieldMeaningSelections.set(
+                    selectionKey,
+                    ""
+                );
+
+                confirmedSourceFieldSelections.delete(
+                    selectionKey
+                );
+
+                sourceFieldReviewStates.set(
+                    selectionKey,
+                    "deferred"
+                );
+
+                renderConfirmation();
+            });
+        });
+}
+
+function collectConfirmedSourceFieldMappings() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        latestAnalysis.sourceDocumentKey.trim() === ""
+    ) {
+        return [];
+    }
+
+    const fieldDefinitions =
+        Array.isArray(
+            latestAnalysis.extracted?.fieldDefinitions
+        )
+            ? latestAnalysis.extracted.fieldDefinitions
+            : [];
+
+    return fieldDefinitions.flatMap(field => {
+        const sourceFieldKey =
+            typeof field.sourceFieldKey === "string"
+                ? field.sourceFieldKey.trim()
+                : "";
+
+        if (!sourceFieldKey) {
+            return [];
+        }
+
+        const selectionKey =
+            createSourceFieldSelectionKey(
+                latestAnalysis.sourceDocumentKey,
+                sourceFieldKey
+            );
+
+        /*
+         * 自動提案されただけの項目は保存対象にしない。
+         * 人がselectを操作した項目だけを見る。
+         */
+        if (
+            !confirmedSourceFieldSelections.has(
+                selectionKey
+            )
+        ) {
+            return [];
+        }
+
+        const standardMeaning =
+            sourceFieldMeaningSelections.get(
+                selectionKey
+            );
+
+        /*
+         * 空欄は「対応付けない」という確認状態。
+         * delete/unmapping RPCはまだないため、
+         * 現段階では保存対象には含めない。
+         */
+        if (
+            typeof standardMeaning !== "string" ||
+            standardMeaning === ""
+        ) {
+            return [];
+        }
+
+        const separatorIndex =
+            standardMeaning.indexOf(".");
+
+        if (
+            separatorIndex <= 0 ||
+            separatorIndex ===
+                standardMeaning.length - 1
+        ) {
+            return [];
+        }
+
+        const standardEntityName =
+            standardMeaning
+                .slice(0, separatorIndex)
+                .trim();
+
+        const standardFieldName =
+            standardMeaning
+                .slice(separatorIndex + 1)
+                .trim();
+
+        if (
+            !standardEntityName ||
+            !standardFieldName
+        ) {
+            return [];
+        }
+
+        return [{
+            sourceDocumentKey:
+                latestAnalysis.sourceDocumentKey.trim(),
+            sourceFieldKey,
+            standardEntityName,
+            standardFieldName,
+            sheetName:
+                typeof field.sheetName === "string"
+                    ? field.sheetName
+                    : null,
+            headerLabel:
+                typeof field.headerLabel === "string"
+                    ? field.headerLabel
+                    : null
+        }];
+    });
+}
+
+async function persistConfirmedSourceFieldMappings(
+    mappings
+) {
+    let savedCount = 0;
+
+    for (const sourceFieldMapping of mappings) {
+        const response =
+            await fetch(
+                `${LOCAL_CONNECTOR_BASE}/source-field-mappings`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceFieldMapping
+                        })
+                }
+            );
+
+        let result = null;
+
+        try {
+            result =
+                await response.json();
+        } catch {
+            result = null;
+        }
+
+        if (
+            !response.ok ||
+            !result ||
+            result.success !== true ||
+            ![
+                "created",
+                "updated",
+                "unchanged"
+            ].includes(result.status)
+        ) {
+            const error =
+                new Error(
+                    result?.message ||
+                    "項目対応の保存に失敗しました"
+                );
+
+            error.savedCount =
+                savedCount;
+
+            throw error;
+        }
+
+        savedCount += 1;
+    }
+
+    return {
+        savedCount
+    };
+}
+
+function collectSourceFieldInterpretations() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        latestAnalysis.sourceDocumentKey.trim() === ""
+    ) {
+        return [];
+    }
+
+    const fieldDefinitions =
+        Array.isArray(
+            latestAnalysis.extracted?.fieldDefinitions
+        )
+            ? latestAnalysis.extracted.fieldDefinitions
+            : [];
+
+    return fieldDefinitions.flatMap(field => {
+        const sourceFieldKey =
+            typeof field.sourceFieldKey === "string"
+                ? field.sourceFieldKey.trim()
+                : "";
+
+        if (!sourceFieldKey) {
+            return [];
+        }
+
+        const selectionKey =
+            createSourceFieldSelectionKey(
+                latestAnalysis.sourceDocumentKey,
+                sourceFieldKey
+            );
+
+        const reviewState =
+            sourceFieldReviewStates.get(
+                selectionKey
+            );
+
+        if (reviewState === "unmapped") {
+            return [{
+                sourceDocumentKey:
+                    latestAnalysis.sourceDocumentKey.trim(),
+                sourceFieldKey,
+                interpretationStatus:
+                    "confirmed",
+                mappingStatus:
+                    "no_standard_match",
+                confirmedMeaning:
+                    null
+            }];
+        }
+
+        if (reviewState === "deferred") {
+            return [{
+                sourceDocumentKey:
+                    latestAnalysis.sourceDocumentKey.trim(),
+                sourceFieldKey,
+                interpretationStatus:
+                    "deferred",
+                mappingStatus:
+                    "unmapped",
+                confirmedMeaning:
+                    null
+            }];
+        }
+
+        return [];
+    });
+}
+
+async function persistSourceFieldInterpretations(
+    interpretations
+) {
+    let savedCount = 0;
+
+    for (
+        const sourceFieldInterpretation
+        of interpretations
+    ) {
+        const response =
+            await fetch(
+                `${LOCAL_CONNECTOR_BASE}/source-field-interpretations`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceFieldInterpretation
+                        })
+                }
+            );
+
+        let result = null;
+
+        try {
+            result =
+                await response.json();
+        } catch {
+            result = null;
+        }
+
+        if (
+            !response.ok ||
+            !result ||
+            result.success !== true ||
+            ![
+                "created",
+                "updated",
+                "unchanged"
+            ].includes(result.status)
+        ) {
+            const error =
+                new Error(
+                    result?.message ||
+                    "項目確認状態の保存に失敗しました"
+                );
+
+            error.savedCount =
+                savedCount;
+
+            throw error;
+        }
+
+        savedCount += 1;
+    }
+
+    return {
+        savedCount
+    };
 }
 
 analysisBackButton?.addEventListener(
@@ -602,11 +1534,125 @@ importBackButton?.addEventListener(
 
 importReadyButton?.addEventListener(
     "click",
-    () => {
-        setStatus(
-            "取り込み内容の確認が完了しました。登録処理はまだ実行していません。",
-            "success"
-        );
+    async () => {
+        const mappings =
+            collectConfirmedSourceFieldMappings();
+
+        const interpretations =
+            collectSourceFieldInterpretations();
+
+        if (
+            mappings.length === 0 &&
+            interpretations.length === 0
+        ) {
+            setStatus(
+                "保存する項目対応または確認状態がありません。",
+                "error"
+            );
+
+            return;
+        }
+
+        importReadyButton.disabled = true;
+        importReadyButton.textContent =
+            "確認内容を保存しています...";
+
+        let mappingSavedCount = 0;
+        let interpretationSavedCount = 0;
+
+        try {
+            if (mappings.length > 0) {
+                const result =
+                    await persistConfirmedSourceFieldMappings(
+                        mappings
+                    );
+
+                mappingSavedCount =
+                    result.savedCount;
+            }
+
+            if (interpretations.length > 0) {
+                const result =
+                    await persistSourceFieldInterpretations(
+                        interpretations
+                    );
+
+                interpretationSavedCount =
+                    result.savedCount;
+            }
+
+            setStatus(
+                `${mappingSavedCount}件の項目対応、` +
+                `${interpretationSavedCount}件の確認状態を保存しました。`,
+                "success"
+            );
+
+            let readyMessage =
+                document.getElementById(
+                    "importReadyMessage"
+                );
+
+            if (!readyMessage) {
+                readyMessage =
+                    document.createElement("div");
+
+                readyMessage.id =
+                    "importReadyMessage";
+                readyMessage.className =
+                    "validation-card";
+                readyMessage.style.marginTop =
+                    "16px";
+                readyMessage.style.borderColor =
+                    "#86c99a";
+                readyMessage.style.background =
+                    "#f1fbf4";
+                readyMessage.style.color =
+                    "#176b36";
+
+                importConfirmation.appendChild(
+                    readyMessage
+                );
+            }
+
+            readyMessage.textContent =
+                `${mappingSavedCount}件の項目対応、` +
+                `${interpretationSavedCount}件の確認状態を保存しました。` +
+                "原本データ自体の業務データ登録はまだ行っていません。";
+
+            importReadyButton.textContent =
+                "準備完了";
+            importReadyButton.disabled =
+                true;
+
+            readyMessage.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest"
+            });
+        } catch (error) {
+            const partialCount =
+                Number.isInteger(
+                    error?.savedCount
+                )
+                    ? error.savedCount
+                    : 0;
+
+            const completedCount =
+                mappingSavedCount +
+                interpretationSavedCount +
+                partialCount;
+
+            setStatus(
+                completedCount > 0
+                    ? `${completedCount}件まで保存しましたが、途中で失敗しました。再実行できます。`
+                    : `確認内容の保存に失敗しました: ${error.message}`,
+                "error"
+            );
+
+            importReadyButton.textContent =
+                "取り込み準備を完了する";
+            importReadyButton.disabled =
+                false;
+        }
     }
 );
 

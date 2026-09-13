@@ -1,0 +1,305 @@
+"use strict";
+
+class SourceFieldMappingIngestionService {
+    constructor({
+        connectorTrustService,
+        sourceFieldMappingPayloadValidator,
+        sourceFieldMappingPersistenceRepository,
+        clock = () => new Date()
+    } = {}) {
+        if (
+            !connectorTrustService ||
+            typeof connectorTrustService.authenticate !== "function"
+        ) {
+            throw new Error(
+                "SourceFieldMappingIngestionService requires connectorTrustService"
+            );
+        }
+
+        if (
+            !sourceFieldMappingPayloadValidator ||
+            typeof sourceFieldMappingPayloadValidator.validate !== "function"
+        ) {
+            throw new Error(
+                "SourceFieldMappingIngestionService requires sourceFieldMappingPayloadValidator"
+            );
+        }
+
+        if (
+            !sourceFieldMappingPersistenceRepository ||
+            typeof sourceFieldMappingPersistenceRepository.upsert !== "function"
+        ) {
+            throw new Error(
+                "SourceFieldMappingIngestionService requires sourceFieldMappingPersistenceRepository"
+            );
+        }
+
+        if (typeof clock !== "function") {
+            throw new Error(
+                "SourceFieldMappingIngestionService requires clock"
+            );
+        }
+
+        this.connectorTrustService =
+            connectorTrustService;
+
+        this.sourceFieldMappingPayloadValidator =
+            sourceFieldMappingPayloadValidator;
+
+        this.sourceFieldMappingPersistenceRepository =
+            sourceFieldMappingPersistenceRepository;
+
+        this.clock =
+            clock;
+    }
+
+    async ingest({
+        connectorId,
+        credential,
+        sourceFieldMapping
+    } = {}) {
+        let trustResult;
+
+        try {
+            trustResult =
+                await this.connectorTrustService.authenticate({
+                    connectorId,
+                    credential
+                });
+        } catch (error) {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_unavailable"
+            };
+        }
+
+        if (
+            !trustResult ||
+            typeof trustResult !== "object" ||
+            Array.isArray(trustResult)
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_invalid_result"
+            };
+        }
+
+        if (trustResult.status === "denied") {
+            return {
+                status: "denied",
+                errorCode:
+                    "connector_trust_denied"
+            };
+        }
+
+        if (trustResult.status === "error") {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_unavailable"
+            };
+        }
+
+        if (trustResult.status !== "verified") {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_invalid_result"
+            };
+        }
+
+        const verifiedContext =
+            trustResult.verifiedContext;
+
+        if (!this.isValidVerifiedContext(verifiedContext)) {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_invalid_result"
+            };
+        }
+
+        let validationResult;
+
+        try {
+            validationResult =
+                this.sourceFieldMappingPayloadValidator
+                    .validate(sourceFieldMapping);
+        } catch (error) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_validation_unavailable"
+            };
+        }
+
+        if (
+            !validationResult ||
+            typeof validationResult !== "object" ||
+            Array.isArray(validationResult)
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_validation_invalid_result"
+            };
+        }
+
+        if (validationResult.status !== "valid") {
+            if (validationResult.status === "invalid") {
+                return {
+                    status: "invalid",
+                    errorCode:
+                        validationResult.errorCode ||
+                        "source_field_mapping_invalid"
+                };
+            }
+
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_validation_invalid_result"
+            };
+        }
+
+        const validatedSourceFieldMapping =
+            validationResult.validatedSourceFieldMapping;
+
+        if (
+            !validatedSourceFieldMapping ||
+            typeof validatedSourceFieldMapping !== "object" ||
+            Array.isArray(validatedSourceFieldMapping)
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_validation_invalid_result"
+            };
+        }
+
+        let confirmedAt;
+
+        try {
+            const now =
+                this.clock();
+
+            if (
+                !(now instanceof Date) ||
+                Number.isNaN(now.getTime())
+            ) {
+                throw new Error(
+                    "invalid clock result"
+                );
+            }
+
+            confirmedAt =
+                now.toISOString();
+        } catch (error) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_clock_unavailable"
+            };
+        }
+
+        let persistenceResult;
+
+        try {
+            persistenceResult =
+                await this.sourceFieldMappingPersistenceRepository
+                    .upsert({
+                        verifiedFacilityId:
+                            verifiedContext.facilityId,
+                        verifiedConnectorId:
+                            verifiedContext.connectorId,
+                        sourceDocumentKey:
+                            validatedSourceFieldMapping.sourceDocumentKey,
+                        sourceFieldKey:
+                            validatedSourceFieldMapping.sourceFieldKey,
+                        standardEntityName:
+                            validatedSourceFieldMapping.standardEntityName,
+                        standardFieldName:
+                            validatedSourceFieldMapping.standardFieldName,
+                        sheetName:
+                            validatedSourceFieldMapping.sheetName,
+                        headerLabel:
+                            validatedSourceFieldMapping.headerLabel,
+                        confirmedAt
+                    });
+        } catch (error) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_persistence_unavailable"
+            };
+        }
+
+        if (
+            !persistenceResult ||
+            typeof persistenceResult !== "object" ||
+            Array.isArray(persistenceResult)
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "source_field_mapping_persistence_invalid_result"
+            };
+        }
+
+        if (
+            [
+                "created",
+                "updated",
+                "unchanged"
+            ].includes(
+                persistenceResult.status
+            )
+        ) {
+            return {
+                status:
+                    persistenceResult.status
+            };
+        }
+
+        if (persistenceResult.status === "denied") {
+            return {
+                status: "denied",
+                errorCode:
+                    "source_field_mapping_persistence_denied"
+            };
+        }
+
+        if (persistenceResult.status === "invalid") {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_field_mapping_invalid"
+            };
+        }
+
+        return {
+            status: "error",
+            errorCode:
+                "source_field_mapping_persistence_invalid_result"
+        };
+    }
+
+    isValidVerifiedContext(
+        verifiedContext
+    ) {
+        return Boolean(
+            verifiedContext &&
+            typeof verifiedContext === "object" &&
+            !Array.isArray(verifiedContext) &&
+            typeof verifiedContext.connectorId === "string" &&
+            verifiedContext.connectorId.trim() &&
+            typeof verifiedContext.facilityId === "string" &&
+            verifiedContext.facilityId.trim()
+        );
+    }
+}
+
+module.exports =
+    SourceFieldMappingIngestionService;

@@ -259,3 +259,140 @@ test('完全な空行には直前の利用者情報を引き継がない', () =>
         '性格': '無口で穏やかな性格。'
     });
 });
+
+test('マッピング用の原本項目定義を列位置付きで抽出する', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractFieldDefinitions({
+        sheets: [
+            {
+                sheetName: '利用者一覧',
+                rows: [
+                    ['利用者番号', '氏名', '生年月日'],
+                    ['A001', 'テスト利用者', '2000-01-01']
+                ]
+            }
+        ]
+    });
+
+    assert.deepStrictEqual(result, [
+        {
+            sourceFieldKey: 'sheet:0:column:0',
+            sheetIndex: 0,
+            sheetName: '利用者一覧',
+            columnIndex: 0,
+            headerLabel: '利用者番号'
+        },
+        {
+            sourceFieldKey: 'sheet:0:column:1',
+            sheetIndex: 0,
+            sheetName: '利用者一覧',
+            columnIndex: 1,
+            headerLabel: '氏名'
+        },
+        {
+            sourceFieldKey: 'sheet:0:column:2',
+            sheetIndex: 0,
+            sheetName: '利用者一覧',
+            columnIndex: 2,
+            headerLabel: '生年月日'
+        }
+    ]);
+});
+
+test('同じ見出し名が複数列にあっても別の原本項目として保持する', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractFieldDefinitions({
+        sheets: [
+            {
+                sheetName: 'Sheet1',
+                rows: [
+                    ['氏名', '関係', '氏名'],
+                    ['本人', '家族', '家族氏名']
+                ]
+            }
+        ]
+    });
+
+    assert.equal(result.length, 3);
+
+    assert.deepStrictEqual(
+        result.map(field => ({
+            sourceFieldKey: field.sourceFieldKey,
+            columnIndex: field.columnIndex,
+            headerLabel: field.headerLabel
+        })),
+        [
+            {
+                sourceFieldKey: 'sheet:0:column:0',
+                columnIndex: 0,
+                headerLabel: '氏名'
+            },
+            {
+                sourceFieldKey: 'sheet:0:column:1',
+                columnIndex: 1,
+                headerLabel: '関係'
+            },
+            {
+                sourceFieldKey: 'sheet:0:column:2',
+                columnIndex: 2,
+                headerLabel: '氏名'
+            }
+        ]
+    );
+});
+
+test('空の見出しセルはマッピング対象の原本項目として追加しない', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractFieldDefinitions({
+        sheets: [
+            {
+                sheetName: 'Sheet1',
+                rows: [
+                    ['利用者番号', '', null, '氏名'],
+                    ['A001', 'unused', 'unused', 'テスト利用者']
+                ]
+            }
+        ]
+    });
+
+    assert.deepStrictEqual(
+        result.map(field => field.columnIndex),
+        [0, 3]
+    );
+});
+
+test('複数シートではsheetIndexを含むキーで項目を区別する', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractFieldDefinitions({
+        sheets: [
+            {
+                sheetName: 'Sheet1',
+                rows: [
+                    ['氏名', '生年月日'],
+                    ['利用者A', '2000-01-01']
+                ]
+            },
+            {
+                sheetName: 'Sheet2',
+                rows: [
+                    ['氏名', '生年月日'],
+                    ['利用者B', '2001-01-01']
+                ]
+            }
+        ]
+    });
+
+    assert.deepStrictEqual(
+        result.map(field => field.sourceFieldKey),
+        [
+            'sheet:0:column:0',
+            'sheet:0:column:1',
+            'sheet:1:column:0',
+            'sheet:1:column:1'
+        ]
+    );
+});

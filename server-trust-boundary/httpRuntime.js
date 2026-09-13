@@ -19,6 +19,25 @@ const SourceDocumentHttpAdapter =
 const SourceDocumentTransport =
     require("./SourceDocumentTransport");
 
+const SourceFieldMappingHttpAdapter =
+    require("./SourceFieldMappingHttpAdapter");
+
+const SourceFieldMappingTransport =
+    require("./SourceFieldMappingTransport");
+
+const SourceFieldInterpretationHttpAdapter =
+    require("./SourceFieldInterpretationHttpAdapter");
+
+const SourceFieldInterpretationTransport =
+    require("./SourceFieldInterpretationTransport");
+
+const SourceFieldInterpretationQueryHttpAdapter =
+    require("./SourceFieldInterpretationQueryHttpAdapter");
+
+const SourceFieldInterpretationQueryTransport =
+    require("./SourceFieldInterpretationQueryTransport");
+
+
 const {
     createServerTrustBoundaryApp
 } = require("./createServerTrustBoundaryApp");
@@ -118,6 +137,51 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const sourceFieldMappingHttpAdapter =
+        new SourceFieldMappingHttpAdapter({
+            ingestionService:
+                coreRuntime.sourceFieldMappingIngestionService,
+            diagnosticLogger
+        });
+
+    const sourceFieldMappingTransport =
+        new SourceFieldMappingTransport({
+            httpAdapter:
+                sourceFieldMappingHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceFieldInterpretationHttpAdapter =
+        new SourceFieldInterpretationHttpAdapter({
+            ingestionService:
+                coreRuntime.sourceFieldInterpretationIngestionService,
+            diagnosticLogger
+        });
+
+    const sourceFieldInterpretationTransport =
+        new SourceFieldInterpretationTransport({
+            httpAdapter:
+                sourceFieldInterpretationHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceFieldInterpretationQueryHttpAdapter =
+        new SourceFieldInterpretationQueryHttpAdapter({
+            queryService:
+                coreRuntime.sourceFieldInterpretationQueryService,
+            diagnosticLogger
+        });
+
+    const sourceFieldInterpretationQueryTransport =
+        new SourceFieldInterpretationQueryTransport({
+            httpAdapter:
+                sourceFieldInterpretationQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
@@ -125,6 +189,13 @@ function createServerTrustBoundaryHttpRuntime({
             sourceDocumentTransport,
             sourceDocumentEndpointPath:
                 "/connector/source-documents",
+            sourceFieldMappingTransport,
+            sourceFieldMappingEndpointPath:
+                "/connector/source-field-mappings",
+            sourceFieldInterpretationTransport,
+            sourceFieldInterpretationQueryTransport,
+            sourceFieldInterpretationEndpointPath:
+                "/connector/source-field-interpretations",
             jsonBodyLimit
         });
 

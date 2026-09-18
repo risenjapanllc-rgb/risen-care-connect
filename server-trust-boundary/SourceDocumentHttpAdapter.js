@@ -24,7 +24,11 @@ class SourceDocumentHttpAdapter {
                 : null;
     }
 
-    diagnoseError(requestId, internalErrorCode) {
+    diagnoseError(
+        requestId,
+        internalErrorCode,
+        persistencePhase = null
+    ) {
         if (!this.diagnosticLogger) {
             return;
         }
@@ -33,7 +37,15 @@ class SourceDocumentHttpAdapter {
             this.diagnosticLogger.error({
                 requestId,
                 status: "error",
-                internalErrorCode
+                internalErrorCode,
+                ...(typeof persistencePhase === "string" &&
+                [
+                    "prepare",
+                    "upload",
+                    "finalize"
+                ].includes(persistencePhase)
+                    ? { persistencePhase }
+                    : {})
             });
         } catch (error) {
             // Diagnostics must never affect request processing.
@@ -139,7 +151,8 @@ class SourceDocumentHttpAdapter {
 
             this.diagnoseError(
                 requestId,
-                internalErrorCode
+                internalErrorCode,
+                result.persistencePhase
             );
 
             return this.createSafeProcessingError(

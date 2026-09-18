@@ -195,6 +195,126 @@ class LocalConnectorService {
         };
     }
 
+    async resolveSourceSnapshot({
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
+    } = {}) {
+        if (!this.sourceDocumentRegistry) {
+            throw new Error(
+                "Source Document Registry is not configured"
+            );
+        }
+
+        if (
+            typeof sourceDocumentKey !== "string" ||
+            sourceDocumentKey.trim() === "" ||
+            typeof sourceUpdatedAt !== "string" ||
+            sourceUpdatedAt.trim() === "" ||
+            Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
+            const error =
+                new TypeError(
+                    "source snapshot is invalid"
+                );
+            error.code =
+                "source_snapshot_invalid";
+            throw error;
+        }
+
+        const normalizedUpdatedAt =
+            new Date(sourceUpdatedAt).toISOString();
+
+        const registryEntry =
+            await this.sourceDocumentRegistry
+                .findBySourceDocumentKey(
+                    sourceDocumentKey.trim()
+                );
+
+        if (!registryEntry) {
+            const error =
+                new Error(
+                    "Source document was not found"
+                );
+            error.code =
+                "source_document_not_found";
+            throw error;
+        }
+
+        const details =
+            await this._resolveRegisteredFileDetails(
+                registryEntry.relativePath
+            );
+
+        const currentUpdatedAt =
+            new Date(details.updatedAt).toISOString();
+
+        if (
+            currentUpdatedAt !==
+                normalizedUpdatedAt ||
+            details.size !== sourceSize
+        ) {
+            const error =
+                new Error(
+                    "Source document snapshot changed"
+                );
+            error.code =
+                "source_snapshot_changed";
+            throw error;
+        }
+
+        let analysis;
+
+        if (details.extension === ".csv") {
+            analysis =
+                await this.normalizeRegisteredCsv(
+                    registryEntry.relativePath
+                );
+        } else if (
+            details.extension === ".xlsx" ||
+            details.extension === ".xls"
+        ) {
+            analysis =
+                await this.normalizeRegisteredExcel(
+                    registryEntry.relativePath
+                );
+        } else {
+            const error =
+                new Error(
+                    "Source document is not a tabular source"
+                );
+            error.code =
+                "source_snapshot_unsupported";
+            throw error;
+        }
+
+        if (
+            !Array.isArray(
+                analysis?.extracted
+                    ?.sourceEntities
+            )
+        ) {
+            const error =
+                new Error(
+                    "Source entities are unavailable"
+                );
+            error.code =
+                "source_entities_unavailable";
+            throw error;
+        }
+
+        return {
+            sourceDocumentKey:
+                registryEntry.sourceDocumentKey,
+            sourceUpdatedAt:
+                normalizedUpdatedAt,
+            sourceSize,
+            analysis
+        };
+    }
+
     async observeRegisteredFile(fileName) {
         if (!this.sourceDocumentRegistry) {
             throw new Error("Source Document Registry is not configured");
@@ -338,6 +458,11 @@ class LocalConnectorService {
                 standardDocument.content
             );
 
+        const sourceEntities =
+            this.sourceFieldExtractor.extractSourceEntities(
+                standardDocument.content
+            );
+
         const interpretedSourceFields =
             sourceFields.map(record => ({
                 ...record,
@@ -352,6 +477,7 @@ class LocalConnectorService {
             extracted: {
                 ...extracted,
                 fieldDefinitions,
+                sourceEntities,
                 sourceFields:
                     interpretedSourceFields
             }
@@ -538,6 +664,11 @@ class LocalConnectorService {
                 standardDocument.content
             );
 
+        const sourceEntities =
+            this.sourceFieldExtractor.extractSourceEntities(
+                standardDocument.content
+            );
+
         const interpretedSourceFields =
             sourceFields.map(record => ({
                 ...record,
@@ -552,6 +683,7 @@ class LocalConnectorService {
             extracted: {
                 ...extracted,
                 fieldDefinitions,
+                sourceEntities,
                 sourceFields:
                     interpretedSourceFields
             }

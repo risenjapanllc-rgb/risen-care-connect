@@ -75,6 +75,24 @@ class SqliteSourceDocumentRegistryStore {
         return row ? this.toEntry(row) : null;
     }
 
+    findBySourceDocumentKey(sourceDocumentKey) {
+        const row = this.database.prepare(`
+            SELECT
+                source_document_key,
+                relative_path,
+                relative_path_lookup_key,
+                file_name,
+                first_seen_at,
+                last_seen_at,
+                last_observed_updated_at,
+                last_observed_size
+            FROM source_documents
+            WHERE source_document_key = ?
+        `).get(sourceDocumentKey);
+
+        return row ? this.toEntry(row) : null;
+    }
+
     insertEntry(entry) {
         this.database.prepare(`
             INSERT INTO source_documents (

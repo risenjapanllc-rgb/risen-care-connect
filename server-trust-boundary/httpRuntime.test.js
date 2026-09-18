@@ -25,7 +25,9 @@ test("creates complete Server Trust Boundary HTTP runtime", () => {
             endpointPath:
                 "/connector/ingest",
             jsonBodyLimit:
-                "100kb"
+                "100kb",
+            sourceDocumentJsonBodyLimit:
+                "25mb"
         });
 
     assert.ok(runtime);
@@ -72,6 +74,8 @@ test("accepts diagnostic logger without exposing it from runtime", () => {
                 "/connector/ingest",
             jsonBodyLimit:
                 "100kb",
+            sourceDocumentJsonBodyLimit:
+                "25mb",
             diagnosticLogger: {
                 error() {}
             }
@@ -133,7 +137,9 @@ test("mounts source-document endpoint in HTTP runtime", async () => {
             endpointPath:
                 "/connector/ingest",
             jsonBodyLimit:
-                "100kb"
+                "100kb",
+            sourceDocumentJsonBodyLimit:
+                "25mb"
         });
 
     await withServer(
@@ -211,7 +217,9 @@ test("mounts source-field-mapping endpoint in HTTP runtime", async () => {
             endpointPath:
                 "/connector/ingest",
             jsonBodyLimit:
-                "100kb"
+                "100kb",
+            sourceDocumentJsonBodyLimit:
+                "25mb"
         });
 
     await withServer(

@@ -79,6 +79,38 @@ class SourceDocumentRegistry {
         return registryEntry;
     }
 
+    async findBySourceDocumentKey(sourceDocumentKey) {
+        if (!this.isNonEmptyString(sourceDocumentKey)) {
+            throw new TypeError(
+                "sourceDocumentKey is required"
+            );
+        }
+
+        if (
+            typeof this.registryStore
+                .findBySourceDocumentKey !== "function"
+        ) {
+            throw new Error(
+                "registryStore does not support sourceDocumentKey lookup"
+            );
+        }
+
+        const entry =
+            this.registryStore
+                .findBySourceDocumentKey(
+                    sourceDocumentKey.trim()
+                );
+
+        if (!entry) {
+            return null;
+        }
+
+        return this.toRegistryEntry(
+            entry,
+            entry.relativePathLookupKey
+        );
+    }
+
     async createEntry(observation, relativePathLookupKey, observedAt) {
         const sourceDocumentKey = await this.sourceDocumentKeyGenerator.generate();
         if (

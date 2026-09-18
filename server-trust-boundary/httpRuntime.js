@@ -25,6 +25,12 @@ const SourceFieldMappingHttpAdapter =
 const SourceFieldMappingTransport =
     require("./SourceFieldMappingTransport");
 
+const SourceFieldMappingQueryHttpAdapter =
+    require("./SourceFieldMappingQueryHttpAdapter");
+
+const SourceFieldMappingQueryTransport =
+    require("./SourceFieldMappingQueryTransport");
+
 const SourceFieldInterpretationHttpAdapter =
     require("./SourceFieldInterpretationHttpAdapter");
 
@@ -36,6 +42,69 @@ const SourceFieldInterpretationQueryHttpAdapter =
 
 const SourceFieldInterpretationQueryTransport =
     require("./SourceFieldInterpretationQueryTransport");
+
+const ConnectorResidentCandidateHttpAdapter =
+    require("./ConnectorResidentCandidateHttpAdapter");
+
+const ConnectorResidentCandidateTransport =
+    require("./ConnectorResidentCandidateTransport");
+
+const SourceResidentLinkHttpAdapter =
+    require("./SourceResidentLinkHttpAdapter");
+
+const SourceResidentLinkTransport =
+    require("./SourceResidentLinkTransport");
+
+const SourceResidentLinkQueryHttpAdapter =
+    require("./SourceResidentLinkQueryHttpAdapter");
+
+const SourceResidentLinkQueryTransport =
+    require("./SourceResidentLinkQueryTransport");
+
+const SourceResidentMappingHttpAdapter =
+    require("./SourceResidentMappingHttpAdapter");
+
+const SourceResidentMappingTransport =
+    require("./SourceResidentMappingTransport");
+
+const SourceResidentMappingQueryHttpAdapter =
+    require("./SourceResidentMappingQueryHttpAdapter");
+
+const SourceResidentMappingQueryTransport =
+    require("./SourceResidentMappingQueryTransport");
+
+const SourceRecordIdentityMappingHttpAdapter =
+    require("./SourceRecordIdentityMappingHttpAdapter");
+
+const SourceRecordIdentityMappingTransport =
+    require("./SourceRecordIdentityMappingTransport");
+
+const SourceRecordIdentityMappingQueryHttpAdapter =
+    require("./SourceRecordIdentityMappingQueryHttpAdapter");
+
+const SourceRecordIdentityMappingQueryTransport =
+    require("./SourceRecordIdentityMappingQueryTransport");
+
+const ConnectorSemanticRecordPreviewHttpAdapter =
+    require("./ConnectorSemanticRecordPreviewHttpAdapter");
+
+const ConnectorSemanticRecordPreviewTransport =
+    require("./ConnectorSemanticRecordPreviewTransport");
+
+const ConnectorSupportRecordBatchWriteHttpAdapter =
+    require("./ConnectorSupportRecordBatchWriteHttpAdapter");
+
+const ConnectorSupportRecordBatchWriteTransport =
+    require("./ConnectorSupportRecordBatchWriteTransport");
+
+const ResidentCreationHttpAdapter =
+    require("./ResidentCreationHttpAdapter");
+
+const ResidentCreationTransport =
+    require("./ResidentCreationTransport");
+
+
+
 
 
 const {
@@ -57,6 +126,7 @@ function createServerTrustBoundaryHttpRuntime({
     connectorIdHeader,
     endpointPath,
     jsonBodyLimit,
+    sourceDocumentJsonBodyLimit,
     diagnosticLogger
 } = {}) {
     if (
@@ -92,6 +162,15 @@ function createServerTrustBoundaryHttpRuntime({
     ) {
         throw new Error(
             "createServerTrustBoundaryHttpRuntime requires jsonBodyLimit"
+        );
+    }
+
+    if (
+        typeof sourceDocumentJsonBodyLimit !== "string" ||
+        !sourceDocumentJsonBodyLimit.trim()
+    ) {
+        throw new Error(
+            "createServerTrustBoundaryHttpRuntime requires sourceDocumentJsonBodyLimit"
         );
     }
 
@@ -152,6 +231,21 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const sourceFieldMappingQueryHttpAdapter =
+        new SourceFieldMappingQueryHttpAdapter({
+            queryService:
+                coreRuntime.sourceFieldMappingQueryService,
+            diagnosticLogger
+        });
+
+    const sourceFieldMappingQueryTransport =
+        new SourceFieldMappingQueryTransport({
+            httpAdapter:
+                sourceFieldMappingQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const sourceFieldInterpretationHttpAdapter =
         new SourceFieldInterpretationHttpAdapter({
             ingestionService:
@@ -182,6 +276,156 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const connectorResidentCandidateHttpAdapter =
+        new ConnectorResidentCandidateHttpAdapter({
+            candidateService:
+                coreRuntime.connectorResidentCandidateService,
+            diagnosticLogger
+        });
+
+    const connectorResidentCandidateTransport =
+        new ConnectorResidentCandidateTransport({
+            httpAdapter:
+                connectorResidentCandidateHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceResidentLinkHttpAdapter =
+        new SourceResidentLinkHttpAdapter({
+            persistenceService:
+                coreRuntime.sourceResidentLinkPersistenceService,
+            diagnosticLogger
+        });
+
+    const sourceResidentLinkTransport =
+        new SourceResidentLinkTransport({
+            httpAdapter:
+                sourceResidentLinkHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceResidentLinkQueryHttpAdapter =
+        new SourceResidentLinkQueryHttpAdapter({
+            queryService:
+                coreRuntime.sourceResidentLinkQueryService,
+            diagnosticLogger
+        });
+
+    const sourceResidentLinkQueryTransport =
+        new SourceResidentLinkQueryTransport({
+            httpAdapter:
+                sourceResidentLinkQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceResidentMappingHttpAdapter =
+        new SourceResidentMappingHttpAdapter({
+            persistenceService:
+                coreRuntime.sourceResidentMappingPersistenceService,
+            diagnosticLogger
+        });
+
+    const sourceResidentMappingTransport =
+        new SourceResidentMappingTransport({
+            httpAdapter:
+                sourceResidentMappingHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceResidentMappingQueryHttpAdapter =
+        new SourceResidentMappingQueryHttpAdapter({
+            queryService:
+                coreRuntime.sourceResidentMappingQueryService,
+            diagnosticLogger
+        });
+
+    const sourceResidentMappingQueryTransport =
+        new SourceResidentMappingQueryTransport({
+            httpAdapter:
+                sourceResidentMappingQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceRecordIdentityMappingHttpAdapter =
+        new SourceRecordIdentityMappingHttpAdapter({
+            persistenceService:
+                coreRuntime.sourceRecordIdentityMappingPersistenceService,
+            diagnosticLogger
+        });
+
+    const sourceRecordIdentityMappingTransport =
+        new SourceRecordIdentityMappingTransport({
+            httpAdapter:
+                sourceRecordIdentityMappingHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceRecordIdentityMappingQueryHttpAdapter =
+        new SourceRecordIdentityMappingQueryHttpAdapter({
+            queryService:
+                coreRuntime.sourceRecordIdentityMappingQueryService,
+            diagnosticLogger
+        });
+
+    const sourceRecordIdentityMappingQueryTransport =
+        new SourceRecordIdentityMappingQueryTransport({
+            httpAdapter:
+                sourceRecordIdentityMappingQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const connectorSemanticRecordPreviewHttpAdapter =
+        new ConnectorSemanticRecordPreviewHttpAdapter({
+            previewService:
+                coreRuntime.connectorSemanticRecordPreviewService,
+            diagnosticLogger
+        });
+
+    const connectorSemanticRecordPreviewTransport =
+        new ConnectorSemanticRecordPreviewTransport({
+            httpAdapter:
+                connectorSemanticRecordPreviewHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const connectorSupportRecordBatchWriteHttpAdapter =
+        new ConnectorSupportRecordBatchWriteHttpAdapter({
+            batchWriteService:
+                coreRuntime.connectorSupportRecordBatchWriteService,
+            diagnosticLogger
+        });
+
+    const connectorSupportRecordBatchWriteTransport =
+        new ConnectorSupportRecordBatchWriteTransport({
+            httpAdapter:
+                connectorSupportRecordBatchWriteHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const residentCreationHttpAdapter =
+        new ResidentCreationHttpAdapter({
+            residentCreationService:
+                coreRuntime.residentCreationService,
+            diagnosticLogger
+        });
+
+    const residentCreationTransport =
+        new ResidentCreationTransport({
+            httpAdapter:
+                residentCreationHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
@@ -190,13 +434,39 @@ function createServerTrustBoundaryHttpRuntime({
             sourceDocumentEndpointPath:
                 "/connector/source-documents",
             sourceFieldMappingTransport,
+            sourceFieldMappingQueryTransport,
             sourceFieldMappingEndpointPath:
                 "/connector/source-field-mappings",
             sourceFieldInterpretationTransport,
             sourceFieldInterpretationQueryTransport,
+            connectorResidentCandidateTransport,
+            connectorResidentCandidateEndpointPath:
+                "/connector/resident-candidates",
+            sourceResidentLinkTransport,
+            sourceResidentLinkQueryTransport,
+            sourceResidentLinkEndpointPath:
+                "/connector/source-resident-links",
+            sourceResidentMappingTransport,
+            sourceResidentMappingQueryTransport,
+            sourceResidentMappingEndpointPath:
+                "/connector/source-resident-mappings",
+            sourceRecordIdentityMappingTransport,
+            sourceRecordIdentityMappingQueryTransport,
+            sourceRecordIdentityMappingEndpointPath:
+                "/connector/source-record-identity-mapping",
+            connectorSemanticRecordPreviewTransport,
+            connectorSemanticRecordPreviewEndpointPath:
+                "/connector/semantic-record-preview",
+            connectorSupportRecordBatchWriteTransport,
+            connectorSupportRecordBatchWriteEndpointPath:
+                "/connector/support-record-batch-write",
+            residentCreationTransport,
+            residentCreationEndpointPath:
+                "/connector/residents",
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",
-            jsonBodyLimit
+            jsonBodyLimit,
+            sourceDocumentJsonBodyLimit
         });
 
     return {

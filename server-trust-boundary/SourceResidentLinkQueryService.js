@@ -1,0 +1,150 @@
+"use strict";
+
+class SourceResidentLinkQueryService {
+    constructor({
+        connectorTrustService,
+        sourceResidentLinkQueryRepository
+    } = {}) {
+        if (
+            !connectorTrustService ||
+            typeof connectorTrustService.authenticate !==
+                "function"
+        ) {
+            throw new Error(
+                "SourceResidentLinkQueryService requires connectorTrustService"
+            );
+        }
+
+        if (
+            !sourceResidentLinkQueryRepository ||
+            typeof sourceResidentLinkQueryRepository.list !==
+                "function"
+        ) {
+            throw new Error(
+                "SourceResidentLinkQueryService requires sourceResidentLinkQueryRepository"
+            );
+        }
+
+        this.connectorTrustService =
+            connectorTrustService;
+
+        this.sourceResidentLinkQueryRepository =
+            sourceResidentLinkQueryRepository;
+    }
+
+    async list({
+        connectorId,
+        credential,
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
+    } = {}) {
+        let trustResult;
+
+        try {
+            trustResult =
+                await this.connectorTrustService.authenticate({
+                    connectorId,
+                    credential
+                });
+        } catch {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_unavailable"
+            };
+        }
+
+        if (
+            !trustResult ||
+            typeof trustResult !== "object" ||
+            Array.isArray(trustResult)
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_invalid_result"
+            };
+        }
+
+        if (trustResult.status === "denied") {
+            return {
+                status: "denied",
+                errorCode:
+                    "connector_trust_denied"
+            };
+        }
+
+        if (
+            trustResult.status !== "verified" ||
+            !trustResult.verifiedContext ||
+            typeof trustResult.verifiedContext !==
+                "object" ||
+            Array.isArray(
+                trustResult.verifiedContext
+            ) ||
+            typeof trustResult.verifiedContext.facilityId !==
+                "string" ||
+            !trustResult.verifiedContext.facilityId.trim() ||
+            typeof trustResult.verifiedContext.connectorId !==
+                "string" ||
+            !trustResult.verifiedContext.connectorId.trim()
+        ) {
+            return {
+                status: "error",
+                errorCode:
+                    "connector_trust_invalid_result"
+            };
+        }
+
+        if (
+            typeof sourceDocumentKey !== "string" ||
+            !sourceDocumentKey.trim() ||
+            typeof sourceUpdatedAt !== "string" ||
+            !sourceUpdatedAt.trim() ||
+            Number.isNaN(
+                Date.parse(sourceUpdatedAt)
+            ) ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_resident_link_query_invalid"
+            };
+        }
+
+        try {
+            return await this
+                .sourceResidentLinkQueryRepository
+                .list({
+                    verifiedFacilityId:
+                        trustResult
+                            .verifiedContext
+                            .facilityId
+                            .trim(),
+                    verifiedConnectorId:
+                        trustResult
+                            .verifiedContext
+                            .connectorId
+                            .trim(),
+                    sourceDocumentKey:
+                        sourceDocumentKey.trim(),
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+        } catch {
+            return {
+                status: "error",
+                errorCode:
+                    "source_resident_link_query_unavailable"
+            };
+        }
+    }
+}
+
+module.exports =
+    SourceResidentLinkQueryService;

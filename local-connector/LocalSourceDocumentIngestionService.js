@@ -41,7 +41,10 @@ class LocalSourceDocumentIngestionService {
             clock;
     }
 
-    async ingestRegisteredFile(relativePath) {
+    async ingestRegisteredFile(
+        relativePath,
+        expectedSnapshot = null
+    ) {
         if (
             typeof relativePath !== "string" ||
             relativePath.trim() === ""
@@ -90,11 +93,91 @@ class LocalSourceDocumentIngestionService {
             );
         }
 
-        const sourceDocument = {
+        const currentSnapshot = {
             sourceDocumentKey:
                 observation
                     .sourceDocumentKey
                     .trim(),
+
+            sourceUpdatedAt:
+                typeof raw.source.updatedAt === "string" &&
+                raw.source.updatedAt.trim() !== "" &&
+                !Number.isNaN(
+                    Date.parse(raw.source.updatedAt)
+                )
+                    ? new Date(
+                        raw.source.updatedAt
+                    ).toISOString()
+                    : null,
+
+            sourceSize:
+                Number.isSafeInteger(
+                    raw.source.size
+                ) &&
+                raw.source.size >= 0
+                    ? raw.source.size
+                    : null
+        };
+
+        if (expectedSnapshot !== null) {
+            const expectedIsValid =
+                expectedSnapshot &&
+                typeof expectedSnapshot === "object" &&
+                !Array.isArray(expectedSnapshot) &&
+                typeof expectedSnapshot.sourceDocumentKey === "string" &&
+                expectedSnapshot.sourceDocumentKey.trim() !== "" &&
+                typeof expectedSnapshot.sourceUpdatedAt === "string" &&
+                expectedSnapshot.sourceUpdatedAt.trim() !== "" &&
+                !Number.isNaN(
+                    Date.parse(
+                        expectedSnapshot.sourceUpdatedAt
+                    )
+                ) &&
+                Number.isSafeInteger(
+                    expectedSnapshot.sourceSize
+                ) &&
+                expectedSnapshot.sourceSize >= 0;
+
+            if (!expectedIsValid) {
+                const error =
+                    new Error(
+                        "expected source snapshot invalid"
+                    );
+
+                error.code =
+                    "source_snapshot_invalid";
+
+                throw error;
+            }
+
+            const expectedUpdatedAt =
+                new Date(
+                    expectedSnapshot.sourceUpdatedAt
+                ).toISOString();
+
+            if (
+                currentSnapshot.sourceDocumentKey !==
+                    expectedSnapshot.sourceDocumentKey.trim() ||
+                currentSnapshot.sourceUpdatedAt !==
+                    expectedUpdatedAt ||
+                currentSnapshot.sourceSize !==
+                    expectedSnapshot.sourceSize
+            ) {
+                const error =
+                    new Error(
+                        "source snapshot changed"
+                    );
+
+                error.code =
+                    "source_snapshot_changed";
+
+                throw error;
+            }
+        }
+
+        const sourceDocument = {
+            sourceDocumentKey:
+                currentSnapshot.sourceDocumentKey,
 
             sourceType:
                 raw.sourceType.trim(),
@@ -109,15 +192,10 @@ class LocalSourceDocumentIngestionService {
                 ),
 
             sourceUpdatedAt:
-                raw.source.updatedAt || null,
+                currentSnapshot.sourceUpdatedAt,
 
             sourceSize:
-                Number.isInteger(
-                    raw.source.size
-                ) &&
-                raw.source.size >= 0
-                    ? raw.source.size
-                    : null,
+                currentSnapshot.sourceSize,
 
             observedAt:
                 this.clock()

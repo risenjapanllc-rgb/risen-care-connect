@@ -160,6 +160,41 @@ test("same path reuses the stored key despite updated size and time", async () =
     assert.strictEqual(generatorCalls, 0);
 });
 
+test("finds an allowlisted registry entry by opaque sourceDocumentKey", async () => {
+    const stored = createEntry({
+        ...createObservation(),
+        relativePathLookupKey: "support.docx"
+    });
+
+    const { registry } = createRegistry({
+        storeOverrides: {
+            findBySourceDocumentKey(sourceDocumentKey) {
+                return sourceDocumentKey ===
+                    stored.sourceDocumentKey
+                    ? stored
+                    : null;
+            }
+        }
+    });
+
+    const entry =
+        await registry.findBySourceDocumentKey(
+            stored.sourceDocumentKey
+        );
+
+    assert.deepStrictEqual(
+        entry,
+        stored
+    );
+
+    assert.strictEqual(
+        await registry.findBySourceDocumentKey(
+            "opaque-document-key-missing"
+        ),
+        null
+    );
+});
+
 test("different paths can receive distinct keys", async () => {
     let sequence = 0;
     const entries = new Map();

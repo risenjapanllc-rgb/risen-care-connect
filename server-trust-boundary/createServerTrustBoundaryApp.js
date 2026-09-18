@@ -19,13 +19,40 @@ function createServerTrustBoundaryApp({
     sourceDocumentEndpointPath =
         "/connector/source-documents",
     sourceFieldMappingTransport,
+    sourceFieldMappingQueryTransport,
     sourceFieldMappingEndpointPath =
         "/connector/source-field-mappings",
     sourceFieldInterpretationTransport,
     sourceFieldInterpretationQueryTransport,
     sourceFieldInterpretationEndpointPath =
         "/connector/source-field-interpretations",
-    jsonBodyLimit = "100kb"
+    connectorResidentCandidateTransport,
+    connectorResidentCandidateEndpointPath =
+        "/connector/resident-candidates",
+    sourceResidentLinkTransport,
+    sourceResidentLinkQueryTransport,
+    sourceResidentLinkEndpointPath =
+        "/connector/source-resident-links",
+    sourceResidentMappingTransport,
+    sourceResidentMappingQueryTransport,
+    sourceResidentMappingEndpointPath =
+        "/connector/source-resident-mappings",
+    sourceRecordIdentityMappingTransport,
+    sourceRecordIdentityMappingQueryTransport,
+    sourceRecordIdentityMappingEndpointPath =
+        "/connector/source-record-identity-mapping",
+    connectorSemanticRecordPreviewTransport,
+    connectorSemanticRecordPreviewEndpointPath =
+        "/connector/semantic-record-preview",
+    connectorSupportRecordBatchWriteTransport,
+    connectorSupportRecordBatchWriteEndpointPath =
+        "/connector/support-record-batch-write",
+    residentCreationTransport,
+    residentCreationEndpointPath =
+        "/connector/residents",
+    jsonBodyLimit = "100kb",
+    sourceDocumentJsonBodyLimit =
+        jsonBodyLimit
 } = {}) {
     if (
         !transport ||
@@ -42,11 +69,35 @@ function createServerTrustBoundaryApp({
 
     app.disable("x-powered-by");
 
-    app.use(
+    const defaultJsonParser =
         express.json({
             strict: true,
             limit: jsonBodyLimit
-        })
+        });
+
+    const sourceDocumentJsonParser =
+        express.json({
+            strict: true,
+            limit:
+                sourceDocumentJsonBodyLimit
+        });
+
+    app.use(
+        (req, res, next) => {
+            if (
+                sourceDocumentTransport &&
+                req.path ===
+                    sourceDocumentEndpointPath
+            ) {
+                return next();
+            }
+
+            return defaultJsonParser(
+                req,
+                res,
+                next
+            );
+        }
     );
 
     app.all(
@@ -86,6 +137,7 @@ function createServerTrustBoundaryApp({
 
         app.all(
             sourceDocumentEndpointPath,
+            sourceDocumentJsonParser,
             async (req, res, next) => {
                 try {
                     const result =
@@ -120,7 +172,19 @@ function createServerTrustBoundaryApp({
             );
         }
 
-        app.all(
+        if (
+            sourceFieldMappingQueryTransport &&
+            (
+                typeof sourceFieldMappingQueryTransport.handle !== "function" ||
+                typeof sourceFieldMappingQueryTransport.createErrorResponse !== "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceFieldMappingQueryTransport"
+            );
+        }
+
+        app.post(
             sourceFieldMappingEndpointPath,
             async (req, res, next) => {
                 try {
@@ -144,6 +208,31 @@ function createServerTrustBoundaryApp({
                 }
             }
         );
+
+        if (sourceFieldMappingQueryTransport) {
+            app.get(
+                sourceFieldMappingEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await sourceFieldMappingQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
     }
 
     if (sourceFieldInterpretationTransport) {
@@ -217,6 +306,389 @@ function createServerTrustBoundaryApp({
                 }
             );
         }
+    }
+
+    if (connectorResidentCandidateTransport) {
+        if (
+            typeof connectorResidentCandidateTransport.handle !==
+                "function" ||
+            typeof connectorResidentCandidateTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorResidentCandidateTransport"
+            );
+        }
+
+        app.all(
+            connectorResidentCandidateEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorResidentCandidateTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceResidentLinkTransport) {
+        if (
+            typeof sourceResidentLinkTransport.handle !==
+                "function" ||
+            typeof sourceResidentLinkTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceResidentLinkTransport"
+            );
+        }
+
+        if (
+            sourceResidentLinkQueryTransport &&
+            (
+                typeof sourceResidentLinkQueryTransport.handle !==
+                    "function" ||
+                typeof sourceResidentLinkQueryTransport.createErrorResponse !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceResidentLinkQueryTransport"
+            );
+        }
+
+        app.post(
+            sourceResidentLinkEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceResidentLinkTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (sourceResidentLinkQueryTransport) {
+            app.get(
+                sourceResidentLinkEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await sourceResidentLinkQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
+    }
+
+    if (sourceResidentMappingTransport) {
+        if (
+            typeof sourceResidentMappingTransport.handle !==
+                "function" ||
+            typeof sourceResidentMappingTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceResidentMappingTransport"
+            );
+        }
+
+        if (
+            sourceResidentMappingQueryTransport &&
+            (
+                typeof sourceResidentMappingQueryTransport.handle !==
+                    "function" ||
+                typeof sourceResidentMappingQueryTransport.createErrorResponse !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceResidentMappingQueryTransport"
+            );
+        }
+
+        app.post(
+            sourceResidentMappingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceResidentMappingTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (sourceResidentMappingQueryTransport) {
+            app.get(
+                sourceResidentMappingEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await sourceResidentMappingQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
+    }
+
+    if (sourceRecordIdentityMappingTransport) {
+        if (
+            typeof sourceRecordIdentityMappingTransport.handle !==
+                "function" ||
+            typeof sourceRecordIdentityMappingTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceRecordIdentityMappingTransport"
+            );
+        }
+
+        if (
+            sourceRecordIdentityMappingQueryTransport &&
+            (
+                typeof sourceRecordIdentityMappingQueryTransport.handle !==
+                    "function" ||
+                typeof sourceRecordIdentityMappingQueryTransport.createErrorResponse !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceRecordIdentityMappingQueryTransport"
+            );
+        }
+
+        app.post(
+            sourceRecordIdentityMappingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceRecordIdentityMappingTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (sourceRecordIdentityMappingQueryTransport) {
+            app.get(
+                sourceRecordIdentityMappingEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await sourceRecordIdentityMappingQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
+    }
+
+    if (connectorSemanticRecordPreviewTransport) {
+        if (
+            typeof connectorSemanticRecordPreviewTransport.handle !==
+                "function" ||
+            typeof connectorSemanticRecordPreviewTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorSemanticRecordPreviewTransport"
+            );
+        }
+
+        app.post(
+            connectorSemanticRecordPreviewEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorSemanticRecordPreviewTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorSupportRecordBatchWriteTransport) {
+        if (
+            typeof connectorSupportRecordBatchWriteTransport.handle !==
+                "function" ||
+            typeof connectorSupportRecordBatchWriteTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorSupportRecordBatchWriteTransport"
+            );
+        }
+
+        app.post(
+            connectorSupportRecordBatchWriteEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorSupportRecordBatchWriteTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (residentCreationTransport) {
+        if (
+            typeof residentCreationTransport.handle !==
+                "function" ||
+            typeof residentCreationTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete residentCreationTransport"
+            );
+        }
+
+        app.post(
+            residentCreationEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await residentCreationTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
     }
 
     app.use(

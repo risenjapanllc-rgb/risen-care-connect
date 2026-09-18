@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <link rel="icon" href="data:,">
     <meta charset="UTF-8">
     <meta
         name="viewport"
@@ -123,6 +124,119 @@
 
         </section>
 
+        <section class="csv-step" data-step="4" hidden>
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 4</span>
+                <h2>利用者紐付け</h2>
+            </div>
+
+            <div
+                id="residentLinkingSummary"
+                class="validation-card"
+            >
+                利用者候補を確認します。
+            </div>
+
+            <div
+                id="residentLinkingList"
+                class="validation-card"
+                style="margin-top: 16px;"
+            >
+                利用者候補を取得しています...
+            </div>
+
+            <div class="bottom-actions csv-step-actions">
+                <button
+                    id="residentLinkingBackButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    項目確認に戻る
+                </button>
+
+                <button
+                    id="residentLinkingNextButton"
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    取り込みプレビューへ
+                </button>
+            </div>
+
+        </section>
+
+        <section class="csv-step" data-step="5" hidden>
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 5</span>
+                <h2>取り込みプレビュー</h2>
+            </div>
+
+            <div
+                id="importPreviewSummary"
+                class="validation-card"
+            >
+                取り込み内容を確認しています。
+            </div>
+
+            <div class="bottom-actions csv-step-actions">
+                <button
+                    id="importPreviewBackButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    利用者紐付けに戻る
+                </button>
+
+                <button
+                    id="importPreviewNextButton"
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    最終確定へ
+                </button>
+            </div>
+
+        </section>
+
+        <section class="csv-step" data-step="6" hidden>
+
+            <div class="csv-step__head">
+                <span class="result-step">STEP 6</span>
+                <h2>最終確定</h2>
+            </div>
+
+            <div
+                id="importExecutionSummary"
+                class="validation-card"
+            >
+                最終確定する取り込み内容を確認してください。
+            </div>
+
+            <div class="bottom-actions csv-step-actions">
+                <button
+                    id="importExecutionBackButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    取り込みプレビューに戻る
+                </button>
+
+                <button
+                    id="importExecutionConfirmButton"
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    この内容で取り込む
+                </button>
+            </div>
+
+        </section>
+
     </section>
 
 </main>
@@ -133,7 +247,7 @@
 
 <script src="/js/common.js"></script>
 <script src="/js/standard-field-mapping.js?v=20260912-2"></script>
-<script src="/js/local-connector.js?v=20260912-review-state-restore-1"></script>
+<script src="/js/local-connector.js?v=20260917-step6-execute-1"></script>
 
 </body>
 </html>

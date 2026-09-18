@@ -396,3 +396,78 @@ test('複数シートではsheetIndexを含むキーで項目を区別する', (
         ]
     );
 });
+
+test('extractSourceEntities keeps duplicate physical rows with distinct sourceEntityKey values', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractSourceEntities({
+        sheets: [
+            {
+                sheetName: 'Sheet1',
+                rows: [
+                    ['利用者ID', '氏名'],
+                    ['A001', '山田太郎'],
+                    ['A001', '山田太郎']
+                ]
+            }
+        ]
+    });
+
+    assert.deepStrictEqual(result, [
+        {
+            sourceEntityKey: 'sheet:0:row:2',
+            sheetIndex: 0,
+            sheetName: 'Sheet1',
+            rowIndex: 2,
+            fields: {
+                利用者ID: 'A001',
+                氏名: '山田太郎'
+            },
+            valuesBySourceFieldKey: {
+                'sheet:0:column:0': 'A001',
+                'sheet:0:column:1': '山田太郎'
+            }
+        },
+        {
+            sourceEntityKey: 'sheet:0:row:3',
+            sheetIndex: 0,
+            sheetName: 'Sheet1',
+            rowIndex: 3,
+            fields: {
+                利用者ID: 'A001',
+                氏名: '山田太郎'
+            },
+            valuesBySourceFieldKey: {
+                'sheet:0:column:0': 'A001',
+                'sheet:0:column:1': '山田太郎'
+            }
+        }
+    ]);
+});
+
+
+test('extractSourceEntities preserves duplicate header columns by sourceFieldKey', () => {
+    const extractor = new SourceFieldExtractor();
+
+    const result = extractor.extractSourceEntities({
+        sheets: [
+            {
+                sheetName: 'Sheet1',
+                rows: [
+                    ['コード', 'コード'],
+                    ['A001', 'B001']
+                ]
+            }
+        ]
+    });
+
+    assert.strictEqual(result.length, 1);
+
+    assert.deepStrictEqual(
+        result[0].valuesBySourceFieldKey,
+        {
+            'sheet:0:column:0': 'A001',
+            'sheet:0:column:1': 'B001'
+        }
+    );
+});

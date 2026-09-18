@@ -60,6 +60,12 @@ const SupabaseSourceFieldMappingPersistenceRepository =
 const SourceFieldMappingIngestionService =
     require("./SourceFieldMappingIngestionService");
 
+const SupabaseSourceFieldMappingQueryRepository =
+    require("./SupabaseSourceFieldMappingQueryRepository");
+
+const SourceFieldMappingQueryService =
+    require("./SourceFieldMappingQueryService");
+
 const SourceFieldInterpretationPayloadValidator =
     require("./SourceFieldInterpretationPayloadValidator");
 
@@ -74,6 +80,51 @@ const SupabaseSourceFieldInterpretationQueryRepository =
 
 const SourceFieldInterpretationQueryService =
     require("./SourceFieldInterpretationQueryService");
+
+const ConnectorResidentCandidateRepository =
+    require("./ConnectorResidentCandidateRepository");
+
+const ConnectorResidentCandidateService =
+    require("./ConnectorResidentCandidateService");
+
+const SupabaseSourceResidentLinkPersistenceRepository =
+    require("./SupabaseSourceResidentLinkPersistenceRepository");
+
+const SourceResidentLinkPersistenceService =
+    require("./SourceResidentLinkPersistenceService");
+
+const SupabaseSourceResidentLinkQueryRepository =
+    require("./SupabaseSourceResidentLinkQueryRepository");
+
+const SourceResidentLinkQueryService =
+    require("./SourceResidentLinkQueryService");
+
+const SupabaseSourceResidentMappingPersistenceRepository =
+    require("./SupabaseSourceResidentMappingPersistenceRepository");
+
+const SourceResidentMappingPersistenceService =
+    require("./SourceResidentMappingPersistenceService");
+
+const SupabaseSourceResidentMappingQueryRepository =
+    require("./SupabaseSourceResidentMappingQueryRepository");
+
+const SourceResidentMappingQueryService =
+    require("./SourceResidentMappingQueryService");
+
+const SupabaseSourceRecordIdentityMappingRepository =
+    require("./SupabaseSourceRecordIdentityMappingRepository");
+
+const SourceRecordIdentityMappingPersistenceService =
+    require("./SourceRecordIdentityMappingPersistenceService");
+
+const SourceRecordIdentityMappingQueryService =
+    require("./SourceRecordIdentityMappingQueryService");
+
+const SupabaseResidentCreationRepository =
+    require("./SupabaseResidentCreationRepository");
+
+const ResidentCreationService =
+    require("./ResidentCreationService");
 
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
@@ -116,6 +167,18 @@ const SemanticIngestionService =
 
 const SemanticPersistenceService =
     require("../server-domain/storage/SemanticPersistenceService");
+
+const SupabaseConnectorSemanticRecordPreviewRepository =
+    require("./SupabaseConnectorSemanticRecordPreviewRepository");
+
+const ConnectorSemanticRecordPreviewService =
+    require("./ConnectorSemanticRecordPreviewService");
+
+const ConnectorSupportRecordPersistenceService =
+    require("./ConnectorSupportRecordPersistenceService");
+
+const ConnectorSupportRecordBatchWriteService =
+    require("./ConnectorSupportRecordBatchWriteService");
 
 /**
  * Build the Server Trust Boundary runtime.
@@ -238,6 +301,19 @@ function createServerTrustBoundaryRuntime({
             accessTokenProvider
         });
 
+    const semanticRecordPreviewRepository =
+        new SupabaseConnectorSemanticRecordPreviewRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorSemanticRecordPreviewService =
+        new ConnectorSemanticRecordPreviewService({
+            connectorTrustService,
+            semanticRecordPreviewRepository
+        });
+
     const canonicalizationCompatibilityPolicy =
         new CanonicalizationCompatibilityPolicy();
 
@@ -266,6 +342,20 @@ function createServerTrustBoundaryRuntime({
     const semanticPersistenceService =
         new SemanticPersistenceService({
             semanticRecordPersistenceRepository
+        });
+
+    const connectorSupportRecordPersistenceService =
+        new ConnectorSupportRecordPersistenceService({
+            semanticRecordPersistenceRepository
+        });
+
+    const connectorSupportRecordBatchWriteService =
+        new ConnectorSupportRecordBatchWriteService({
+            connectorTrustService,
+            persistenceService:
+                connectorSupportRecordPersistenceService,
+            semanticRecordPersistenceRepository,
+            maxBatchSize: 100
         });
 
     const semanticIngestionService =
@@ -315,6 +405,19 @@ function createServerTrustBoundaryRuntime({
             sourceFieldMappingPersistenceRepository
         });
 
+    const sourceFieldMappingQueryRepository =
+        new SupabaseSourceFieldMappingQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceFieldMappingQueryService =
+        new SourceFieldMappingQueryService({
+            connectorTrustService,
+            sourceFieldMappingQueryRepository
+        });
+
     const sourceFieldInterpretationPayloadValidator =
         new SourceFieldInterpretationPayloadValidator();
 
@@ -346,12 +449,126 @@ function createServerTrustBoundaryRuntime({
         });
 
 
+    const connectorResidentCandidateRepository =
+        new ConnectorResidentCandidateRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorResidentCandidateService =
+        new ConnectorResidentCandidateService({
+            connectorTrustService,
+            residentCandidateRepository:
+                connectorResidentCandidateRepository
+        });
+
+    const sourceResidentLinkPersistenceRepository =
+        new SupabaseSourceResidentLinkPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceResidentLinkPersistenceService =
+        new SourceResidentLinkPersistenceService({
+            connectorTrustService,
+            sourceResidentLinkPersistenceRepository
+        });
+
+    const sourceResidentLinkQueryRepository =
+        new SupabaseSourceResidentLinkQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceResidentLinkQueryService =
+        new SourceResidentLinkQueryService({
+            connectorTrustService,
+            sourceResidentLinkQueryRepository
+        });
+
+    const sourceResidentMappingPersistenceRepository =
+        new SupabaseSourceResidentMappingPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceResidentMappingPersistenceService =
+        new SourceResidentMappingPersistenceService({
+            connectorTrustService,
+            sourceResidentMappingPersistenceRepository
+        });
+
+    const sourceResidentMappingQueryRepository =
+        new SupabaseSourceResidentMappingQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceResidentMappingQueryService =
+        new SourceResidentMappingQueryService({
+            connectorTrustService,
+            sourceResidentMappingQueryRepository
+        });
+
+    const sourceRecordIdentityMappingRepository =
+        new SupabaseSourceRecordIdentityMappingRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceRecordIdentityMappingPersistenceService =
+        new SourceRecordIdentityMappingPersistenceService({
+            connectorTrustService,
+            sourceRecordIdentityMappingRepository
+        });
+
+    const sourceRecordIdentityMappingQueryService =
+        new SourceRecordIdentityMappingQueryService({
+            connectorTrustService,
+            sourceRecordIdentityMappingRepository
+        });
+
+    const residentCreationRepository =
+        new SupabaseResidentCreationRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const residentCreationService =
+        new ResidentCreationService({
+            connectorTrustService,
+            residentCreationRepository
+        });
+
+
+    // ==========================================
+    // Vonage Voice
+    // ==========================================
+
     return {
         serverTrustBoundaryIngestionService,
         sourceDocumentIngestionService,
         sourceFieldMappingIngestionService,
+        sourceFieldMappingQueryService,
         sourceFieldInterpretationIngestionService,
-        sourceFieldInterpretationQueryService
+        sourceFieldInterpretationQueryService,
+        connectorResidentCandidateService,
+        sourceResidentLinkPersistenceService,
+        sourceResidentLinkQueryService,
+        sourceResidentMappingPersistenceService,
+        sourceResidentMappingQueryService,
+        sourceRecordIdentityMappingPersistenceService,
+        sourceRecordIdentityMappingQueryService,
+        connectorSemanticRecordPreviewService,
+        connectorSupportRecordBatchWriteService,
+        residentCreationService,
     };
 }
 

@@ -140,13 +140,180 @@ class SupabaseSemanticRecordPersistenceRepository
         });
     }
 
+    async persistBatch({
+        verifiedFacilityId,
+        verifiedConnectorId,
+        operations
+    } = {}) {
+
+        if (
+            !this.isNonEmptyString(
+                verifiedFacilityId
+            ) ||
+            !this.isNonEmptyString(
+                verifiedConnectorId
+            ) ||
+            !Array.isArray(operations) ||
+            operations.length < 1 ||
+            operations.length > 100 ||
+            operations.some(
+                operation =>
+                    !operation ||
+                    typeof operation !== "object" ||
+                    Array.isArray(operation)
+            )
+        ) {
+            return {
+                status: "invalid"
+            };
+        }
+
+        const accessToken =
+            await this.accessTokenProvider.getAccessToken();
+
+        if (
+            typeof accessToken !== "string" ||
+            !accessToken
+        ) {
+            throw new Error(
+                "Supabase semantic record batch persistence requires access token"
+            );
+        }
+
+        const response =
+            await fetch(
+                `${this.supabaseUrl}/rest/v1/rpc/persist_connector_semantic_record_batch`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        "apikey":
+                            this.apiKey,
+                        "Authorization":
+                            `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        p_facility_id:
+                            verifiedFacilityId,
+                        p_connector_id:
+                            verifiedConnectorId,
+                        p_operations:
+                            operations
+                    })
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `Supabase semantic record batch persistence failed: ${response.status}`
+            );
+        }
+
+        const result =
+            await response.json();
+
+        if (
+            !Array.isArray(result) ||
+            result.length !== 1
+        ) {
+            throw new Error(
+                "Supabase semantic record batch persistence returned invalid result"
+            );
+        }
+
+        const row = result[0];
+
+        if (
+            !row ||
+            typeof row !== "object" ||
+            (
+                row.status !== "completed" &&
+                row.status !== "stopped"
+            ) ||
+            !Number.isInteger(row.processed) ||
+            !Number.isInteger(row.created) ||
+            !Number.isInteger(row.updated) ||
+            !Number.isInteger(row.unchanged) ||
+            row.processed < 0 ||
+            row.created < 0 ||
+            row.updated < 0 ||
+            row.unchanged < 0 ||
+            row.processed !==
+                row.created +
+                row.updated +
+                row.unchanged
+        ) {
+            throw new Error(
+                "Supabase semantic record batch persistence returned invalid result"
+            );
+        }
+
+        if (row.status === "completed") {
+            if (
+                row.processed !==
+                    operations.length ||
+                row.failed_index !== null ||
+                row.failure_status !== null
+            ) {
+                throw new Error(
+                    "Supabase semantic record batch persistence returned invalid completed result"
+                );
+            }
+
+            return {
+                status: "completed",
+                processed: row.processed,
+                created: row.created,
+                updated: row.updated,
+                unchanged: row.unchanged
+            };
+        }
+
+        if (
+            !Number.isInteger(
+                row.failed_index
+            ) ||
+            row.failed_index < 0 ||
+            row.failed_index >=
+                operations.length ||
+            row.processed !==
+                row.failed_index ||
+            !this.isNonEmptyString(
+                row.failure_status
+            )
+        ) {
+            throw new Error(
+                "Supabase semantic record batch persistence returned invalid stopped result"
+            );
+        }
+
+        return {
+            status: "stopped",
+            processed: row.processed,
+            created: row.created,
+            updated: row.updated,
+            unchanged: row.unchanged,
+            failedIndex:
+                row.failed_index,
+            failureStatus:
+                row.failure_status
+        };
+    }
+
     async callPersistenceRpc({
         rpcName,
         body,
         allowedStatuses
     }) {
+        const totalStartedAt = performance.now();
+        const tokenStartedAt = performance.now();
+
         const accessToken =
             await this.accessTokenProvider.getAccessToken();
+
+        const tokenElapsedMs =
+            performance.now() - tokenStartedAt;
 
         if (
             typeof accessToken !== "string" ||
@@ -156,6 +323,8 @@ class SupabaseSemanticRecordPersistenceRepository
                 "Supabase semantic record persistence requires access token"
             );
         }
+
+        const fetchStartedAt = performance.now();
 
         const response =
             await fetch(
@@ -178,8 +347,32 @@ class SupabaseSemanticRecordPersistenceRepository
             );
         }
 
+        const fetchElapsedMs =
+            performance.now() - fetchStartedAt;
+
+        const jsonStartedAt = performance.now();
+
         const result =
             await response.json();
+
+        const jsonElapsedMs =
+            performance.now() - jsonStartedAt;
+
+        console.error(JSON.stringify({
+            diagnostic: "semantic_persistence_timing",
+            rpc:
+                rpcName === "create_confirmed_semantic_record"
+                    ? "create"
+                    : rpcName === "update_confirmed_semantic_record"
+                        ? "update"
+                        : "unknown",
+            tokenMs: Math.round(tokenElapsedMs),
+            fetchMs: Math.round(fetchElapsedMs),
+            jsonMs: Math.round(jsonElapsedMs),
+            totalMs: Math.round(
+                performance.now() - totalStartedAt
+            )
+        }));
 
         if (
             !Array.isArray(result) ||

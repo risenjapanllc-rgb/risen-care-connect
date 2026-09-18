@@ -374,3 +374,221 @@ test(
         );
     }
 );
+
+
+test("lists persisted source field mappings", async () => {
+    let request = null;
+
+    const client =
+        new SourceFieldMappingHttpClient({
+            endpoint:
+                "http://127.0.0.1:8787/connector/source-field-mappings",
+            connectorId:
+                "connector-1",
+            credential:
+                "credential-1",
+            authorizationScheme:
+                "RISEN-Connector",
+            fetchImpl:
+                async (url, options) => {
+                    request = {
+                        url,
+                        options
+                    };
+
+                    return {
+                        ok: true,
+                        status: 200,
+                        async json() {
+                            return {
+                                status: "found",
+                                mappings: [
+                                    {
+                                        sourceFieldKey:
+                                            "sheet:0:column:1",
+                                        standardEntityName:
+                                            "user",
+                                        standardFieldName:
+                                            "user_code",
+                                        sheetName:
+                                            "Sheet1",
+                                        headerLabel:
+                                            "identifier",
+                                        confirmedAt:
+                                            "2026-09-15T10:00:00.000Z"
+                                    }
+                                ]
+                            };
+                        }
+                    };
+                }
+        });
+
+    const result =
+        await client.list(
+            "source-document-1",
+            "2026-09-15T02:30:00.000Z",
+            9520
+        );
+
+    const url =
+        new URL(request.url);
+
+    assert.equal(
+        request.options.method,
+        "GET"
+    );
+
+    assert.equal(
+        url.pathname,
+        "/connector/source-field-mappings"
+    );
+
+    assert.equal(
+        url.searchParams.get(
+            "sourceDocumentKey"
+        ),
+        "source-document-1"
+    );
+
+    assert.equal(
+        url.searchParams.get(
+            "sourceUpdatedAt"
+        ),
+        "2026-09-15T02:30:00.000Z"
+    );
+
+    assert.equal(
+        url.searchParams.get(
+            "sourceSize"
+        ),
+        "9520"
+    );
+
+    assert.deepStrictEqual(
+        request.options.headers,
+        {
+            "x-risen-connector-id":
+                "connector-1",
+            authorization:
+                "RISEN-Connector credential-1"
+        }
+    );
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "found",
+            mappings: [
+                {
+                    sourceFieldKey:
+                        "sheet:0:column:1",
+                    standardEntityName:
+                        "user",
+                    standardFieldName:
+                        "user_code",
+                    sheetName:
+                        "Sheet1",
+                    headerLabel:
+                        "identifier",
+                    confirmedAt:
+                        "2026-09-15T10:00:00.000Z"
+                }
+            ]
+        }
+    );
+});
+
+test("rejects blank sourceDocumentKey before mapping query", async () => {
+    let called = false;
+
+    const client =
+        new SourceFieldMappingHttpClient({
+            endpoint:
+                "http://127.0.0.1:8787/connector/source-field-mappings",
+            connectorId:
+                "connector-1",
+            credential:
+                "credential-1",
+            authorizationScheme:
+                "RISEN-Connector",
+            fetchImpl:
+                async () => {
+                    called = true;
+                    throw new Error(
+                        "must not be called"
+                    );
+                }
+        });
+
+    await assert.rejects(
+        () => client.list("   "),
+        /sourceDocumentKey is required/
+    );
+
+    assert.equal(
+        called,
+        false
+    );
+});
+
+test("preserves safe mapping query error code", async () => {
+    const client =
+        new SourceFieldMappingHttpClient({
+            endpoint:
+                "https://backend.example/connector/source-field-mappings",
+            connectorId:
+                "connector-1",
+            credential:
+                "credential-1",
+            authorizationScheme:
+                "RISEN-Connector",
+            fetchImpl:
+                async () => ({
+                    ok: false,
+                    status: 422,
+                    async json() {
+                        return {
+                            requestId:
+                                "request-1",
+                            errorCode:
+                                "source_field_mapping_query_invalid",
+                            internalDetail:
+                                "must-not-propagate"
+                        };
+                    }
+                })
+        });
+
+    await assert.rejects(
+        () =>
+            client.list(
+                "source-document-1",
+                "2026-09-15T02:30:00.000Z",
+                9520
+            ),
+        error => {
+            assert.equal(
+                error.code,
+                "source_field_mapping_query_invalid"
+            );
+
+            assert.equal(
+                error.httpStatus,
+                422
+            );
+
+            assert.equal(
+                error.requestId,
+                "request-1"
+            );
+
+            assert.equal(
+                error.internalDetail,
+                undefined
+            );
+
+            return true;
+        }
+    );
+});

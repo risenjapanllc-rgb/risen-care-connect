@@ -16,7 +16,9 @@ class SourceFieldMappingPayloadValidator {
             standardEntityName,
             standardFieldName,
             sheetName = null,
-            headerLabel = null
+            headerLabel = null,
+            sourceUpdatedAt,
+            sourceSize
         } = sourceFieldMapping;
 
         if (
@@ -83,6 +85,25 @@ class SourceFieldMappingPayloadValidator {
             };
         }
 
+        if (!this.isValidTimestamp(sourceUpdatedAt)) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_updated_at_invalid"
+            };
+        }
+
+        if (
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_size_invalid"
+            };
+        }
+
         return {
             status: "valid",
 
@@ -107,7 +128,13 @@ class SourceFieldMappingPayloadValidator {
                 headerLabel:
                     headerLabel === null
                         ? null
-                        : headerLabel
+                        : headerLabel,
+
+                sourceUpdatedAt:
+                    new Date(sourceUpdatedAt)
+                        .toISOString(),
+
+                sourceSize
             }
         };
     }
@@ -123,6 +150,16 @@ class SourceFieldMappingPayloadValidator {
         return (
             value === null ||
             typeof value === "string"
+        );
+    }
+
+    isValidTimestamp(value) {
+        return (
+            typeof value === "string" &&
+            value.trim() !== "" &&
+            !Number.isNaN(
+                Date.parse(value)
+            )
         );
     }
 

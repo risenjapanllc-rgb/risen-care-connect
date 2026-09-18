@@ -161,6 +161,126 @@ class SourceFieldExtractor {
         return results;
     }
 
+    extractSourceEntities(document = {}) {
+        if (
+            !document ||
+            typeof document !== 'object' ||
+            !Array.isArray(document.sheets)
+        ) {
+            return [];
+        }
+
+        const results = [];
+
+        document.sheets.forEach(
+            (sheet, sheetIndex) => {
+                if (
+                    !sheet ||
+                    typeof sheet !== 'object' ||
+                    !Array.isArray(sheet.rows)
+                ) {
+                    return;
+                }
+
+                const rows = sheet.rows;
+                const headerIndex =
+                    this.findHeaderRowIndex(rows);
+
+                if (headerIndex === -1) {
+                    return;
+                }
+
+                const headers =
+                    rows[headerIndex].map(value =>
+                        this.normalizeHeader(value)
+                    );
+
+                const sheetName =
+                    typeof sheet.sheetName === 'string'
+                        ? sheet.sheetName
+                        : '';
+
+                for (
+                    let rowIndex = headerIndex + 1;
+                    rowIndex < rows.length;
+                    rowIndex += 1
+                ) {
+                    const row = rows[rowIndex];
+
+                    if (!Array.isArray(row)) {
+                        continue;
+                    }
+
+                    const rowHasValue =
+                        row.some(value =>
+                            value !== null &&
+                            value !== undefined &&
+                            String(value).trim() !== ''
+                        );
+
+                    if (!rowHasValue) {
+                        continue;
+                    }
+
+                    const fields = {};
+                    const valuesBySourceFieldKey = {};
+
+                    headers.forEach(
+                        (header, columnIndex) => {
+                            if (!header) {
+                                return;
+                            }
+
+                            const value =
+                                row[columnIndex] === null ||
+                                row[columnIndex] === undefined
+                                    ? ''
+                                    : String(
+                                        row[columnIndex]
+                                    ).trim();
+
+                            fields[header] = value;
+
+                            valuesBySourceFieldKey[
+                                `sheet:${sheetIndex}:column:${columnIndex}`
+                            ] = value;
+                        }
+                    );
+
+                    if (
+                        this.isHeaderLikeRow(
+                            fields,
+                            headers
+                        )
+                    ) {
+                        continue;
+                    }
+
+                    const hasValue =
+                        Object.values(fields).some(
+                            value => value !== ''
+                        );
+
+                    if (!hasValue) {
+                        continue;
+                    }
+
+                    results.push({
+                        sourceEntityKey:
+                            `sheet:${sheetIndex}:row:${rowIndex + 1}`,
+                        sheetIndex,
+                        sheetName,
+                        rowIndex: rowIndex + 1,
+                        fields,
+                        valuesBySourceFieldKey
+                    });
+                }
+            }
+        );
+
+        return results;
+    }
+
     extractFieldDefinitions(document = {}) {
         if (
             !document ||

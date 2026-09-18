@@ -77,6 +77,49 @@ test("first observation persists a new document identity", async () => {
     }
 });
 
+test("finds a persisted document by opaque sourceDocumentKey", async () => {
+    const temp = createDatabasePath();
+    const store = new Store({ databasePath: temp.databasePath });
+
+    try {
+        const observation = createObservation();
+
+        await store.getOrCreate(
+            observation,
+            async () => createEntry(
+                observation,
+                "opaque-document-key-001"
+            )
+        );
+
+        const entry =
+            store.findBySourceDocumentKey(
+                "opaque-document-key-001"
+            );
+
+        assert.strictEqual(
+            entry.sourceDocumentKey,
+            "opaque-document-key-001"
+        );
+        assert.strictEqual(
+            entry.relativePath,
+            observation.relativePath
+        );
+        assert.strictEqual(
+            store.findBySourceDocumentKey(
+                "opaque-document-key-missing"
+            ),
+            null
+        );
+    } finally {
+        store.close();
+        fs.rmSync(temp.directory, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
 test("same lookup key preserves identity and updates observation metadata", async () => {
     const temp = createDatabasePath();
     const store = new Store({ databasePath: temp.databasePath });

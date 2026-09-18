@@ -226,7 +226,11 @@ class SourceFieldMappingIngestionService {
                             validatedSourceFieldMapping.sheetName,
                         headerLabel:
                             validatedSourceFieldMapping.headerLabel,
-                        confirmedAt
+                        confirmedAt,
+                        sourceUpdatedAt:
+                            validatedSourceFieldMapping.sourceUpdatedAt,
+                        sourceSize:
+                            validatedSourceFieldMapping.sourceSize
                     });
         } catch (error) {
             return {

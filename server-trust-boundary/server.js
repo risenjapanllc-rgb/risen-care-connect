@@ -71,6 +71,10 @@ function resolveServerTrustBoundaryConfig(
             env.SERVER_TRUST_BOUNDARY_JSON_BODY_LIMIT ||
             "100kb",
 
+        sourceDocumentJsonBodyLimit:
+            env.SERVER_TRUST_BOUNDARY_SOURCE_DOCUMENT_JSON_BODY_LIMIT ||
+            "25mb",
+
         supabaseUrl:
             requireEnv(
                 "SUPABASE_URL",
@@ -127,6 +131,8 @@ function startServerTrustBoundary({
                 config.endpointPath,
             jsonBodyLimit:
                 config.jsonBodyLimit,
+            sourceDocumentJsonBodyLimit:
+                config.sourceDocumentJsonBodyLimit,
             diagnosticLogger: console
         });
 

@@ -46,6 +46,40 @@ function findStandardFieldSuggestion(
         normalizeStandardFieldSourceName(sourceName);
 
     const aliases = {
+        record_date: [
+            "record_date",
+            "record_datetime",
+            "記録日時",
+            "日時"
+        ],
+
+        record_content: [
+            "record_content",
+            "support_content",
+            "支援記録本文",
+            "支援内容",
+            "処遇内容"
+        ],
+
+        staff_name: [
+            "staff_name",
+            "記録者",
+            "記録者名",
+            "記入者"
+        ],
+
+        record_category: [
+            "record_category",
+            "記録区分",
+            "種類"
+        ],
+
+        created_at: [
+            "created_at",
+            "登録日時",
+            "作成日時"
+        ],
+
         name: [
             "name",
             "user_name",

@@ -199,10 +199,38 @@ class SourceDocumentIngestionService {
                             validatedSourceDocument.observedAt
                     });
         } catch (error) {
+            const httpStatus =
+                error &&
+                Number.isInteger(error.httpStatus) &&
+                error.httpStatus >= 400 &&
+                error.httpStatus <= 599
+                    ? error.httpStatus
+                    : null;
+
+            const errorCode =
+                httpStatus !== null
+                    ? `source_document_persistence_http_${httpStatus}`
+                    : "source_document_persistence_unavailable";
+
+            const persistencePhase =
+                error &&
+                typeof error.persistencePhase === "string" &&
+                [
+                    "prepare",
+                    "upload",
+                    "finalize"
+                ].includes(
+                    error.persistencePhase
+                )
+                    ? error.persistencePhase
+                    : null;
+
             return {
                 status: "error",
-                errorCode:
-                    "source_document_persistence_unavailable"
+                errorCode,
+                ...(persistencePhase
+                    ? { persistencePhase }
+                    : {})
             };
         }
 

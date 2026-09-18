@@ -57,7 +57,11 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
 
     service.observeRegisteredFile = async fileName => ({
         sourceDocumentKey: "opaque-document-key-word",
-        fileName
+        fileName,
+        lastObservedUpdatedAt:
+            "2026-09-06T08:00:01.000Z",
+        lastObservedSize:
+            456
     });
 
     let analyzedFileName;
@@ -111,6 +115,10 @@ test("POST /files/:fileName/analyze analyzes a registered Word document", async 
             success: true,
             fileName: "assessment.docx",
             sourceDocumentKey: "opaque-document-key-word",
+            sourceUpdatedAt:
+                "2026-09-06T08:00:01.000Z",
+            sourceSize:
+                456,
             sourceType: "word",
             documentType: "assessment",
             documentTypeConfidence: "high",
@@ -146,7 +154,11 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
 
     service.observeRegisteredFile = async fileName => ({
         sourceDocumentKey: "opaque-document-key-excel",
-        fileName
+        fileName,
+        lastObservedUpdatedAt:
+            "2026-09-06T08:00:02.000Z",
+        lastObservedSize:
+            654
     });
 
     let analyzedFileName;
@@ -221,6 +233,10 @@ test("POST /files/:fileName/analyze analyzes a registered Excel document", async
             success: true,
             fileName: "assessment.xlsx",
             sourceDocumentKey: "opaque-document-key-excel",
+            sourceUpdatedAt:
+                "2026-09-06T08:00:02.000Z",
+            sourceSize:
+                654,
             sourceType: "excel",
             documentType: "assessment",
             documentTypeConfidence: "medium",
@@ -277,7 +293,11 @@ test("POST /files/:fileName/analyze analyzes a registered CSV document", async (
 
     service.observeRegisteredFile = async fileName => ({
         sourceDocumentKey: "opaque-document-key-csv",
-        fileName
+        fileName,
+        lastObservedUpdatedAt:
+            "2026-09-06T08:00:03.000Z",
+        lastObservedSize:
+            789
     });
 
     let analyzedFileName;
@@ -349,6 +369,10 @@ test("POST /files/:fileName/analyze analyzes a registered CSV document", async (
             success: true,
             fileName: "records.csv",
             sourceDocumentKey: "opaque-document-key-csv",
+            sourceUpdatedAt:
+                "2026-09-06T08:00:03.000Z",
+            sourceSize:
+                789,
             sourceType: "csv",
             documentType: "unknown",
             documentTypeConfidence: "low",
@@ -1313,6 +1337,104 @@ test(
 
 
 test(
+    "POST /files/:fileName/source-document forwards only expected source snapshot",
+    async () => {
+        const original =
+            app.locals
+                .getSourceDocumentIngestionService;
+
+        let receivedArguments;
+
+        app.locals.getSourceDocumentIngestionService =
+            async () => ({
+                async ingestRegisteredFile(...args) {
+                    receivedArguments =
+                        args;
+
+                    return {
+                        status:
+                            "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/files/support.csv/source-document`,
+                    {
+                        method:
+                            "POST",
+                        headers: {
+                            "content-type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocumentKey:
+                                    "source-document-key",
+                                sourceUpdatedAt:
+                                    "2026-09-15T10:00:00.000Z",
+                                sourceSize:
+                                    100,
+                                facilityId:
+                                    "must-not-forward",
+                                residentId:
+                                    "must-not-forward"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                receivedArguments,
+                [
+                    "support.csv",
+                    {
+                        sourceDocumentKey:
+                            "source-document-key",
+                        sourceUpdatedAt:
+                            "2026-09-15T10:00:00.000Z",
+                        sourceSize:
+                            100
+                    }
+                ]
+            );
+        } finally {
+            app.locals
+                .getSourceDocumentIngestionService =
+                original;
+
+            await new Promise(
+                resolve =>
+                    server.close(
+                        resolve
+                    )
+            );
+        }
+    }
+);
+
+test(
     "POST /files/:fileName/source-document maps denied invalid and unavailable safely",
     async () => {
         const original =
@@ -1337,6 +1459,24 @@ test(
                     "connector_processing_unavailable",
                 expectedStatus:
                     503
+            },
+            {
+                code:
+                    "payload_too_large",
+                expectedStatus:
+                    413
+            },
+            {
+                code:
+                    "source_snapshot_invalid",
+                expectedStatus:
+                    422
+            },
+            {
+                code:
+                    "source_snapshot_changed",
+                expectedStatus:
+                    409
             }
         ];
 
@@ -1598,6 +1738,10 @@ test(
                                         "Sheet1",
                                     headerLabel:
                                         "血液型",
+                                    sourceUpdatedAt:
+                                        "2026-09-15T02:30:00.000Z",
+                                    sourceSize:
+                                        9520,
 
                                     facilityId:
                                         "must-not-pass",
@@ -1639,7 +1783,11 @@ test(
                     sheetName:
                         "Sheet1",
                     headerLabel:
-                        "血液型"
+                        "血液型",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        9520
                 }
             );
         } finally {
@@ -1960,3 +2108,2515 @@ test(
         }
     }
 );
+
+
+test(
+    "POST /resident-candidates forwards only source snapshot identity to resolver",
+    async () => {
+        const originalFactory =
+            app.locals.getResidentCandidateService;
+
+        let received = null;
+
+        app.locals.getResidentCandidateService =
+            async () => ({
+                async findCandidates(input) {
+                    received = input;
+
+                    return {
+                        status: "matched",
+                        candidates: [
+                            {
+                                residentId:
+                                    "resident-test-1",
+                                userCode:
+                                    "U001",
+                                name:
+                                    "Test Resident",
+                                kana:
+                                    null,
+                                birthDate:
+                                    null
+                            }
+                        ]
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/resident-candidates`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocumentKey:
+                                    "document-key",
+                                sourceUpdatedAt:
+                                    "2026-09-15T02:30:00.000Z",
+                                sourceSize:
+                                    9520,
+                                sourceEntityKey:
+                                    "sheet:0:row:2"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        9520,
+                    sourceEntityKey:
+                        "sheet:0:row:2"
+                }
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "matched",
+                    candidates: [
+                        {
+                            residentId:
+                                "resident-test-1",
+                            userCode:
+                                "U001",
+                            name:
+                                "Test Resident",
+                            kana:
+                                null,
+                            birthDate:
+                                null
+                        }
+                    ]
+                }
+            );
+        } finally {
+            app.locals.getResidentCandidateService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "POST /resident-candidates rejects browser userCode facility or connector scope",
+    async () => {
+        const originalFactory =
+            app.locals.getResidentCandidateService;
+
+        let factoryCalled = false;
+
+        app.locals.getResidentCandidateService =
+            async () => {
+                factoryCalled = true;
+
+                return {
+                    async findCandidates() {
+                        throw new Error(
+                            "must not be called"
+                        );
+                    }
+                };
+            };
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            for (const extraInput of [
+                { userCode: "U001" },
+                { facilityId: "must-not-pass" },
+                { connectorId: "must-not-pass" }
+            ]) {
+                const response =
+                    await fetch(
+                        `http://127.0.0.1:${address.port}/resident-candidates`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+                            body:
+                                JSON.stringify({
+                                    sourceDocumentKey:
+                                        "document-key",
+                                    sourceUpdatedAt:
+                                        "2026-09-15T02:30:00.000Z",
+                                    sourceSize:
+                                        9520,
+                                    sourceEntityKey:
+                                        "sheet:0:row:2",
+                                    ...extraInput
+                                })
+                        }
+                    );
+
+                assert.strictEqual(
+                    response.status,
+                    422
+                );
+            }
+
+            assert.strictEqual(
+                factoryCalled,
+                false
+            );
+        } finally {
+            app.locals.getResidentCandidateService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "POST /resident-candidates rejects invalid source snapshot before resolver lookup",
+    async () => {
+        const originalFactory =
+            app.locals.getResidentCandidateService;
+
+        let factoryCalled = false;
+
+        app.locals.getResidentCandidateService =
+            async () => {
+                factoryCalled = true;
+
+                return {
+                    async findCandidates() {
+                        throw new Error(
+                            "must not be called"
+                        );
+                    }
+                };
+            };
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/resident-candidates`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocumentKey:
+                                    "document-key",
+                                sourceUpdatedAt:
+                                    "not-a-date",
+                                sourceSize:
+                                    9520,
+                                sourceEntityKey:
+                                    "sheet:0:row:2"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                422
+            );
+
+            assert.strictEqual(
+                factoryCalled,
+                false
+            );
+        } finally {
+            app.locals.getResidentCandidateService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET source field mappings forwards only current source snapshot",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldMappingIngestionService;
+
+        let received = null;
+
+        app.locals.getSourceFieldMappingIngestionService =
+            async () => ({
+                async list(
+                    sourceDocumentKey,
+                    sourceUpdatedAt,
+                    sourceSize
+                ) {
+                    received = {
+                        sourceDocumentKey,
+                        sourceUpdatedAt,
+                        sourceSize
+                    };
+
+                    return {
+                        status: "found",
+                        mappings: []
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const params =
+                new URLSearchParams({
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520"
+                });
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-field-mappings?${params}`
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        9520
+                }
+            );
+        } finally {
+            app.locals.getSourceFieldMappingIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET source field mappings rejects invalid snapshot and browser scope",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceFieldMappingIngestionService;
+
+        let serviceCalled = false;
+
+        app.locals.getSourceFieldMappingIngestionService =
+            async () => ({
+                async list() {
+                    serviceCalled = true;
+
+                    return {
+                        status: "found",
+                        mappings: []
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const cases = [
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "not-a-timestamp",
+                    sourceSize:
+                        "9520"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "-1"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "1.5"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520",
+                    facilityId:
+                        "must-not-pass"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520",
+                    connectorId:
+                        "must-not-pass"
+                }
+            ];
+
+            for (const query of cases) {
+                const params =
+                    new URLSearchParams(query);
+
+                const response =
+                    await fetch(
+                        `http://127.0.0.1:${address.port}/source-field-mappings?${params}`
+                    );
+
+                assert.strictEqual(
+                    response.status,
+                    422
+                );
+            }
+
+            assert.strictEqual(
+                serviceCalled,
+                false
+            );
+        } finally {
+            app.locals.getSourceFieldMappingIngestionService =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET source resident links forwards only current source snapshot",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceResidentLinkClient;
+
+        let received = null;
+
+        app.locals.getSourceResidentLinkClient =
+            async () => ({
+                async list(input) {
+                    received =
+                        input;
+
+                    return {
+                        status:
+                            "found",
+                        links: []
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const params =
+                new URLSearchParams({
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520"
+                });
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-resident-links?${params}`
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        9520
+                }
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success:
+                        true,
+                    status:
+                        "found",
+                    links: []
+                }
+            );
+        } finally {
+            app.locals.getSourceResidentLinkClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "POST source resident links forwards exact human-reviewed link contract",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceResidentLinkClient;
+
+        let received = null;
+
+        app.locals.getSourceResidentLinkClient =
+            async () => ({
+                async save(input) {
+                    received =
+                        input;
+
+                    return {
+                        status:
+                            "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-resident-links`,
+                    {
+                        method:
+                            "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocumentKey:
+                                    "document-key",
+                                sourceEntityKey:
+                                    "sheet:0:row:2",
+                                linkStatus:
+                                    "confirmed",
+                                residentId:
+                                    "33333333-3333-3333-3333-333333333333",
+                                sourceUpdatedAt:
+                                    "2026-09-15T02:30:00.000Z",
+                                sourceSize:
+                                    9520
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                received,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceEntityKey:
+                        "sheet:0:row:2",
+                    linkStatus:
+                        "confirmed",
+                    residentId:
+                        "33333333-3333-3333-3333-333333333333",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        9520
+                }
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success:
+                        true,
+                    status:
+                        "created"
+                }
+            );
+        } finally {
+            app.locals.getSourceResidentLinkClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET source resident links rejects invalid snapshot and browser-controlled scope",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceResidentLinkClient;
+
+        let clientCalled = false;
+
+        app.locals.getSourceResidentLinkClient =
+            async () => ({
+                async list() {
+                    clientCalled =
+                        true;
+
+                    return {
+                        status:
+                            "found",
+                        links: []
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const cases = [
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "not-a-date",
+                    sourceSize:
+                        "9520"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "-1"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "1.5"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520",
+                    facilityId:
+                        "must-not-pass"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520",
+                    connectorId:
+                        "must-not-pass"
+                },
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520",
+                    credential:
+                        "must-not-pass"
+                }
+            ];
+
+            for (const query of cases) {
+                const params =
+                    new URLSearchParams(query);
+
+                const response =
+                    await fetch(
+                        `http://127.0.0.1:${address.port}/source-resident-links?${params}`
+                    );
+
+                assert.strictEqual(
+                    response.status,
+                    422
+                );
+            }
+
+            assert.strictEqual(
+                clientCalled,
+                false
+            );
+        } finally {
+            app.locals.getSourceResidentLinkClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "POST source resident links rejects transient status, invalid semantics, snapshot, and browser-controlled review scope",
+    async () => {
+        const originalFactory =
+            app.locals
+                .getSourceResidentLinkClient;
+
+        let clientCalled = false;
+
+        app.locals.getSourceResidentLinkClient =
+            async () => ({
+                async save() {
+                    clientCalled =
+                        true;
+
+                    return {
+                        status:
+                            "created"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        const base = {
+            sourceDocumentKey:
+                "document-key",
+            sourceEntityKey:
+                "sheet:0:row:2",
+            linkStatus:
+                "confirmed",
+            residentId:
+                "33333333-3333-3333-3333-333333333333",
+            sourceUpdatedAt:
+                "2026-09-15T02:30:00.000Z",
+            sourceSize:
+                9520
+        };
+
+        try {
+            const address =
+                server.address();
+
+            const cases = [
+                {
+                    ...base,
+                    linkStatus:
+                        "matched"
+                },
+                {
+                    ...base,
+                    residentId:
+                        null
+                },
+                {
+                    ...base,
+                    linkStatus:
+                        "deferred",
+                    residentId:
+                        "33333333-3333-3333-3333-333333333333"
+                },
+                {
+                    ...base,
+                    linkStatus:
+                        "no_match",
+                    residentId:
+                        "33333333-3333-3333-3333-333333333333"
+                },
+                {
+                    ...base,
+                    sourceUpdatedAt:
+                        "not-a-date"
+                },
+                {
+                    ...base,
+                    sourceSize:
+                        -1
+                },
+                {
+                    ...base,
+                    facilityId:
+                        "must-not-pass"
+                },
+                {
+                    ...base,
+                    connectorId:
+                        "must-not-pass"
+                },
+                {
+                    ...base,
+                    credential:
+                        "must-not-pass"
+                },
+                {
+                    ...base,
+                    reviewedByHuman:
+                        true
+                },
+                {
+                    ...base,
+                    reviewedAt:
+                        "2026-09-15T03:00:00.000Z"
+                }
+            ];
+
+            for (const body of cases) {
+                const response =
+                    await fetch(
+                        `http://127.0.0.1:${address.port}/source-resident-links`,
+                        {
+                            method:
+                                "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+                            body:
+                                JSON.stringify(body)
+                        }
+                    );
+
+                assert.strictEqual(
+                    response.status,
+                    422
+                );
+            }
+
+            assert.strictEqual(
+                clientCalled,
+                false
+            );
+        } finally {
+            app.locals.getSourceResidentLinkClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test("GET /source-resident-mappings loads exact snapshot mappings", async () => {
+    const original =
+        app.locals.getSourceResidentMappingClient;
+
+    let receivedInput = null;
+
+    app.locals.getSourceResidentMappingClient =
+        async () => ({
+            async list(input) {
+                receivedInput = input;
+
+                return {
+                    status: "found",
+                    mappings: [
+                        {
+                            identifierType: "name",
+                            identifierDigest:
+                                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            mappingStatus: "confirmed",
+                            residentId:
+                                "33333333-3333-3333-3333-333333333333"
+                        }
+                    ]
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(
+        resolve =>
+            server.listen(
+                0,
+                "127.0.0.1",
+                resolve
+            )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const params =
+            new URLSearchParams({
+                sourceDocumentKey:
+                    "document-1",
+                sourceUpdatedAt:
+                    "2026-09-15T02:30:00.000Z",
+                sourceSize:
+                    "9520"
+            });
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/source-resident-mappings?${params}`
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            receivedInput,
+            {
+                sourceDocumentKey:
+                    "document-1",
+                sourceUpdatedAt:
+                    "2026-09-15T02:30:00.000Z",
+                sourceSize:
+                    9520
+            }
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                status: "found",
+                mappings: [
+                    {
+                        identifierType:
+                            "name",
+                        identifierDigest:
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        mappingStatus:
+                            "confirmed",
+                        residentId:
+                            "33333333-3333-3333-3333-333333333333"
+                    }
+                ]
+            }
+        );
+    } finally {
+        app.locals.getSourceResidentMappingClient =
+            original;
+
+        await new Promise(
+            resolve =>
+                server.close(resolve)
+        );
+    }
+});
+
+test("POST /source-resident-mappings saves exact identifier mapping contract", async () => {
+    const original =
+        app.locals.getSourceResidentMappingClient;
+
+    let receivedInput = null;
+
+    app.locals.getSourceResidentMappingClient =
+        async () => ({
+            async save(input) {
+                receivedInput = input;
+
+                return {
+                    status: "created"
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(
+        resolve =>
+            server.listen(
+                0,
+                "127.0.0.1",
+                resolve
+            )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const payload = {
+            sourceDocumentKey:
+                "document-1",
+            identifierType:
+                "name",
+            identifierDigest:
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            mappingStatus:
+                "confirmed",
+            residentId:
+                "33333333-3333-3333-3333-333333333333",
+            sourceUpdatedAt:
+                "2026-09-15T02:30:00.000Z",
+            sourceSize:
+                9520
+        };
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/source-resident-mappings`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            receivedInput,
+            payload
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                status: "created"
+            }
+        );
+    } finally {
+        app.locals.getSourceResidentMappingClient =
+            original;
+
+        await new Promise(
+            resolve =>
+                server.close(resolve)
+        );
+    }
+});
+
+
+test("POST /residents creates or reuses resident through trusted client", async () => {
+    const original =
+        app.locals.getResidentCreationClient;
+
+    let received = null;
+
+    app.locals.getResidentCreationClient =
+        async () => ({
+            async create(input) {
+                received = input;
+
+                return {
+                    status: "created",
+                    resident: {
+                        residentId:
+                            "resident-1",
+                        userCode: null,
+                        name:
+                            "Test Resident",
+                        kana: null,
+                        birthDate: null
+                    }
+                };
+            }
+        });
+
+    const server =
+        app.listen(0, "127.0.0.1");
+
+    try {
+        await new Promise((resolve, reject) => {
+            server.once("listening", resolve);
+            server.once("error", reject);
+        });
+
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/residents`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            name:
+                                " Test Resident "
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            received,
+            {
+                name:
+                    "Test Resident"
+            }
+        );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            body.success,
+            true
+        );
+
+        assert.strictEqual(
+            body.status,
+            "created"
+        );
+
+        assert.strictEqual(
+            body.resident.residentId,
+            "resident-1"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getResidentCreationClient =
+            original;
+    }
+});
+
+test("POST /residents rejects extra fields and blank names before trusted client", async () => {
+    const original =
+        app.locals.getResidentCreationClient;
+
+    let called = false;
+
+    app.locals.getResidentCreationClient =
+        async () => ({
+            async create() {
+                called = true;
+            }
+        });
+
+    const server =
+        app.listen(0, "127.0.0.1");
+
+    try {
+        await new Promise((resolve, reject) => {
+            server.once("listening", resolve);
+            server.once("error", reject);
+        });
+
+        const address =
+            server.address();
+
+        for (const body of [
+            {
+                name:
+                    "Test Resident",
+                facilityId:
+                    "must-not-pass"
+            },
+            {
+                name: " "
+            }
+        ]) {
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/residents`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify(body)
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                422
+            );
+        }
+
+        assert.strictEqual(
+            called,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getResidentCreationClient =
+            original;
+    }
+});
+
+test("POST /residents preserves safe same-name ambiguity", async () => {
+    const original =
+        app.locals.getResidentCreationClient;
+
+    app.locals.getResidentCreationClient =
+        async () => ({
+            async create() {
+                const error =
+                    new Error("ambiguous");
+
+                error.code =
+                    "resident_name_ambiguous";
+
+                throw error;
+            }
+        });
+
+    const server =
+        app.listen(0, "127.0.0.1");
+
+    try {
+        await new Promise((resolve, reject) => {
+            server.once("listening", resolve);
+            server.once("error", reject);
+        });
+
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/residents`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            name:
+                                "Test Resident"
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            409
+        );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            body.errorCode,
+            "resident_name_ambiguous"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getResidentCreationClient =
+            original;
+    }
+});
+
+
+test("POST /import-preview returns read-only preview result", async () => {
+    const original =
+        app.locals.getImportPreviewService;
+
+    let received = null;
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview(input) {
+                received = input;
+
+                return {
+                    status: "blocked",
+                    sourceEntityCount: 94198,
+                    readySourceEntityCount: 100,
+                    unresolvedResidentCount: 94098,
+                    missingResidentNameCount: 0,
+                    confirmedFieldMappingCount: 4,
+                    sample: []
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-preview-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                15089594
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            received,
+            {
+                sourceDocumentKey:
+                    "doc-preview-1",
+                sourceUpdatedAt:
+                    "2026-09-17T00:00:00.000Z",
+                sourceSize:
+                    15089594
+            }
+        );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            body.success,
+            true
+        );
+        assert.strictEqual(
+            body.status,
+            "blocked"
+        );
+        assert.strictEqual(
+            body.sourceEntityCount,
+            94198
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            original;
+    }
+});
+
+test("POST /import-preview rejects an invalid request before preview", async () => {
+    const original =
+        app.locals.getImportPreviewService;
+
+    let called = false;
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview() {
+                called = true;
+                return {};
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-preview-1"
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            422
+        );
+        assert.strictEqual(
+            called,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            original;
+    }
+});
+
+
+
+test("POST /import-small-write-dry-run returns only a verified ten row sample", async () => {
+    const fingerprint = "a".repeat(64);
+    let previewInput = null;
+    let executionCalled = false;
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async buildExecutionPlan(input) {
+                previewInput = input;
+
+                return {
+                    status: "ready",
+                    previewFingerprint: fingerprint,
+                    executionPlan:
+                        Array.from(
+                            { length: 94198 },
+                            (_, index) => ({
+                                sourceRecordKey:
+                                    `source-${index + 1}`,
+                                action: "new"
+                            })
+                        )
+                };
+            }
+        });
+
+    app.locals.getImportExecutionService =
+        async () => {
+            executionCalled = true;
+            throw new Error(
+                "execution service must not be reached"
+            );
+        };
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                fingerprint
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.equal(response.status, 200);
+        assert.deepEqual(body, {
+            success: true,
+            status: "dry_run_ready",
+            fullPlanCount: 94198,
+            sampleCount: 10,
+            actions: ["new"]
+        });
+        assert.deepEqual(previewInput, {
+            sourceDocumentKey: "doc-1",
+            sourceUpdatedAt:
+                "2026-09-17T00:00:00.000Z",
+            sourceSize: 100
+        });
+        assert.equal(executionCalled, false);
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-small-write-dry-run rejects extra browser authority before preview", async () => {
+    let previewCalled = false;
+
+    app.locals.getImportPreviewService =
+        async () => {
+            previewCalled = true;
+            throw new Error(
+                "preview must not be reached"
+            );
+        };
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize: 100,
+                            expectedFingerprint:
+                                "a".repeat(64),
+                            operations: []
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.equal(response.status, 422);
+        assert.equal(body.success, false);
+        assert.equal(body.status, "invalid");
+        assert.equal(previewCalled, false);
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-small-write-dry-run rejects stale fingerprint without execution", async () => {
+    let executionCalled = false;
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async buildExecutionPlan() {
+                return {
+                    status: "ready",
+                    previewFingerprint:
+                        "b".repeat(64),
+                    executionPlan:
+                        Array.from(
+                            { length: 10 },
+                            (_, index) => ({
+                                sourceRecordKey:
+                                    `source-${index + 1}`,
+                                action: "new"
+                            })
+                        )
+                };
+            }
+        });
+
+    app.locals.getImportExecutionService =
+        async () => {
+            executionCalled = true;
+            throw new Error(
+                "execution service must not be reached"
+            );
+        };
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize: 100,
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.equal(response.status, 409);
+        assert.equal(body.success, false);
+        assert.equal(body.status, "stale");
+        assert.equal(executionCalled, false);
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-small-write-verify forwards only confirmed authority to fixed ten row execution", async () => {
+    const fingerprint = "a".repeat(64);
+    let received = null;
+    let normalExecuteCalled = false;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                normalExecuteCalled = true;
+                throw new Error("normal execute must not be reached");
+            },
+            async executeSmallWriteVerification(input) {
+                received = input;
+                return {
+                    status: "completed",
+                    processed: 10,
+                    created: 10,
+                    updated: 0,
+                    alreadyApplied: 0
+                };
+            }
+        });
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+        const url =
+            "http://127.0.0.1:" +
+            address.port +
+            "/import-small-write-verify";
+
+        const response =
+            await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    sourceDocumentKey: "doc-1",
+                    sourceUpdatedAt:
+                        "2026-09-17T00:00:00.000Z",
+                    sourceSize: 100,
+                    expectedFingerprint: fingerprint
+                })
+            });
+
+        const body = await response.json();
+
+        assert.equal(response.status, 200);
+        assert.deepEqual(body, {
+            success: true,
+            status: "completed",
+            processed: 10,
+            created: 10,
+            updated: 0,
+            alreadyApplied: 0
+        });
+        assert.deepEqual(received, {
+            sourceDocumentKey: "doc-1",
+            sourceUpdatedAt:
+                "2026-09-17T00:00:00.000Z",
+            sourceSize: 100,
+            expectedFingerprint: fingerprint
+        });
+        assert.equal(normalExecuteCalled, false);
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-small-write-verify rejects browser supplied operations or limit before execution", async () => {
+    let executionServiceRequested = false;
+
+    app.locals.getImportExecutionService =
+        async () => {
+            executionServiceRequested = true;
+            throw new Error("execution service must not be reached");
+        };
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+        const url =
+            "http://127.0.0.1:" +
+            address.port +
+            "/import-small-write-verify";
+
+        for (const extra of [
+            { operations: [] },
+            { limit: 10 }
+        ]) {
+            const response =
+                await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        sourceDocumentKey: "doc-1",
+                        sourceUpdatedAt:
+                            "2026-09-17T00:00:00.000Z",
+                        sourceSize: 100,
+                        expectedFingerprint:
+                            "a".repeat(64),
+                        ...extra
+                    })
+                });
+
+            const body = await response.json();
+
+            assert.equal(response.status, 422);
+            assert.equal(body.success, false);
+            assert.equal(body.status, "invalid");
+        }
+
+        assert.equal(
+            executionServiceRequested,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-small-write-verify preserves stale verification without successful execution", async () => {
+    let smallWriteCalls = 0;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async executeSmallWriteVerification() {
+                smallWriteCalls += 1;
+                return { status: "stale" };
+            }
+        });
+
+    const server = app.listen(0);
+
+    try {
+        const address = server.address();
+        const url =
+            "http://127.0.0.1:" +
+            address.port +
+            "/import-small-write-verify";
+
+        const response =
+            await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    sourceDocumentKey: "doc-1",
+                    sourceUpdatedAt:
+                        "2026-09-17T00:00:00.000Z",
+                    sourceSize: 100,
+                    expectedFingerprint:
+                        "a".repeat(64)
+                })
+            });
+
+        const body = await response.json();
+
+        assert.equal(response.status, 409);
+        assert.equal(body.success, false);
+        assert.equal(body.status, "stale");
+        assert.equal(smallWriteCalls, 1);
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-execute forwards only confirmed execution authority", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    let received = null;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute(input) {
+                received = input;
+
+                return {
+                    status: "completed",
+                    processed: 3,
+                    created: 2,
+                    updated: 1,
+                    alreadyApplied: 0
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                15089594,
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            received,
+            {
+                sourceDocumentKey:
+                    "doc-execute-1",
+                sourceUpdatedAt:
+                    "2026-09-17T00:00:00.000Z",
+                sourceSize:
+                    15089594,
+                expectedFingerprint:
+                    "a".repeat(64)
+            }
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                status: "completed",
+                processed: 3,
+                created: 2,
+                updated: 1,
+                alreadyApplied: 0
+            }
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-execute rejects extra browser authority before execution", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    let called = false;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                called = true;
+                return {};
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                "b".repeat(64),
+                            operations: []
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            422
+        );
+        assert.strictEqual(
+            called,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-execute rejects invalid fingerprint before execution", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    let called = false;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                called = true;
+                return {};
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                "not-a-fingerprint"
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            422
+        );
+        assert.strictEqual(
+            called,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-execute requires re-preview when execution is stale", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                return {
+                    status: "stale"
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                "c".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            409
+        );
+        assert.strictEqual(
+            body.success,
+            false
+        );
+        assert.strictEqual(
+            body.status,
+            "stale"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-execute preserves conflict partial counts", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                return {
+                    status: "conflict",
+                    sourceRecordKey:
+                        "source-record-3",
+                    processed: 2,
+                    created: 1,
+                    updated: 1,
+                    alreadyApplied: 0
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                "d".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            409
+        );
+
+        assert.deepStrictEqual(
+            {
+                status:
+                    body.status,
+                sourceRecordKey:
+                    body.sourceRecordKey,
+                processed:
+                    body.processed,
+                created:
+                    body.created,
+                updated:
+                    body.updated,
+                alreadyApplied:
+                    body.alreadyApplied
+            },
+            {
+                status: "conflict",
+                sourceRecordKey:
+                    "source-record-3",
+                processed: 2,
+                created: 1,
+                updated: 1,
+                alreadyApplied: 0
+            }
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-execute fails closed when execution result is unavailable", async () => {
+    const original =
+        app.locals.getImportExecutionService;
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                throw new Error(
+                    "unavailable"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(0, "127.0.0.1", resolve)
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100,
+                            expectedFingerprint:
+                                "e".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+        assert.strictEqual(
+            body.success,
+            false
+        );
+        assert.strictEqual(
+            body.status,
+            "error"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            original;
+    }
+});
+
+test("POST /import-preview preserves unavailable processing as 503", async () => {
+    const original =
+        app.locals.getImportPreviewService;
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview() {
+                throw new Error(
+                    "unavailable"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-preview-1",
+                            sourceUpdatedAt:
+                                "2026-09-17T00:00:00.000Z",
+                            sourceSize:
+                                100
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            original;
+    }
+});

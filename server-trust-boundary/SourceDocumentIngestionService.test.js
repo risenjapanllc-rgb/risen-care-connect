@@ -42,7 +42,8 @@ function createService({
     validationResult,
     persistenceResult = {
         status: "created"
-    }
+    },
+    persistenceError = null
 } = {}) {
     let persistenceInput;
 
@@ -65,6 +66,10 @@ function createService({
     const sourceDocumentPersistenceRepository = {
         async upsert(input) {
             persistenceInput = input;
+
+            if (persistenceError) {
+                throw persistenceError;
+            }
 
             return persistenceResult;
         }
@@ -284,5 +289,90 @@ test("does not require resident or semantic data", async () => {
     assert.strictEqual(
         result.status,
         "created"
+    );
+});
+
+
+test("classifies repository HTTP 500 for safe internal diagnostics", async () => {
+    const persistenceError =
+        new Error(
+            "private repository failure"
+        );
+
+    persistenceError.httpStatus =
+        500;
+
+    const { service } =
+        createService({
+            persistenceError
+        });
+
+    const result =
+        await service.ingest({
+            connectorId:
+                "connector-id",
+            credential:
+                "credential",
+            sourceDocument:
+                validSourceDocument()
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "error",
+            errorCode:
+                "source_document_persistence_http_500"
+        }
+    );
+
+    assert.strictEqual(
+        JSON.stringify(result)
+            .includes(
+                "private repository failure"
+            ),
+        false
+    );
+});
+
+test("classifies repository HTTP 413 for safe internal diagnostics", async () => {
+    const persistenceError =
+        new Error(
+            "private repository failure"
+        );
+
+    persistenceError.httpStatus =
+        413;
+
+    const { service } =
+        createService({
+            persistenceError
+        });
+
+    const result =
+        await service.ingest({
+            connectorId:
+                "connector-id",
+            credential:
+                "credential",
+            sourceDocument:
+                validSourceDocument()
+        });
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "error",
+            errorCode:
+                "source_document_persistence_http_413"
+        }
+    );
+
+    assert.strictEqual(
+        JSON.stringify(result)
+            .includes(
+                "private repository failure"
+            ),
+        false
     );
 });

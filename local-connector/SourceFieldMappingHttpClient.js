@@ -115,6 +115,248 @@ class SourceFieldMappingHttpClient {
             fetchImpl;
     }
 
+    async list(
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
+    ) {
+        if (
+            typeof sourceDocumentKey !== "string" ||
+            !sourceDocumentKey.trim()
+        ) {
+            throw new TypeError(
+                "sourceDocumentKey is required"
+            );
+        }
+
+        if (
+            typeof sourceUpdatedAt !== "string" ||
+            !sourceUpdatedAt.trim() ||
+            Number.isNaN(
+                Date.parse(sourceUpdatedAt)
+            )
+        ) {
+            throw new TypeError(
+                "sourceUpdatedAt is required"
+            );
+        }
+
+        if (
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
+            throw new TypeError(
+                "sourceSize is required"
+            );
+        }
+
+        const controller =
+            new AbortController();
+
+        const timeout =
+            setTimeout(
+                () => controller.abort(),
+                this.timeoutMs
+            );
+
+        try {
+            const url =
+                new URL(this.endpoint);
+
+            url.searchParams.set(
+                "sourceDocumentKey",
+                sourceDocumentKey.trim()
+            );
+
+            url.searchParams.set(
+                "sourceUpdatedAt",
+                new Date(sourceUpdatedAt)
+                    .toISOString()
+            );
+
+            url.searchParams.set(
+                "sourceSize",
+                String(sourceSize)
+            );
+
+            let response;
+
+            try {
+                response =
+                    await this.fetchImpl(
+                        url.toString(),
+                        {
+                            method: "GET",
+                            headers: {
+                                [this.connectorIdHeader]:
+                                    this.connectorId,
+                                authorization:
+                                    `${this.authorizationScheme} ${this.credential}`
+                            },
+                            signal:
+                                controller.signal
+                        }
+                    );
+            } catch {
+                const error =
+                    new Error(
+                        "Server Trust Boundary source field mapping query is unreachable"
+                    );
+
+                error.code =
+                    "server_trust_boundary_unreachable";
+
+                throw error;
+            }
+
+            if (!response.ok) {
+                const allowedErrorCodes =
+                    new Set([
+                        "connector_trust_denied",
+                        "source_field_mapping_query_invalid",
+                        "connector_processing_unavailable"
+                    ]);
+
+                let safeResponse = null;
+
+                try {
+                    const parsed =
+                        await response.json();
+
+                    if (
+                        parsed !== null &&
+                        typeof parsed === "object" &&
+                        !Array.isArray(parsed)
+                    ) {
+                        safeResponse =
+                            parsed;
+                    }
+                } catch {
+                    safeResponse =
+                        null;
+                }
+
+                const error =
+                    new Error(
+                        "Server Trust Boundary source field mapping query failed"
+                    );
+
+                error.code =
+                    safeResponse &&
+                    typeof safeResponse.errorCode === "string" &&
+                    allowedErrorCodes.has(
+                        safeResponse.errorCode
+                    )
+                        ? safeResponse.errorCode
+                        : "server_trust_boundary_request_failed";
+
+                error.httpStatus =
+                    Number.isInteger(response.status)
+                        ? response.status
+                        : null;
+
+                error.requestId =
+                    safeResponse &&
+                    typeof safeResponse.requestId === "string" &&
+                    safeResponse.requestId.trim()
+                        ? safeResponse.requestId.trim()
+                        : null;
+
+                throw error;
+            }
+
+            let result;
+
+            try {
+                result =
+                    await response.json();
+            } catch {
+                const error =
+                    new Error(
+                        "Server Trust Boundary source field mapping query returned invalid response"
+                    );
+
+                error.code =
+                    "server_trust_boundary_invalid_response";
+
+                throw error;
+            }
+
+            if (
+                !result ||
+                typeof result !== "object" ||
+                Array.isArray(result) ||
+                result.status !== "found" ||
+                !Array.isArray(result.mappings)
+            ) {
+                const error =
+                    new Error(
+                        "Server Trust Boundary source field mapping query returned invalid response"
+                    );
+
+                error.code =
+                    "server_trust_boundary_invalid_response";
+
+                throw error;
+            }
+
+            const mappings =
+                result.mappings.map(
+                    mapping => {
+                        if (
+                            !mapping ||
+                            typeof mapping !== "object" ||
+                            Array.isArray(mapping) ||
+                            typeof mapping.sourceFieldKey !== "string" ||
+                            !mapping.sourceFieldKey.trim() ||
+                            typeof mapping.standardEntityName !== "string" ||
+                            !mapping.standardEntityName.trim() ||
+                            typeof mapping.standardFieldName !== "string" ||
+                            !mapping.standardFieldName.trim() ||
+                            typeof mapping.confirmedAt !== "string" ||
+                            !mapping.confirmedAt.trim()
+                        ) {
+                            const error =
+                                new Error(
+                                    "Server Trust Boundary source field mapping query returned invalid response"
+                                );
+
+                            error.code =
+                                "server_trust_boundary_invalid_response";
+
+                            throw error;
+                        }
+
+                        return {
+                            sourceFieldKey:
+                                mapping.sourceFieldKey.trim(),
+                            standardEntityName:
+                                mapping.standardEntityName.trim(),
+                            standardFieldName:
+                                mapping.standardFieldName.trim(),
+                            sheetName:
+                                typeof mapping.sheetName === "string"
+                                    ? mapping.sheetName
+                                    : null,
+                            headerLabel:
+                                typeof mapping.headerLabel === "string"
+                                    ? mapping.headerLabel
+                                    : null,
+                            confirmedAt:
+                                mapping.confirmedAt.trim()
+                        };
+                    }
+                );
+
+            return {
+                status: "found",
+                mappings
+            };
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
     async ingest(sourceFieldMapping) {
         if (
             !sourceFieldMapping ||

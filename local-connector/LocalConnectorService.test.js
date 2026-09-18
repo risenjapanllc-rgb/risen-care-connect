@@ -257,6 +257,22 @@ test("normalizeRegisteredExcel uses SourceFieldExtractor for facility fields", a
         ];
       },
 
+      extractSourceEntities() {
+        return [
+          {
+            sourceEntityKey: "sheet:0:row:3",
+            sheetIndex: 0,
+            sheetName: "テスト",
+            rowIndex: 3,
+            fields: {
+              "居室番号": "201",
+              "利用者名": "テスト利用者",
+              "性格": "穏やか"
+            }
+          }
+        ];
+      },
+
       extractFieldDefinitions() {
         return [
           {
@@ -325,6 +341,23 @@ test("normalizeRegisteredExcel uses SourceFieldExtractor for facility fields", a
         sheetName: "テスト",
         columnIndex: 2,
         headerLabel: "性格"
+      }
+    ]
+  );
+
+  assert.deepStrictEqual(
+    result.extracted.sourceEntities,
+    [
+      {
+        sourceEntityKey: "sheet:0:row:3",
+        sheetIndex: 0,
+        sheetName: "テスト",
+        rowIndex: 3,
+        fields: {
+          "居室番号": "201",
+          "利用者名": "テスト利用者",
+          "性格": "穏やか"
+        }
       }
     ]
   );
@@ -410,6 +443,22 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
         ];
       },
 
+      extractSourceEntities() {
+        return [
+          {
+            sourceEntityKey: "sheet:0:row:2",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            rowIndex: 2,
+            fields: {
+              "項目A": "値1",
+              "項目B": "値2",
+              "項目C": "値3"
+            }
+          }
+        ];
+      },
+
       extractFieldDefinitions() {
         return [
           {
@@ -483,6 +532,23 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
   );
 
   assert.deepStrictEqual(
+    result.extracted.sourceEntities,
+    [
+      {
+        sourceEntityKey: "sheet:0:row:2",
+        sheetIndex: 0,
+        sheetName: "CSV",
+        rowIndex: 2,
+        fields: {
+          "項目A": "値1",
+          "項目B": "値2",
+          "項目C": "値3"
+        }
+      }
+    ]
+  );
+
+  assert.deepStrictEqual(
     result.extracted.sourceFields,
     [
       {
@@ -503,5 +569,226 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
         }
       }
     ]
+  );
+});
+
+test("resolveSourceSnapshot resolves the current tabular source only when opaque identity and snapshot match", async () => {
+  const service = new LocalConnectorService({
+    sourceDocumentRegistry: {
+      async findBySourceDocumentKey(sourceDocumentKey) {
+        assert.strictEqual(
+          sourceDocumentKey,
+          "opaque-doc-key-1"
+        );
+
+        return {
+          sourceDocumentKey:
+            "opaque-doc-key-1",
+          relativePath:
+            "台帳/利用者.csv",
+          relativePathLookupKey:
+            "lookup-key",
+          fileName:
+            "利用者.csv",
+          firstSeenAt:
+            "2026-09-15T00:00:00.000Z",
+          lastSeenAt:
+            "2026-09-15T00:00:00.000Z",
+          lastObservedUpdatedAt:
+            "2026-09-15T01:00:00.000Z",
+          lastObservedSize:
+            123
+        };
+      }
+    }
+  });
+
+  service._resolveRegisteredFileDetails =
+    async relativePath => {
+      assert.strictEqual(
+        relativePath,
+        "台帳/利用者.csv"
+      );
+
+      return {
+        filePath:
+          "/secret/inbox/台帳/利用者.csv",
+        fileName:
+          "利用者.csv",
+        relativePath:
+          "台帳/利用者.csv",
+        extension:
+          ".csv",
+        size:
+          123,
+        updatedAt:
+          "2026-09-15T01:00:00.000Z"
+      };
+    };
+
+  service.normalizeRegisteredCsv =
+    async relativePath => {
+      assert.strictEqual(
+        relativePath,
+        "台帳/利用者.csv"
+      );
+
+      return {
+        sourceType:
+          "csv",
+        extracted: {
+          sourceEntities: [
+            {
+              sourceEntityKey:
+                "sheet:0:row:2",
+              valuesBySourceFieldKey: {
+                "sheet:0:column:0":
+                  "resident-code"
+              }
+            }
+          ]
+        }
+      };
+    };
+
+  const result =
+    await service.resolveSourceSnapshot({
+      sourceDocumentKey:
+        "opaque-doc-key-1",
+      sourceUpdatedAt:
+        "2026-09-15T01:00:00.000Z",
+      sourceSize:
+        123
+    });
+
+  assert.strictEqual(
+    result.sourceDocumentKey,
+    "opaque-doc-key-1"
+  );
+  assert.strictEqual(
+    result.sourceUpdatedAt,
+    "2026-09-15T01:00:00.000Z"
+  );
+  assert.strictEqual(
+    result.sourceSize,
+    123
+  );
+  assert.strictEqual(
+    result.analysis.extracted
+      .sourceEntities.length,
+    1
+  );
+});
+
+test("resolveSourceSnapshot fails closed when the current file snapshot changed", async () => {
+  const service = new LocalConnectorService({
+    sourceDocumentRegistry: {
+      async findBySourceDocumentKey() {
+        return {
+          sourceDocumentKey:
+            "opaque-doc-key-1",
+          relativePath:
+            "台帳/利用者.csv",
+          relativePathLookupKey:
+            "lookup-key",
+          fileName:
+            "利用者.csv",
+          firstSeenAt:
+            "2026-09-15T00:00:00.000Z",
+          lastSeenAt:
+            "2026-09-15T00:00:00.000Z",
+          lastObservedUpdatedAt:
+            "2026-09-15T01:00:00.000Z",
+          lastObservedSize:
+            123
+        };
+      }
+    }
+  });
+
+  service._resolveRegisteredFileDetails =
+    async () => ({
+      filePath:
+        "/secret/inbox/台帳/利用者.csv",
+      fileName:
+        "利用者.csv",
+      relativePath:
+        "台帳/利用者.csv",
+      extension:
+        ".csv",
+      size:
+        124,
+      updatedAt:
+        "2026-09-15T01:01:00.000Z"
+    });
+
+  let normalized = false;
+
+  service.normalizeRegisteredCsv =
+    async () => {
+      normalized = true;
+      throw new Error(
+        "must not normalize stale snapshot"
+      );
+    };
+
+  await assert.rejects(
+    () =>
+      service.resolveSourceSnapshot({
+        sourceDocumentKey:
+          "opaque-doc-key-1",
+        sourceUpdatedAt:
+          "2026-09-15T01:00:00.000Z",
+        sourceSize:
+          123
+      }),
+    error =>
+      error?.code ===
+      "source_snapshot_changed"
+  );
+
+  assert.strictEqual(
+    normalized,
+    false
+  );
+});
+
+test("resolveSourceSnapshot does not resolve a file for an unknown opaque sourceDocumentKey", async () => {
+  const service = new LocalConnectorService({
+    sourceDocumentRegistry: {
+      async findBySourceDocumentKey() {
+        return null;
+      }
+    }
+  });
+
+  let resolved = false;
+
+  service._resolveRegisteredFileDetails =
+    async () => {
+      resolved = true;
+      throw new Error(
+        "must not resolve unknown identity"
+      );
+    };
+
+  await assert.rejects(
+    () =>
+      service.resolveSourceSnapshot({
+        sourceDocumentKey:
+          "opaque-doc-key-missing",
+        sourceUpdatedAt:
+          "2026-09-15T01:00:00.000Z",
+        sourceSize:
+          123
+      }),
+    error =>
+      error?.code ===
+      "source_document_not_found"
+  );
+
+  assert.strictEqual(
+    resolved,
+    false
   );
 });

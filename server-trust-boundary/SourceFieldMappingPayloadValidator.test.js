@@ -19,7 +19,11 @@ function createValidPayload() {
         sheetName:
             "Sheet1",
         headerLabel:
-            "血液型"
+            "血液型",
+        sourceUpdatedAt:
+            "2026-09-15T02:30:00.000Z",
+        sourceSize:
+            9520
     };
 }
 
@@ -169,9 +173,65 @@ test(
                 "sheetName",
                 "sourceDocumentKey",
                 "sourceFieldKey",
+                "sourceSize",
+                "sourceUpdatedAt",
                 "standardEntityName",
                 "standardFieldName"
             ].sort()
+        );
+    }
+);
+
+
+test(
+    "requires explicit valid source snapshot",
+    () => {
+        const validator =
+            new SourceFieldMappingPayloadValidator();
+
+        for (const input of [
+            {
+                ...createValidPayload(),
+                sourceUpdatedAt: undefined
+            },
+            {
+                ...createValidPayload(),
+                sourceSize: undefined
+            },
+            {
+                ...createValidPayload(),
+                sourceUpdatedAt: "not-a-timestamp"
+            },
+            {
+                ...createValidPayload(),
+                sourceSize: -1
+            },
+            {
+                ...createValidPayload(),
+                sourceSize: 1.5
+            }
+        ]) {
+            assert.equal(
+                validator.validate(input).status,
+                "invalid"
+            );
+        }
+
+        assert.equal(
+            validator.validate({
+                ...createValidPayload(),
+                sourceUpdatedAt: null,
+                sourceSize: null
+            }).status,
+            "invalid"
+        );
+
+        assert.equal(
+            validator.validate({
+                ...createValidPayload(),
+                sourceSize: 0
+            }).status,
+            "valid"
         );
     }
 );

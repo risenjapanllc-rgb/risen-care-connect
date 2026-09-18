@@ -53,8 +53,19 @@ test("creates complete Server Trust Boundary application runtime", () => {
             "serverTrustBoundaryIngestionService",
             "sourceDocumentIngestionService",
             "sourceFieldMappingIngestionService",
+            "sourceFieldMappingQueryService",
             "sourceFieldInterpretationIngestionService",
-            "sourceFieldInterpretationQueryService"
+            "sourceFieldInterpretationQueryService",
+            "connectorResidentCandidateService",
+            "sourceResidentLinkPersistenceService",
+            "sourceResidentLinkQueryService",
+            "sourceResidentMappingPersistenceService",
+            "sourceResidentMappingQueryService",
+            "sourceRecordIdentityMappingPersistenceService",
+            "sourceRecordIdentityMappingQueryService",
+            "connectorSemanticRecordPreviewService",
+            "connectorSupportRecordBatchWriteService",
+            "residentCreationService"
         ]
     );
 

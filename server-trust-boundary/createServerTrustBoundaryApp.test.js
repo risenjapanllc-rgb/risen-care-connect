@@ -402,6 +402,114 @@ test("unexpected transport exception returns sanitized 503", async () => {
     );
 });
 
+test("source document endpoint can use a larger JSON body limit without relaxing the default limit", async () => {
+    const credentialTransport =
+        new ConnectorCredentialTransport({
+            authorizationScheme:
+                "RISEN-Connector"
+        });
+
+    const transport =
+        new ServerTrustBoundaryTransport({
+            httpAdapter: {
+                async handle() {
+                    throw new Error(
+                        "default transport must not be called"
+                    );
+                }
+            },
+            credentialTransport
+        });
+
+    const sourceDocumentTransport = {
+        async handle({ body }) {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "created",
+                    received:
+                        body.sourceDocument.content.length
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    errorCode,
+                    requestId:
+                        "request-safe"
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport,
+            sourceDocumentTransport,
+            jsonBodyLimit:
+                "100b",
+            sourceDocumentJsonBodyLimit:
+                "2kb"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const sourceResponse =
+                await fetch(
+                    `${baseUrl}/connector/source-documents`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceDocument: {
+                                    content:
+                                        "x".repeat(1000)
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                sourceResponse.status,
+                200
+            );
+
+            const defaultResponse =
+                await fetch(
+                    `${baseUrl}/connector/ingest`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                data:
+                                    "x".repeat(1000)
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                defaultResponse.status,
+                413
+            );
+        }
+    );
+});
+
 test("oversized JSON returns sanitized 413 with requestId", async () => {
     const credentialTransport =
         new ConnectorCredentialTransport({
@@ -652,6 +760,734 @@ test("mounts source-document transport on separate endpoint without changing sem
                         observedAt:
                             "2026-09-11T10:01:00.000Z"
                     }
+                }
+            );
+        }
+    );
+});
+
+
+test("mounts source resident link GET query transport on the same endpoint without invoking POST transport", async () => {
+    let postTransportCalled = false;
+    let receivedQueryRequest = null;
+
+    const sourceResidentLinkTransport = {
+        async handle() {
+            postTransportCalled = true;
+
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unexpected"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "resident-link-post-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const sourceResidentLinkQueryTransport = {
+        async handle(input) {
+            receivedQueryRequest =
+                input;
+
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "found",
+                    links: []
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "resident-link-query-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unmatched"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+            sourceResidentLinkTransport,
+            sourceResidentLinkQueryTransport,
+            sourceResidentLinkEndpointPath:
+                "/connector/source-resident-links"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const params =
+                new URLSearchParams({
+                    sourceDocumentKey:
+                        "document-1",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520"
+                });
+
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-resident-links?${params}`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        }
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    status: "found",
+                    links: []
+                }
+            );
+
+            assert.strictEqual(
+                postTransportCalled,
+                false
+            );
+
+            assert.ok(
+                receivedQueryRequest
+            );
+
+            assert.strictEqual(
+                receivedQueryRequest.method,
+                "GET"
+            );
+
+            assert.strictEqual(
+                receivedQueryRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+
+            assert.deepStrictEqual(
+                {
+                    ...receivedQueryRequest.query
+                },
+                {
+                    sourceDocumentKey:
+                        "document-1",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize:
+                        "9520"
+                }
+            );
+        }
+    );
+});
+
+test("mounts source resident link transport on separate endpoint without affecting voice route", async () => {
+    let receivedResidentLinkRequest = null;
+
+    const sourceResidentLinkTransport = {
+        async handle(input) {
+            receivedResidentLinkRequest =
+                input;
+
+            return {
+                httpStatus: 200,
+                body: {
+                    status:
+                        "created"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "resident-link-error-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status:
+                        "unmatched"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+            sourceResidentLinkTransport,
+            sourceResidentLinkEndpointPath:
+                "/connector/source-resident-links"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-resident-links`,
+                    {
+                        method:
+                            "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceResidentLink: {
+                                    sourceDocumentKey:
+                                        "document-1",
+                                    sourceEntityKey:
+                                        "sheet:0:row:2",
+                                    linkStatus:
+                                        "confirmed",
+                                    residentId:
+                                        "33333333-3333-3333-3333-333333333333",
+                                    sourceUpdatedAt:
+                                        "2026-09-15T02:30:00.000Z",
+                                    sourceSize:
+                                        9520
+                                }
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    status:
+                        "created"
+                }
+            );
+
+            assert.ok(
+                receivedResidentLinkRequest
+            );
+
+            assert.strictEqual(
+                receivedResidentLinkRequest.method,
+                "POST"
+            );
+
+            assert.strictEqual(
+                receivedResidentLinkRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+
+            assert.deepStrictEqual(
+                receivedResidentLinkRequest.body,
+                {
+                    sourceResidentLink: {
+                        sourceDocumentKey:
+                            "document-1",
+                        sourceEntityKey:
+                            "sheet:0:row:2",
+                        linkStatus:
+                            "confirmed",
+                        residentId:
+                            "33333333-3333-3333-3333-333333333333",
+                        sourceUpdatedAt:
+                            "2026-09-15T02:30:00.000Z",
+                        sourceSize:
+                            9520
+                    }
+                }
+            );
+        }
+    );
+});
+
+test("mounts source resident mapping GET query transport on the same endpoint without invoking POST transport", async () => {
+    let postTransportCalled = false;
+    let receivedQueryRequest = null;
+
+    const sourceResidentMappingTransport = {
+        async handle() {
+            postTransportCalled = true;
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unexpected"
+                }
+            };
+        },
+        createErrorResponse({httpStatus, errorCode}) {
+            return {
+                httpStatus,
+                body: {
+                    requestId: "resident-mapping-post-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const sourceResidentMappingQueryTransport = {
+        async handle(input) {
+            receivedQueryRequest = input;
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "found",
+                    mappings: []
+                }
+            };
+        },
+        createErrorResponse({httpStatus, errorCode}) {
+            return {
+                httpStatus,
+                body: {
+                    requestId: "resident-mapping-query-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unmatched"
+                }
+            };
+        },
+        createErrorResponse({httpStatus, errorCode}) {
+            return {
+                httpStatus,
+                body: {
+                    requestId: "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport: semanticTransport,
+            sourceResidentMappingTransport,
+            sourceResidentMappingQueryTransport,
+            sourceResidentMappingEndpointPath:
+                "/connector/source-resident-mappings"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const params =
+                new URLSearchParams({
+                    sourceDocumentKey: "document-1",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize: "9520"
+                });
+
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-resident-mappings?${params}`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        }
+                    }
+                );
+
+            assert.strictEqual(response.status, 200);
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    status: "found",
+                    mappings: []
+                }
+            );
+            assert.strictEqual(
+                postTransportCalled,
+                false
+            );
+            assert.ok(receivedQueryRequest);
+            assert.strictEqual(
+                receivedQueryRequest.method,
+                "GET"
+            );
+            assert.strictEqual(
+                receivedQueryRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+            assert.deepStrictEqual(
+                {...receivedQueryRequest.query},
+                {
+                    sourceDocumentKey: "document-1",
+                    sourceUpdatedAt:
+                        "2026-09-15T02:30:00.000Z",
+                    sourceSize: "9520"
+                }
+            );
+        }
+    );
+});
+
+test("mounts source resident mapping POST transport with identifier mapping contract", async () => {
+    let receivedRequest = null;
+
+    const sourceResidentMappingTransport = {
+        async handle(input) {
+            receivedRequest = input;
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "created"
+                }
+            };
+        },
+        createErrorResponse({httpStatus, errorCode}) {
+            return {
+                httpStatus,
+                body: {
+                    requestId: "resident-mapping-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unmatched"
+                }
+            };
+        },
+        createErrorResponse({httpStatus, errorCode}) {
+            return {
+                httpStatus,
+                body: {
+                    requestId: "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport: semanticTransport,
+            sourceResidentMappingTransport,
+            sourceResidentMappingEndpointPath:
+                "/connector/source-resident-mappings"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const sourceResidentMapping = {
+                sourceDocumentKey: "document-1",
+                identifierType: "name",
+                identifierDigest:
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                mappingStatus: "confirmed",
+                residentId:
+                    "33333333-3333-3333-3333-333333333333",
+                sourceUpdatedAt:
+                    "2026-09-15T02:30:00.000Z",
+                sourceSize: 9520
+            };
+
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/source-resident-mappings`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+                        body:
+                            JSON.stringify({
+                                sourceResidentMapping
+                            })
+                    }
+                );
+
+            assert.strictEqual(response.status, 200);
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    status: "created"
+                }
+            );
+            assert.ok(receivedRequest);
+            assert.strictEqual(
+                receivedRequest.method,
+                "POST"
+            );
+            assert.strictEqual(
+                receivedRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+            assert.deepStrictEqual(
+                receivedRequest.body,
+                {
+                    sourceResidentMapping
+                }
+            );
+        }
+    );
+});
+
+
+test("mounts resident creation POST transport", async () => {
+    let receivedRequest = null;
+
+    const residentCreationTransport = {
+        async handle(input) {
+            receivedRequest = input;
+
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "created",
+                    resident: {
+                        residentId:
+                            "resident-1",
+                        userCode: null,
+                        name:
+                            "Test Resident",
+                        kana: null,
+                        birthDate: null
+                    }
+                }
+            };
+        },
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "resident-creation-error",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+                body: {
+                    status: "unmatched"
+                }
+            };
+        },
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+                body: {
+                    requestId:
+                        "semantic-request-id",
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+            residentCreationTransport,
+            residentCreationEndpointPath:
+                "/connector/residents"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const resident = {
+                name:
+                    "Test Resident"
+            };
+
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/residents`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+                        body:
+                            JSON.stringify({
+                                resident
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    status: "created",
+                    resident: {
+                        residentId:
+                            "resident-1",
+                        userCode: null,
+                        name:
+                            "Test Resident",
+                        kana: null,
+                        birthDate: null
+                    }
+                }
+            );
+
+            assert.ok(receivedRequest);
+
+            assert.strictEqual(
+                receivedRequest.method,
+                "POST"
+            );
+
+            assert.strictEqual(
+                receivedRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+
+            assert.deepStrictEqual(
+                receivedRequest.body,
+                {
+                    resident
                 }
             );
         }

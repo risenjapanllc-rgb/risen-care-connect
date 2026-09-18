@@ -102,7 +102,11 @@ class SupabaseSourceFieldMappingPersistenceRepository
                             p_header_label:
                                 input.headerLabel,
                             p_confirmed_at:
-                                input.confirmedAt
+                                input.confirmedAt,
+                            p_source_updated_at:
+                                input.sourceUpdatedAt,
+                            p_source_size:
+                                input.sourceSize
                         })
                 }
             );

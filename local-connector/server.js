@@ -12,6 +12,11 @@ let localConnectorIngestionServicePromise = null;
 let sourceDocumentIngestionServicePromise = null;
 let sourceFieldMappingIngestionServicePromise = null;
 let sourceFieldInterpretationIngestionServicePromise = null;
+let residentCandidateServicePromise = null;
+let sourceResidentLinkClientPromise = null;
+let sourceResidentMappingClientPromise = null;
+let sourceRecordIdentityMappingServicePromise = null;
+let residentCreationClientPromise = null;
 
 app.locals.getSourceDocumentIngestionService =
     async () => {
@@ -24,8 +29,27 @@ app.locals.getSourceDocumentIngestionService =
                                 .RISEN_SOURCE_DOCUMENT_ENDPOINT ||
                             process.env
                                 .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_DOCUMENT_ENDPOINT ||
-                            process.env
-                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-documents";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
                         credential:
                             process.env
                                 .CONNECTOR_CREDENTIAL,
@@ -36,7 +60,8 @@ app.locals.getSourceDocumentIngestionService =
                         connectorIdHeader:
                             process.env
                                 .RISEN_CONNECTOR_ID_HEADER ||
-                            'x-risen-connector-id'
+                            'x-risen-connector-id',
+                        timeoutMs: 60000
                     })
                     .catch(error => {
                         sourceDocumentIngestionServicePromise =
@@ -47,6 +72,176 @@ app.locals.getSourceDocumentIngestionService =
         }
 
         return await sourceDocumentIngestionServicePromise;
+    };
+
+let importPreviewServicePromise = null;
+
+app.locals.getImportPreviewService =
+    async () => {
+        if (!importPreviewServicePromise) {
+            const semanticEndpoint =
+                process.env
+                    .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+            const buildEndpoint =
+                pathname => {
+                    if (!semanticEndpoint) {
+                        return undefined;
+                    }
+
+                    const url =
+                        new URL(
+                            semanticEndpoint
+                        );
+
+                    url.pathname =
+                        pathname;
+                    url.search = "";
+                    url.hash = "";
+
+                    return url.toString();
+                };
+
+            importPreviewServicePromise =
+                LocalConnectorCompositionRoot
+                    .createImportPreviewService({
+                        fieldMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-field-mappings"
+                            ),
+                        residentMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-resident-mappings"
+                            ),
+                        sourceRecordIdentityMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RECORD_IDENTITY_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-record-identity-mapping"
+                            ),
+                        semanticRecordPreviewEndpoint:
+                            process.env
+                                .RISEN_SEMANTIC_RECORD_PREVIEW_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/semantic-record-preview"
+                            ),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        importPreviewServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await importPreviewServicePromise;
+    };
+
+let importExecutionServicePromise = null;
+
+app.locals.getImportExecutionService =
+    async () => {
+        if (!importExecutionServicePromise) {
+            const semanticEndpoint =
+                process.env
+                    .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+            const buildEndpoint =
+                pathname => {
+                    if (!semanticEndpoint) {
+                        return undefined;
+                    }
+
+                    const url =
+                        new URL(
+                            semanticEndpoint
+                        );
+
+                    url.pathname =
+                        pathname;
+                    url.search = "";
+                    url.hash = "";
+
+                    return url.toString();
+                };
+
+            importExecutionServicePromise =
+                LocalConnectorCompositionRoot
+                    .createImportExecutionService({
+                        fieldMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-field-mappings"
+                            ),
+                        residentMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-resident-mappings"
+                            ),
+                        sourceRecordIdentityMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RECORD_IDENTITY_MAPPING_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/source-record-identity-mapping"
+                            ),
+                        semanticRecordPreviewEndpoint:
+                            process.env
+                                .RISEN_SEMANTIC_RECORD_PREVIEW_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/semantic-record-preview"
+                            ),
+                        supportRecordBatchWriteEndpoint:
+                            process.env
+                                .RISEN_SUPPORT_RECORD_BATCH_WRITE_ENDPOINT ||
+                            buildEndpoint(
+                                "/connector/support-record-batch-write"
+                            ),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        importExecutionServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await importExecutionServicePromise;
     };
 
 app.locals.getSourceFieldMappingIngestionService =
@@ -91,7 +286,8 @@ app.locals.getSourceFieldMappingIngestionService =
                         connectorIdHeader:
                             process.env
                                 .RISEN_CONNECTOR_ID_HEADER ||
-                            'x-risen-connector-id'
+                            'x-risen-connector-id',
+                        timeoutMs: 60000
                     })
                     .catch(error => {
                         sourceFieldMappingIngestionServicePromise =
@@ -157,6 +353,142 @@ app.locals.getSourceFieldInterpretationIngestionService =
         }
 
         return await sourceFieldInterpretationIngestionServicePromise;
+    };
+
+app.locals.getResidentCandidateService =
+    async () => {
+        if (!residentCandidateServicePromise) {
+            residentCandidateServicePromise =
+                LocalConnectorCompositionRoot
+                    .createSourceResidentCandidateResolver({
+                        mappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-field-mappings";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        candidateEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_CANDIDATE_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_RESIDENT_CANDIDATE_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/resident-candidates";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            'RISEN-Connector',
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            'x-risen-connector-id'
+                    })
+                    .catch(error => {
+                        residentCandidateServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await residentCandidateServicePromise;
+    };
+
+app.locals.getSourceResidentLinkClient =
+    async () => {
+        if (!sourceResidentLinkClientPromise) {
+            sourceResidentLinkClientPromise =
+                LocalConnectorCompositionRoot
+                    .createSourceResidentLinkClient({
+                        endpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_LINK_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_LINK_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-resident-links";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        sourceResidentLinkClientPromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await sourceResidentLinkClientPromise;
     };
 
 app.locals.getLocalConnectorIngestionService =
@@ -358,6 +690,10 @@ app.post("/files/:fileName/analyze", async (req, res) => {
             fileName,
             sourceDocumentKey:
                 observation.sourceDocumentKey,
+            sourceUpdatedAt:
+                observation.lastObservedUpdatedAt,
+            sourceSize:
+                observation.lastObservedSize,
             sourceType: result.sourceType,
             documentType: result.documentType,
             documentTypeConfidence:
@@ -382,11 +718,50 @@ app.post(
                 await app.locals
                     .getSourceDocumentIngestionService();
 
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const hasExpectedSnapshot =
+                Object.prototype.hasOwnProperty.call(
+                    input,
+                    "sourceDocumentKey"
+                ) ||
+                Object.prototype.hasOwnProperty.call(
+                    input,
+                    "sourceUpdatedAt"
+                ) ||
+                Object.prototype.hasOwnProperty.call(
+                    input,
+                    "sourceSize"
+                );
+
+            const expectedSnapshot =
+                hasExpectedSnapshot
+                    ? {
+                        sourceDocumentKey:
+                            input.sourceDocumentKey,
+                        sourceUpdatedAt:
+                            input.sourceUpdatedAt,
+                        sourceSize:
+                            input.sourceSize
+                    }
+                    : null;
+
             const result =
-                await ingestionService
-                    .ingestRegisteredFile(
-                        req.params.fileName
-                    );
+                expectedSnapshot === null
+                    ? await ingestionService
+                        .ingestRegisteredFile(
+                            req.params.fileName
+                        )
+                    : await ingestionService
+                        .ingestRegisteredFile(
+                            req.params.fileName,
+                            expectedSnapshot
+                        );
 
             if (
                 result?.status === "created" ||
@@ -428,10 +803,157 @@ app.post(
                 });
             }
 
+            if (
+                error?.code ===
+                "payload_too_large"
+            ) {
+                return res.status(413).json({
+                    success: false,
+                    message:
+                        "原本ファイルのサイズが上限を超えています"
+                });
+            }
+
+            if (
+                error?.code ===
+                "source_snapshot_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本ファイルの確認情報が不正です"
+                });
+            }
+
+            if (
+                error?.code ===
+                "source_snapshot_changed"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message:
+                        "原本ファイルが更新されています。もう一度解析してください"
+                });
+            }
+
             return res.status(503).json({
                 success: false,
                 message:
                     "原本ファイルの保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/source-field-mappings",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "項目対応の取得条件が不正です"
+                });
+            }
+
+            const queryService =
+                await app.locals
+                    .getSourceFieldMappingIngestionService();
+
+            const result =
+                await queryService.list(
+                    sourceDocumentKey,
+                    new Date(sourceUpdatedAt)
+                        .toISOString(),
+                    sourceSize
+                );
+
+            if (
+                result?.status === "found" &&
+                Array.isArray(result.mappings)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    mappings:
+                        result.mappings
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error?.code ===
+                "source_field_mapping_query_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "項目対応の取得条件が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "項目対応の取得に失敗しました"
             });
         }
     }
@@ -475,7 +997,11 @@ app.post(
                 sheetName:
                     mapping.sheetName ?? null,
                 headerLabel:
-                    mapping.headerLabel ?? null
+                    mapping.headerLabel ?? null,
+                sourceUpdatedAt:
+                    mapping.sourceUpdatedAt,
+                sourceSize:
+                    mapping.sourceSize
             };
 
             const ingestionService =
@@ -705,6 +1231,1734 @@ app.post(
                 success: false,
                 message:
                     "項目確認状態の保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.locals.getSourceResidentMappingClient =
+    async () => {
+        if (!sourceResidentMappingClientPromise) {
+            sourceResidentMappingClientPromise =
+                LocalConnectorCompositionRoot
+                    .createSourceResidentMappingClient({
+                        endpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-resident-mappings";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        sourceResidentMappingClientPromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await sourceResidentMappingClientPromise;
+    };
+
+app.locals.getSourceRecordIdentityMappingService =
+    async () => {
+        if (!sourceRecordIdentityMappingServicePromise) {
+            sourceRecordIdentityMappingServicePromise =
+                LocalConnectorCompositionRoot
+                    .createSourceRecordIdentityMappingService({
+                        endpoint:
+                            process.env
+                                .RISEN_SOURCE_RECORD_IDENTITY_MAPPING_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-record-identity-mapping";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        sourceRecordIdentityMappingServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await sourceRecordIdentityMappingServicePromise;
+    };
+
+app.locals.getResidentCreationClient =
+    async () => {
+        if (!residentCreationClientPromise) {
+            residentCreationClientPromise =
+                LocalConnectorCompositionRoot
+                    .createResidentCreationClient({
+                        endpoint:
+                            process.env
+                                .RISEN_RESIDENT_CREATION_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_RESIDENT_CREATION_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/residents";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        residentCreationClientPromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await residentCreationClientPromise;
+    };
+
+app.post(
+    "/residents",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const name =
+                typeof input.name === "string"
+                    ? input.name.trim()
+                    : "";
+
+            if (
+                inputKeys.length !== 1 ||
+                inputKeys[0] !== "name" ||
+                !name
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録の送信内容が不正です"
+                });
+            }
+
+            const client =
+                await app.locals
+                    .getResidentCreationClient();
+
+            const result =
+                await client.create({
+                    name
+                });
+
+            if (
+                (
+                    result?.status === "created" ||
+                    result?.status === "existing"
+                ) &&
+                result.resident &&
+                typeof result.resident.residentId === "string" &&
+                result.resident.residentId.trim() &&
+                typeof result.resident.name === "string" &&
+                result.resident.name.trim()
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status:
+                        result.status,
+                    resident:
+                        result.resident
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "利用者登録が拒否されました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "resident_creation_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録の送信内容が不正です"
+                });
+            }
+
+            if (
+                error?.code ===
+                    "resident_name_ambiguous"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    errorCode:
+                        "resident_name_ambiguous",
+                    message:
+                        "同名の利用者が複数存在するため登録できません"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者登録に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/source-resident-mappings",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの取得条件が不正です"
+                });
+            }
+
+            const client =
+                await app.locals
+                    .getSourceResidentMappingClient();
+
+            const result =
+                await client.list({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (
+                result?.status === "found" &&
+                Array.isArray(result.mappings)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "found",
+                    mappings:
+                        result.mappings
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code === "server_trust_boundary_denied"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの取得が拒否されました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "server_trust_boundary_invalid_request"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの取得条件が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者マッピングの取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/source-resident-mappings",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "identifierType",
+                    "identifierDigest",
+                    "mappingStatus",
+                    "residentId",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const identifierType =
+                typeof input.identifierType === "string"
+                    ? input.identifierType.trim()
+                    : "";
+
+            const identifierDigest =
+                typeof input.identifierDigest === "string"
+                    ? input.identifierDigest.trim()
+                    : "";
+
+            const mappingStatus =
+                typeof input.mappingStatus === "string"
+                    ? input.mappingStatus.trim()
+                    : "";
+
+            const residentId =
+                typeof input.residentId === "string"
+                    ? input.residentId.trim()
+                    : input.residentId;
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            if (
+                inputKeys.length !== 7 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !["user_code", "name"].includes(
+                    identifierType
+                ) ||
+                !/^[0-9a-f]{64}$/.test(
+                    identifierDigest
+                ) ||
+                ![
+                    "confirmed",
+                    "deferred",
+                    "no_match"
+                ].includes(mappingStatus) ||
+                (
+                    mappingStatus === "confirmed" &&
+                    (
+                        typeof residentId !== "string" ||
+                        !residentId
+                    )
+                ) ||
+                (
+                    mappingStatus !== "confirmed" &&
+                    residentId != null
+                ) ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの送信内容が不正です"
+                });
+            }
+
+            const client =
+                await app.locals
+                    .getSourceResidentMappingClient();
+
+            const result =
+                await client.save({
+                    sourceDocumentKey,
+                    identifierType,
+                    identifierDigest,
+                    mappingStatus,
+                    residentId:
+                        mappingStatus === "confirmed"
+                            ? residentId
+                            : null,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (
+                result?.status === "created" ||
+                result?.status === "updated" ||
+                result?.status === "unchanged"
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status:
+                        result.status
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code === "server_trust_boundary_denied"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの保存が拒否されました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "server_trust_boundary_invalid_request"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者マッピングの送信内容が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者マッピングの保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/source-record-identity-mapping",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本レコードIDの取得条件が不正です"
+                });
+            }
+
+            const identityService =
+                await app.locals
+                    .getSourceRecordIdentityMappingService();
+
+            const result =
+                await identityService.get({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (result?.status === "not_found") {
+                return res.status(200).json({
+                    success: true,
+                    status: "not_found",
+                    mapping: null
+                });
+            }
+
+            if (
+                result?.status === "found" &&
+                result.mapping &&
+                typeof result.mapping.sourceFieldKey ===
+                    "string" &&
+                result.mapping.sourceFieldKey.trim()
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "found",
+                    mapping:
+                        result.mapping
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "source_record_identity_mapping_query_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本レコードIDの取得条件が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "原本レコードIDの取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/source-record-identity-mapping",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "sourceFieldKey"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            const sourceFieldKey =
+                typeof input.sourceFieldKey === "string"
+                    ? input.sourceFieldKey.trim()
+                    : "";
+
+            if (
+                inputKeys.length !== 4 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !sourceFieldKey
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本レコードIDの確認内容が不正です"
+                });
+            }
+
+            const identityService =
+                await app.locals
+                    .getSourceRecordIdentityMappingService();
+
+            const result =
+                await identityService.confirm({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize,
+                    sourceFieldKey
+                });
+
+            if (
+                result?.status === "confirmed" &&
+                result.mapping &&
+                typeof result.mapping.sourceFieldKey ===
+                    "string" &&
+                result.mapping.sourceFieldKey.trim() &&
+                result.validation &&
+                Number.isSafeInteger(
+                    result.validation.sourceEntityCount
+                ) &&
+                Number.isSafeInteger(
+                    result.validation.uniqueValueCount
+                )
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "confirmed",
+                    persistenceStatus:
+                        result.persistenceStatus,
+                    mapping:
+                        result.mapping,
+                    validation:
+                        result.validation
+                });
+            }
+
+            if (result?.status === "invalid") {
+                return res.status(422).json({
+                    success: false,
+                    errorCode:
+                        typeof result.errorCode === "string"
+                            ? result.errorCode
+                            : "source_record_identity_validation_invalid",
+                    validation: {
+                        sourceEntityCount:
+                            Number.isSafeInteger(
+                                result.sourceEntityCount
+                            )
+                                ? result.sourceEntityCount
+                                : null,
+                        missingFieldCount:
+                            Number.isSafeInteger(
+                                result.missingFieldCount
+                            )
+                                ? result.missingFieldCount
+                                : null,
+                        blankValueCount:
+                            Number.isSafeInteger(
+                                result.blankValueCount
+                            )
+                                ? result.blankValueCount
+                                : null,
+                        duplicateValueCount:
+                            Number.isSafeInteger(
+                                result.duplicateValueCount
+                            )
+                                ? result.duplicateValueCount
+                                : null,
+                        uniqueValueCount:
+                            Number.isSafeInteger(
+                                result.uniqueValueCount
+                            )
+                                ? result.uniqueValueCount
+                                : null
+                    },
+                    message:
+                        "原本レコードIDとして使用できない項目です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "原本レコードIDの確認結果が不正です"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "source_record_identity_mapping_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "原本レコードIDの確認内容が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "原本レコードIDの保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/source-resident-links",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者紐付けの取得条件が不正です"
+                });
+            }
+
+            const client =
+                await app.locals
+                    .getSourceResidentLinkClient();
+
+            const result =
+                await client.list({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (
+                result?.status === "found" &&
+                Array.isArray(result.links)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "found",
+                    links:
+                        result.links
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error?.code ===
+                "source_resident_link_query_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者紐付けの取得条件が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者紐付けの取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/import-preview",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const allowedKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const keys =
+                Object.keys(input);
+
+            if (
+                keys.length !== 3 ||
+                keys.some(
+                    key => !allowedKeys.has(key)
+                )
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "取り込みプレビューの条件が不正です"
+                });
+            }
+
+            const previewService =
+                await app.locals
+                    .getImportPreviewService();
+
+            const result =
+                await previewService.preview({
+                    sourceDocumentKey:
+                        input.sourceDocumentKey,
+                    sourceUpdatedAt:
+                        input.sourceUpdatedAt,
+                    sourceSize:
+                        input.sourceSize
+                });
+
+            return res.status(200).json({
+                success: true,
+                ...result
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "resident_identifier_mapping_unavailable"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "取り込みプレビューの条件が整っていません"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "取り込みプレビューに失敗しました"
+            });
+        }
+    }
+);
+
+
+app.post(
+    "/import-execute",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const allowedKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "expectedFingerprint"
+                ]);
+
+            const keys =
+                Object.keys(input);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const expectedFingerprint =
+                typeof input.expectedFingerprint === "string"
+                    ? input.expectedFingerprint.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            if (
+                keys.length !== 4 ||
+                keys.some(
+                    key => !allowedKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                !Number.isInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !/^[0-9a-f]{64}$/.test(
+                    expectedFingerprint
+                )
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    status: "invalid",
+                    message:
+                        "最終確定の条件が不正です"
+                });
+            }
+
+            const executionService =
+                await app.locals
+                    .getImportExecutionService();
+
+            const result =
+                await executionService.execute({
+                    sourceDocumentKey,
+                    sourceUpdatedAt,
+                    sourceSize,
+                    expectedFingerprint
+                });
+
+            if (
+                result &&
+                result.status === "completed"
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "completed",
+                    processed:
+                        result.processed,
+                    created:
+                        result.created,
+                    updated:
+                        result.updated,
+                    alreadyApplied:
+                        result.alreadyApplied
+                });
+            }
+
+            if (
+                result &&
+                (
+                    result.status === "stale" ||
+                    result.status === "blocked" ||
+                    result.status === "invalid"
+                )
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        result.status,
+                    message:
+                        "取り込み条件が変わったため、プレビューの再確認が必要です"
+                });
+            }
+
+            if (
+                result &&
+                (
+                    result.status === "conflict" ||
+                    result.status === "resident_mismatch"
+                )
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        result.status,
+                    sourceRecordKey:
+                        typeof result.sourceRecordKey === "string"
+                            ? result.sourceRecordKey
+                            : null,
+                    processed:
+                        result.processed,
+                    created:
+                        result.created,
+                    updated:
+                        result.updated,
+                    alreadyApplied:
+                        result.alreadyApplied,
+                    message:
+                        "取り込み途中で現在のデータとの差異を検出しました。プレビューの再確認が必要です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                status: "error",
+                processed:
+                    Number.isInteger(
+                        result?.processed
+                    )
+                        ? result.processed
+                        : 0,
+                created:
+                    Number.isInteger(
+                        result?.created
+                    )
+                        ? result.created
+                        : 0,
+                updated:
+                    Number.isInteger(
+                        result?.updated
+                    )
+                        ? result.updated
+                        : 0,
+                alreadyApplied:
+                    Number.isInteger(
+                        result?.alreadyApplied
+                    )
+                        ? result.alreadyApplied
+                        : 0,
+                message:
+                    "取り込み結果を確定できませんでした。自動再試行せず、プレビューを再確認してください"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    status: "denied",
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                status: "error",
+                message:
+                    "取り込み結果を確定できませんでした。自動再試行せず、プレビューを再確認してください"
+            });
+        }
+    }
+);
+
+app.post(
+    "/source-resident-links",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceEntityKey",
+                    "linkStatus",
+                    "residentId",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceEntityKey =
+                typeof input.sourceEntityKey === "string"
+                    ? input.sourceEntityKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const linkStatus =
+                typeof input.linkStatus === "string"
+                    ? input.linkStatus.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            const residentId =
+                typeof input.residentId === "string"
+                    ? input.residentId.trim()
+                    : input.residentId;
+
+            const validStatuses =
+                new Set([
+                    "confirmed",
+                    "deferred",
+                    "no_match"
+                ]);
+
+            if (
+                inputKeys.length !== 6 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceEntityKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !validStatuses.has(linkStatus) ||
+                (
+                    linkStatus === "confirmed" &&
+                    (
+                        typeof residentId !== "string" ||
+                        !residentId
+                    )
+                ) ||
+                (
+                    linkStatus !== "confirmed" &&
+                    residentId != null
+                )
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者紐付けの送信内容が不正です"
+                });
+            }
+
+            const client =
+                await app.locals
+                    .getSourceResidentLinkClient();
+
+            const result =
+                await client.save({
+                    sourceDocumentKey,
+                    sourceEntityKey,
+                    linkStatus,
+                    residentId:
+                        linkStatus === "confirmed"
+                            ? residentId
+                            : null,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (
+                result?.status === "created" ||
+                result?.status === "updated" ||
+                result?.status === "unchanged"
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status:
+                        result.status
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error?.code ===
+                "source_resident_link_invalid"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者紐付けの送信内容が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者紐付けの保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/resident-candidate-groups",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            if (
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者候補グループ検索の送信内容が不正です"
+                });
+            }
+
+            const candidateResolver =
+                await app.locals
+                    .getResidentCandidateService();
+
+            const result =
+                await candidateResolver
+                    .findCandidateGroups({
+                        sourceDocumentKey,
+                        sourceUpdatedAt:
+                            new Date(sourceUpdatedAt)
+                                .toISOString(),
+                        sourceSize
+                    });
+
+            if (
+                !result ||
+                ![
+                    "user_code",
+                    "name"
+                ].includes(result.identifierType) ||
+                !Number.isSafeInteger(
+                    result.sourceEntityCount
+                ) ||
+                !Number.isSafeInteger(
+                    result.unavailableSourceEntityCount
+                ) ||
+                !Array.isArray(result.groups) ||
+                result.groups.some(
+                    group =>
+                        !group ||
+                        ![
+                            "matched",
+                            "ambiguous",
+                            "not_found"
+                        ].includes(group.status) ||
+                        ![
+                            "user_code",
+                            "name"
+                        ].includes(
+                            group.identifierType
+                        ) ||
+                        typeof group.identifierDigest !==
+                            "string" ||
+                        !/^[0-9a-f]{64}$/.test(
+                            group.identifierDigest
+                        ) ||
+                        (
+                            group.identifierType === "name" &&
+                            (
+                                typeof group.identifierValue !== "string" ||
+                                !group.identifierValue.trim()
+                            )
+                        ) ||
+                        (
+                            group.identifierType === "user_code" &&
+                            group.identifierValue !== null
+                        ) ||
+                        !Number.isSafeInteger(
+                            group.sourceEntityCount
+                        ) ||
+                        group.sourceEntityCount < 1 ||
+                        !Array.isArray(
+                            group.candidates
+                        )
+                )
+            ) {
+                return res.status(503).json({
+                    success: false,
+                    message:
+                        "利用者候補グループの応答が不正です"
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                identifierType:
+                    result.identifierType,
+                sourceEntityCount:
+                    result.sourceEntityCount,
+                unavailableSourceEntityCount:
+                    result.unavailableSourceEntityCount,
+                groups:
+                    result.groups
+            });
+        } catch (error) {
+            if (
+                [
+                    "resident_identifier_mapping_unavailable",
+                    "source_entities_unavailable",
+                    "resident_candidate_response_invalid"
+                ].includes(error?.code)
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者候補グループを確認できませんでした"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者候補グループの取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/resident-candidates",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "sourceEntityKey"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceEntityKey =
+                typeof input.sourceEntityKey === "string"
+                    ? input.sourceEntityKey.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            if (
+                inputKeys.length !== 4 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !sourceEntityKey
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者候補検索の送信内容が不正です"
+                });
+            }
+
+            const candidateResolver =
+                await app.locals
+                    .getResidentCandidateService();
+
+            const result =
+                await candidateResolver
+                    .findCandidates({
+                        sourceDocumentKey,
+                        sourceUpdatedAt:
+                            new Date(sourceUpdatedAt)
+                                .toISOString(),
+                        sourceSize,
+                        sourceEntityKey
+                    });
+
+            if (
+                !result ||
+                ![
+                    "matched",
+                    "ambiguous",
+                    "not_found"
+                ].includes(result.status) ||
+                !Array.isArray(result.candidates)
+            ) {
+                return res.status(503).json({
+                    success: false,
+                    message:
+                        "利用者候補の応答が不正です"
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                status:
+                    result.status,
+                candidates:
+                    result.candidates
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                [
+                    "source_snapshot_invalid",
+                    "source_document_not_found",
+                    "source_snapshot_changed",
+                    "source_snapshot_unsupported",
+                    "source_entities_unavailable",
+                    "source_entity_invalid",
+                    "source_entity_not_found",
+                    "resident_identifier_mapping_unavailable",
+                    "resident_identifier_unavailable",
+                    "resident_candidate_query_invalid"
+                ].includes(error?.code)
+            ) {
+                console.error(
+                    "resident_candidate_error",
+                    { errorCode: error.code }
+                );
+
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者候補検索の条件を確認してください"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者候補の取得に失敗しました"
             });
         }
     }

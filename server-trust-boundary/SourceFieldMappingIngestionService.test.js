@@ -19,7 +19,11 @@ function createValidMapping() {
         sheetName:
             "Sheet1",
         headerLabel:
-            "血液型"
+            "血液型",
+        sourceUpdatedAt:
+            "2026-09-15T02:30:00.000Z",
+        sourceSize:
+            9520
     };
 }
 
@@ -131,7 +135,11 @@ test(
                 headerLabel:
                     "血液型",
                 confirmedAt:
-                    "2026-09-12T01:00:00.000Z"
+                    "2026-09-12T01:00:00.000Z",
+                sourceUpdatedAt:
+                    "2026-09-15T02:30:00.000Z",
+                sourceSize:
+                    9520
             }
         );
     }

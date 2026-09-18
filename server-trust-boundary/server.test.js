@@ -130,16 +130,28 @@ test("JSON body limit is explicit and configurable", () => {
         "100kb"
     );
 
+    assert.strictEqual(
+        defaultConfig.sourceDocumentJsonBodyLimit,
+        "25mb"
+    );
+
     const customConfig =
         resolveServerTrustBoundaryConfig(
             validEnv({
                 SERVER_TRUST_BOUNDARY_JSON_BODY_LIMIT:
-                    "256kb"
+                    "256kb",
+                SERVER_TRUST_BOUNDARY_SOURCE_DOCUMENT_JSON_BODY_LIMIT:
+                    "32mb"
             })
         );
 
     assert.strictEqual(
         customConfig.jsonBodyLimit,
         "256kb"
+    );
+
+    assert.strictEqual(
+        customConfig.sourceDocumentJsonBodyLimit,
+        "32mb"
     );
 });

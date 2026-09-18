@@ -214,3 +214,139 @@ test("normalizes raw Word content without requiring document type", async () => 
         null
     );
 });
+
+test("persists raw source when expected snapshot matches current source", async () => {
+    let ingestCount = 0;
+
+    const service =
+        new LocalSourceDocumentIngestionService({
+            sourceAdapter: {
+                async observe() {
+                    return {
+                        sourceDocumentKey:
+                            "snapshot-source-key"
+                    };
+                },
+
+                async acquireRaw() {
+                    return {
+                        sourceType: "csv",
+                        source: {
+                            fileName:
+                                "source.csv",
+                            updatedAt:
+                                "2026-09-15T10:00:00.000Z",
+                            size:
+                                100
+                        },
+                        document: {
+                            sheetNames: ["csv"],
+                            sheets: []
+                        }
+                    };
+                }
+            },
+
+            httpClient: {
+                async ingest() {
+                    ingestCount += 1;
+
+                    return {
+                        status: "created"
+                    };
+                }
+            }
+        });
+
+    const result =
+        await service.ingestRegisteredFile(
+            "source.csv",
+            {
+                sourceDocumentKey:
+                    "snapshot-source-key",
+                sourceUpdatedAt:
+                    "2026-09-15T10:00:00.000Z",
+                sourceSize:
+                    100
+            }
+        );
+
+    assert.deepStrictEqual(
+        result,
+        {
+            status: "created"
+        }
+    );
+
+    assert.strictEqual(
+        ingestCount,
+        1
+    );
+});
+
+test("does not persist raw source when expected snapshot differs from current source", async () => {
+    let ingestCount = 0;
+
+    const service =
+        new LocalSourceDocumentIngestionService({
+            sourceAdapter: {
+                async observe() {
+                    return {
+                        sourceDocumentKey:
+                            "snapshot-source-key"
+                    };
+                },
+
+                async acquireRaw() {
+                    return {
+                        sourceType: "csv",
+                        source: {
+                            fileName:
+                                "source.csv",
+                            updatedAt:
+                                "2026-09-15T10:01:00.000Z",
+                            size:
+                                101
+                        },
+                        document: {
+                            sheetNames: ["csv"],
+                            sheets: []
+                        }
+                    };
+                }
+            },
+
+            httpClient: {
+                async ingest() {
+                    ingestCount += 1;
+
+                    return {
+                        status: "created"
+                    };
+                }
+            }
+        });
+
+    await assert.rejects(
+        () =>
+            service.ingestRegisteredFile(
+                "source.csv",
+                {
+                    sourceDocumentKey:
+                        "snapshot-source-key",
+                    sourceUpdatedAt:
+                        "2026-09-15T10:00:00.000Z",
+                    sourceSize:
+                        100
+                }
+            ),
+        error =>
+            error?.code ===
+            "source_snapshot_changed"
+    );
+
+    assert.strictEqual(
+        ingestCount,
+        0
+    );
+});

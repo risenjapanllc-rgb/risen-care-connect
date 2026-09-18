@@ -259,6 +259,60 @@ test(
 
 
 test(
+    "preserves payload_too_large from Server Trust Boundary",
+    async () => {
+        const client =
+            new SourceDocumentHttpClient({
+                endpoint:
+                    "https://backend.example/connector/source-documents",
+                connectorId:
+                    "connector-test",
+                credential:
+                    "secret-test-credential",
+                authorizationScheme:
+                    "RISEN-Connector",
+                fetchImpl:
+                    async () => ({
+                        ok: false,
+                        status: 413,
+                        async json() {
+                            return {
+                                errorCode:
+                                    "payload_too_large",
+                                requestId:
+                                    "request-safe"
+                            };
+                        }
+                    })
+            });
+
+        await assert.rejects(
+            () =>
+                client.ingest({}),
+            error => {
+                assert.strictEqual(
+                    error.code,
+                    "payload_too_large"
+                );
+
+                assert.strictEqual(
+                    error.httpStatus,
+                    413
+                );
+
+                assert.strictEqual(
+                    error.requestId,
+                    "request-safe"
+                );
+
+                return true;
+            }
+        );
+    }
+);
+
+
+test(
     "classifies network failure with safe error code",
     async () => {
         const client =

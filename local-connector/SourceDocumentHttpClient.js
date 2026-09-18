@@ -177,7 +177,8 @@ class SourceDocumentHttpClient {
                     new Set([
                         "connector_trust_denied",
                         "connector_payload_invalid",
-                        "connector_processing_unavailable"
+                        "connector_processing_unavailable",
+                        "payload_too_large"
                     ]);
 
                 let safeResponse = null;

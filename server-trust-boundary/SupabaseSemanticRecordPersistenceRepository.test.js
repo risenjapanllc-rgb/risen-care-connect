@@ -257,6 +257,259 @@ test("update calls exact atomic RPC", async () => {
     }
 });
 
+test("batch persistence sends 100 operations in exactly one RPC", async () => {
+    const originalFetch = global.fetch;
+    let fetchCalls = 0;
+    let capturedUrl;
+    let capturedBody;
+
+    global.fetch = async (url, options) => {
+        fetchCalls += 1;
+        capturedUrl = url;
+        capturedBody =
+            JSON.parse(options.body);
+
+        return {
+            ok: true,
+            async json() {
+                return [
+                    {
+                        status: "completed",
+                        processed: 100,
+                        created: 100,
+                        updated: 0,
+                        unchanged: 0,
+                        failed_index: null,
+                        failure_status: null
+                    }
+                ];
+            }
+        };
+    };
+
+    try {
+        const operations =
+            Array.from(
+                { length: 100 },
+                (_, index) => ({
+                    action: "create",
+                    residentId:
+                        "11111111-1111-4111-8111-111111111111",
+                    sourceDocumentKey:
+                        "document-1",
+                    sourceRecordKey:
+                        `source-${index + 1}`,
+                    contentHash:
+                        HASH_A,
+                    canonicalizationVersion:
+                        VERSION,
+                    semanticContent:
+                        semanticContent()
+                })
+            );
+
+        const result =
+            await createRepository()
+                .persistBatch({
+                    verifiedFacilityId:
+                        "facility-1",
+                    verifiedConnectorId:
+                        "connector-1",
+                    operations
+                });
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status: "completed",
+                processed: 100,
+                created: 100,
+                updated: 0,
+                unchanged: 0
+            }
+        );
+
+        assert.strictEqual(
+            fetchCalls,
+            1
+        );
+
+        assert.match(
+            capturedUrl,
+            /\/rest\/v1\/rpc\/persist_connector_semantic_record_batch$/
+        );
+
+        assert.strictEqual(
+            capturedBody.p_facility_id,
+            "facility-1"
+        );
+
+        assert.strictEqual(
+            capturedBody.p_connector_id,
+            "connector-1"
+        );
+
+        assert.strictEqual(
+            capturedBody.p_operations.length,
+            100
+        );
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test("batch stopped result preserves exact committed prefix", async () => {
+    const originalFetch = global.fetch;
+
+    global.fetch = async () => ({
+        ok: true,
+        async json() {
+            return [
+                {
+                    status: "stopped",
+                    processed: 2,
+                    created: 1,
+                    updated: 0,
+                    unchanged: 1,
+                    failed_index: 2,
+                    failure_status:
+                        "conflict"
+                }
+            ];
+        }
+    });
+
+    try {
+        const operations =
+            Array.from(
+                { length: 4 },
+                (_, index) => ({
+                    action: "create",
+                    sourceRecordKey:
+                        `source-${index + 1}`
+                })
+            );
+
+        assert.deepStrictEqual(
+            await createRepository()
+                .persistBatch({
+                    verifiedFacilityId:
+                        "facility-1",
+                    verifiedConnectorId:
+                        "connector-1",
+                    operations
+                }),
+            {
+                status: "stopped",
+                processed: 2,
+                created: 1,
+                updated: 0,
+                unchanged: 1,
+                failedIndex: 2,
+                failureStatus:
+                    "conflict"
+            }
+        );
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test("batch invalid result never invents progress", async () => {
+    const originalFetch = global.fetch;
+
+    try {
+        for (const result of [
+            [],
+            [
+                {
+                    status: "completed",
+                    processed: 99,
+                    created: 99,
+                    updated: 0,
+                    unchanged: 0,
+                    failed_index: null,
+                    failure_status: null
+                }
+            ],
+            [
+                {
+                    status: "stopped",
+                    processed: 2,
+                    created: 2,
+                    updated: 0,
+                    unchanged: 0,
+                    failed_index: 3,
+                    failure_status:
+                        "conflict"
+                }
+            ]
+        ]) {
+            global.fetch = async () => ({
+                ok: true,
+                async json() {
+                    return result;
+                }
+            });
+
+            await assert.rejects(
+                () =>
+                    createRepository()
+                        .persistBatch({
+                            verifiedFacilityId:
+                                "facility-1",
+                            verifiedConnectorId:
+                                "connector-1",
+                            operations:
+                                Array.from(
+                                    { length: 100 },
+                                    (_, index) => ({
+                                        action:
+                                            "create",
+                                        sourceRecordKey:
+                                            `source-${index + 1}`
+                                    })
+                                )
+                        }),
+                /invalid/
+            );
+        }
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test("batch HTTP failure exposes status only", async () => {
+    const originalFetch = global.fetch;
+
+    global.fetch = async () => ({
+        ok: false,
+        status: 503
+    });
+
+    try {
+        await assert.rejects(
+            () =>
+                createRepository()
+                    .persistBatch({
+                        verifiedFacilityId:
+                            "facility-1",
+                        verifiedConnectorId:
+                            "connector-1",
+                        operations: [
+                            {
+                                action:
+                                    "create"
+                            }
+                        ]
+                    }),
+            /failed: 503/
+        );
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test("denied result exposes no recordId", async () => {
     const originalFetch = global.fetch;
 

@@ -33,13 +33,258 @@ const importBackButton =
 const importReadyButton =
     document.getElementById("importReadyButton");
 
+const residentLinkingSummary =
+    document.getElementById("residentLinkingSummary");
+
+const residentLinkingList =
+    document.getElementById("residentLinkingList");
+
+const residentLinkingBackButton =
+    document.getElementById("residentLinkingBackButton");
+
+const residentLinkingNextButton =
+    document.getElementById("residentLinkingNextButton");
+
+const importPreviewSummary =
+    document.getElementById("importPreviewSummary");
+
+const importPreviewBackButton =
+    document.getElementById("importPreviewBackButton");
+
+const importPreviewNextButton =
+    document.getElementById("importPreviewNextButton");
+
+const importExecutionSummary =
+    document.getElementById("importExecutionSummary");
+
+const importExecutionBackButton =
+    document.getElementById("importExecutionBackButton");
+
+const importExecutionConfirmButton =
+    document.getElementById("importExecutionConfirmButton");
+
 let latestAnalysis = null;
+let confirmedImportPreviewFingerprint = null;
+let confirmedImportPreview = null;
 
 let standardFields = [];
 
 const sourceFieldMeaningSelections = new Map();
 const confirmedSourceFieldSelections = new Set();
 const sourceFieldReviewStates = new Map();
+const sourceResidentMappings = new Map();
+const residentCandidateGroups = new Map();
+
+let confirmedSourceRecordIdentity = null;
+let selectedSourceRecordIdentityFieldKey = "";
+
+function getSourceRecordIdentitySnapshot() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        !latestAnalysis.sourceDocumentKey.trim() ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        !latestAnalysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(Date.parse(latestAnalysis.sourceUpdatedAt)) ||
+        !Number.isSafeInteger(latestAnalysis.sourceSize) ||
+        latestAnalysis.sourceSize < 0
+    ) {
+        throw new Error(
+            "原本レコードIDのスナップショットを確認できません"
+        );
+    }
+
+    return {
+        sourceDocumentKey:
+            latestAnalysis.sourceDocumentKey.trim(),
+        sourceUpdatedAt:
+            new Date(
+                latestAnalysis.sourceUpdatedAt
+            ).toISOString(),
+        sourceSize:
+            latestAnalysis.sourceSize
+    };
+}
+
+async function loadPersistedSourceRecordIdentity() {
+    const snapshot =
+        getSourceRecordIdentitySnapshot();
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-record-identity-mapping?${params}`
+        );
+
+    let result = null;
+
+    try {
+        result = await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        !["found", "not_found"].includes(result.status)
+    ) {
+        throw new Error(
+            result?.message ||
+            "保存済みの原本レコードIDを取得できませんでした"
+        );
+    }
+
+    if (result.status === "not_found") {
+        confirmedSourceRecordIdentity = null;
+        selectedSourceRecordIdentityFieldKey = "";
+        return;
+    }
+
+    const sourceFieldKey =
+        typeof result.mapping?.sourceFieldKey === "string"
+            ? result.mapping.sourceFieldKey.trim()
+            : "";
+
+    const fieldDefinitions =
+        Array.isArray(
+            latestAnalysis.extracted?.fieldDefinitions
+        )
+            ? latestAnalysis.extracted.fieldDefinitions
+            : [];
+
+    const fieldExists =
+        fieldDefinitions.some(
+            field =>
+                typeof field?.sourceFieldKey === "string" &&
+                field.sourceFieldKey.trim() === sourceFieldKey
+        );
+
+    if (!sourceFieldKey || !fieldExists) {
+        throw new Error(
+            "保存済みの原本レコードIDが現在の原本構造と一致しません"
+        );
+    }
+
+    confirmedSourceRecordIdentity = {
+        sourceFieldKey,
+        sheetName:
+            typeof result.mapping.sheetName === "string"
+                ? result.mapping.sheetName
+                : null,
+        headerLabel:
+            typeof result.mapping.headerLabel === "string"
+                ? result.mapping.headerLabel
+                : null,
+        confirmedAt:
+            typeof result.mapping.confirmedAt === "string"
+                ? result.mapping.confirmedAt
+                : null
+    };
+
+    selectedSourceRecordIdentityFieldKey =
+        sourceFieldKey;
+}
+
+async function confirmSourceRecordIdentity(
+    sourceFieldKey
+) {
+    const snapshot =
+        getSourceRecordIdentitySnapshot();
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-record-identity-mapping`,
+            {
+                method: "POST",
+                headers: {
+                    "content-type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        sourceDocumentKey:
+                            snapshot.sourceDocumentKey,
+                        sourceUpdatedAt:
+                            snapshot.sourceUpdatedAt,
+                        sourceSize:
+                            snapshot.sourceSize,
+                        sourceFieldKey
+                    })
+            }
+        );
+
+    let result = null;
+
+    try {
+        result = await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        result.status !== "confirmed" ||
+        typeof result.mapping?.sourceFieldKey !== "string" ||
+        !result.mapping.sourceFieldKey.trim()
+    ) {
+        const error =
+            new Error(
+                result?.message ||
+                "原本レコードIDを確認できませんでした"
+            );
+
+        error.validation =
+            result?.validation || null;
+
+        throw error;
+    }
+
+    confirmedSourceRecordIdentity = {
+        sourceFieldKey:
+            result.mapping.sourceFieldKey.trim(),
+        sheetName:
+            typeof result.mapping.sheetName === "string"
+                ? result.mapping.sheetName
+                : null,
+        headerLabel:
+            typeof result.mapping.headerLabel === "string"
+                ? result.mapping.headerLabel
+                : null,
+        confirmedAt:
+            typeof result.mapping.confirmedAt === "string"
+                ? result.mapping.confirmedAt
+                : null,
+        validation:
+            result.validation || null
+    };
+
+    selectedSourceRecordIdentityFieldKey =
+        confirmedSourceRecordIdentity.sourceFieldKey;
+
+    return result;
+}
+
+function createSourceResidentMappingKey(
+    identifierType,
+    identifierDigest
+) {
+    return `${String(identifierType || "")}:${String(
+        identifierDigest || ""
+    )}`;
+}
 
 function createSourceFieldSelectionKey(
     sourceDocumentKey,
@@ -298,6 +543,131 @@ function selectFile(filePath) {
     }
 }
 
+async function loadPersistedSourceFieldMappings(
+    analysis
+) {
+    if (
+        !analysis ||
+        typeof analysis.sourceDocumentKey !== "string" ||
+        !analysis.sourceDocumentKey.trim() ||
+        typeof analysis.sourceUpdatedAt !== "string" ||
+        !analysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(
+            Date.parse(analysis.sourceUpdatedAt)
+        ) ||
+        !Number.isSafeInteger(
+            analysis.sourceSize
+        ) ||
+        analysis.sourceSize < 0
+    ) {
+        return;
+    }
+
+    const fieldDefinitions =
+        Array.isArray(
+            analysis.extracted?.fieldDefinitions
+        )
+            ? analysis.extracted.fieldDefinitions
+            : [];
+
+    const currentSourceFieldKeys =
+        new Set(
+            fieldDefinitions
+                .map(field =>
+                    typeof field?.sourceFieldKey === "string"
+                        ? field.sourceFieldKey.trim()
+                        : ""
+                )
+                .filter(Boolean)
+        );
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                analysis.sourceDocumentKey.trim(),
+            sourceUpdatedAt:
+                new Date(
+                    analysis.sourceUpdatedAt
+                ).toISOString(),
+            sourceSize:
+                String(analysis.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-field-mappings?${params}`
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        !Array.isArray(result.mappings)
+    ) {
+        throw new Error(
+            result?.message ||
+            "保存済みの項目対応を取得できませんでした"
+        );
+    }
+
+    for (const mapping of result.mappings) {
+        const sourceFieldKey =
+            typeof mapping?.sourceFieldKey === "string"
+                ? mapping.sourceFieldKey.trim()
+                : "";
+
+        const standardEntityName =
+            typeof mapping?.standardEntityName === "string"
+                ? mapping.standardEntityName.trim()
+                : "";
+
+        const standardFieldName =
+            typeof mapping?.standardFieldName === "string"
+                ? mapping.standardFieldName.trim()
+                : "";
+
+        if (
+            !sourceFieldKey ||
+            !currentSourceFieldKeys.has(
+                sourceFieldKey
+            ) ||
+            !standardEntityName ||
+            !standardFieldName
+        ) {
+            continue;
+        }
+
+        const selectionKey =
+            createSourceFieldSelectionKey(
+                analysis.sourceDocumentKey.trim(),
+                sourceFieldKey
+            );
+
+        sourceFieldMeaningSelections.set(
+            selectionKey,
+            `${standardEntityName}.${standardFieldName}`
+        );
+
+        confirmedSourceFieldSelections.add(
+            selectionKey
+        );
+
+        sourceFieldReviewStates.set(
+            selectionKey,
+            "confirmed"
+        );
+    }
+}
+
 async function loadPersistedSourceFieldReviewStates(
     sourceDocumentKey
 ) {
@@ -348,6 +718,14 @@ async function loadPersistedSourceFieldReviewStates(
             );
 
         if (
+            confirmedSourceFieldSelections.has(
+                selectionKey
+            )
+        ) {
+            continue;
+        }
+
+        if (
             interpretation.interpretationStatus ===
             "deferred"
         ) {
@@ -390,6 +768,9 @@ async function loadPersistedSourceFieldReviewStates(
 }
 
 async function analyzeFile(filePath) {
+    confirmedImportPreviewFingerprint = null;
+    confirmedImportPreview = null;
+
     try {
         setStatus("ファイルを解析しています...");
 
@@ -424,7 +805,33 @@ async function analyzeFile(filePath) {
             );
         }
 
+        sourceFieldMeaningSelections.clear();
+        confirmedSourceFieldSelections.clear();
+        sourceFieldReviewStates.clear();
+        confirmedSourceRecordIdentity = null;
+        selectedSourceRecordIdentityFieldKey = "";
+
         latestAnalysis = result;
+
+        try {
+            await loadPersistedSourceRecordIdentity();
+        } catch (error) {
+            console.warn(
+                "保存済みの原本レコードIDを復元できませんでした:",
+                error.message
+            );
+        }
+
+        try {
+            await loadPersistedSourceFieldMappings(
+                result
+            );
+        } catch (error) {
+            console.warn(
+                "保存済みの項目対応を復元できませんでした:",
+                error.message
+            );
+        }
 
         try {
             await loadPersistedSourceFieldReviewStates(
@@ -708,6 +1115,133 @@ function renderConfirmation() {
         )
             ? latestAnalysis.extracted.fieldDefinitions
             : [];
+
+    const identityOptions =
+        fieldDefinitions
+            .map(field => {
+                const sourceFieldKey =
+                    typeof field?.sourceFieldKey === "string"
+                        ? field.sourceFieldKey.trim()
+                        : "";
+
+                const label =
+                    typeof field?.headerLabel === "string" &&
+                    field.headerLabel.trim()
+                        ? field.headerLabel.trim()
+                        : sourceFieldKey;
+
+                return {
+                    value: sourceFieldKey,
+                    label
+                };
+            })
+            .filter(option => option.value);
+
+    const identityOptionHtml =
+        identityOptions
+            .map(option => `
+                <option
+                    value="${escapeHtml(option.value)}"
+                    ${
+                        option.value ===
+                        selectedSourceRecordIdentityFieldKey
+                            ? "selected"
+                            : ""
+                    }
+                >
+                    ${escapeHtml(option.label)}
+                </option>
+            `)
+            .join("");
+
+    const identityConfirmed =
+        Boolean(
+            confirmedSourceRecordIdentity &&
+            typeof confirmedSourceRecordIdentity
+                .sourceFieldKey === "string" &&
+            confirmedSourceRecordIdentity
+                .sourceFieldKey.trim()
+        );
+
+    const identitySection = `
+        <div
+            style="
+                margin-top: 24px;
+                margin-bottom: 20px;
+                padding: 16px;
+                border: 1px solid #d0d5dd;
+                border-radius: 10px;
+                background: #f9fafb;
+            "
+        >
+            <h3 style="margin-top: 0;">
+                原本レコードID
+            </h3>
+
+            <p class="form-help">
+                原本側で各記録を一意に識別する項目を選択してください。
+                選択だけでは確定せず、確認時に原本全行の
+                欠損・空欄・重複を検証します。
+            </p>
+
+            <div
+                style="
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    margin-top: 10px;
+                "
+            >
+                <select
+                    id="sourceRecordIdentitySelect"
+                    ${identityConfirmed ? "disabled" : ""}
+                >
+                    <option value="">
+                        原本レコードIDを選択
+                    </option>
+                    ${identityOptionHtml}
+                </select>
+
+                <button
+                    id="sourceRecordIdentityConfirmButton"
+                    type="button"
+                    class="secondary-button"
+                    ${identityConfirmed ? "disabled" : ""}
+                >
+                    ${
+                        identityConfirmed
+                            ? "確認済み"
+                            : "この項目を確認"
+                    }
+                </button>
+            </div>
+
+            <div
+                id="sourceRecordIdentityStatus"
+                class="form-help"
+                style="
+                    margin-top: 10px;
+                    color: ${
+                        identityConfirmed
+                            ? "#176b36"
+                            : "#667085"
+                    };
+                "
+            >
+                ${
+                    identityConfirmed
+                        ? `確認済み：${escapeHtml(
+                            confirmedSourceRecordIdentity
+                                .headerLabel ||
+                            confirmedSourceRecordIdentity
+                                .sourceFieldKey
+                        )}`
+                        : "まだ確認されていません。"
+                }
+            </div>
+        </div>
+    `;
 
     const standardMeaningOptions =
         standardFields.map(field => ({
@@ -1042,8 +1576,126 @@ function renderConfirmation() {
             原本データ自体の業務データ登録はまだ行いません。
         </p>
 
+        ${identitySection}
         ${sourceFieldSection}
     `;
+
+    const identitySelect =
+        document.getElementById(
+            "sourceRecordIdentitySelect"
+        );
+
+    identitySelect?.addEventListener(
+        "change",
+        event => {
+            selectedSourceRecordIdentityFieldKey =
+                typeof event.currentTarget?.value === "string"
+                    ? event.currentTarget.value.trim()
+                    : "";
+        }
+    );
+
+    document.getElementById(
+        "sourceRecordIdentityConfirmButton"
+    )?.addEventListener(
+        "click",
+        async () => {
+            const sourceFieldKey =
+                selectedSourceRecordIdentityFieldKey;
+
+            if (!sourceFieldKey) {
+                setStatus(
+                    "原本レコードIDにする項目を選択してください。",
+                    "error"
+                );
+                return;
+            }
+
+            const button =
+                document.getElementById(
+                    "sourceRecordIdentityConfirmButton"
+                );
+
+            const status =
+                document.getElementById(
+                    "sourceRecordIdentityStatus"
+                );
+
+            if (button) {
+                button.disabled = true;
+                button.textContent =
+                    "全行を検証しています...";
+            }
+
+            if (status) {
+                status.textContent =
+                    "原本全行の欠損・空欄・重複を確認しています...";
+                status.style.color =
+                    "#667085";
+            }
+
+            try {
+                const result =
+                    await confirmSourceRecordIdentity(
+                        sourceFieldKey
+                    );
+
+                const sourceEntityCount =
+                    result.validation?.sourceEntityCount;
+
+                const uniqueValueCount =
+                    result.validation?.uniqueValueCount;
+
+                if (status) {
+                    status.textContent =
+                        `確認済み：全${sourceEntityCount}件、` +
+                        `一意${uniqueValueCount}件`;
+                    status.style.color =
+                        "#176b36";
+                }
+
+                if (button) {
+                    button.textContent =
+                        "確認済み";
+                }
+
+                if (identitySelect) {
+                    identitySelect.disabled = true;
+                }
+
+                setStatus(
+                    "原本レコードIDを確認して保存しました。",
+                    "success"
+                );
+            } catch (error) {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent =
+                        "この項目を確認";
+                }
+
+                if (status) {
+                    const validation =
+                        error.validation;
+
+                    status.textContent =
+                        validation
+                            ? `確認できません：欠損${validation.missingFieldCount ?? 0}件、` +
+                                `空欄${validation.blankValueCount ?? 0}件、` +
+                                `重複${validation.duplicateValueCount ?? 0}件`
+                            : error.message;
+
+                    status.style.color =
+                        "#b42318";
+                }
+
+                setStatus(
+                    `原本レコードIDを確認できませんでした: ${error.message}`,
+                    "error"
+                );
+            }
+        }
+    );
 
     importConfirmation
         .querySelectorAll(
@@ -1087,6 +1739,14 @@ function renderConfirmation() {
                 );
 
                 renderConfirmation();
+
+                const diagnosticMappings =
+                    collectConfirmedSourceFieldMappings();
+
+                setStatus(
+                    `診断: confirmed=${confirmedSourceFieldSelections.size}, mappings=${diagnosticMappings.length}`,
+                    "success"
+                );
             });
         });
 
@@ -1217,7 +1877,16 @@ function collectConfirmedSourceFieldMappings() {
     if (
         !latestAnalysis ||
         typeof latestAnalysis.sourceDocumentKey !== "string" ||
-        latestAnalysis.sourceDocumentKey.trim() === ""
+        latestAnalysis.sourceDocumentKey.trim() === "" ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        latestAnalysis.sourceUpdatedAt.trim() === "" ||
+        Number.isNaN(
+            Date.parse(latestAnalysis.sourceUpdatedAt)
+        ) ||
+        !Number.isSafeInteger(
+            latestAnalysis.sourceSize
+        ) ||
+        latestAnalysis.sourceSize < 0
     ) {
         return [];
     }
@@ -1305,6 +1974,12 @@ function collectConfirmedSourceFieldMappings() {
         return [{
             sourceDocumentKey:
                 latestAnalysis.sourceDocumentKey.trim(),
+            sourceUpdatedAt:
+                new Date(
+                    latestAnalysis.sourceUpdatedAt
+                ).toISOString(),
+            sourceSize:
+                latestAnalysis.sourceSize,
             sourceFieldKey,
             standardEntityName,
             standardFieldName,
@@ -1450,6 +2125,105 @@ function collectSourceFieldInterpretations() {
     });
 }
 
+async function persistAnalyzedSourceDocumentSnapshot() {
+    if (
+        typeof selectedFilePath !== "string" ||
+        selectedFilePath.trim() === "" ||
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        latestAnalysis.sourceDocumentKey.trim() === "" ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        latestAnalysis.sourceUpdatedAt.trim() === "" ||
+        Number.isNaN(
+            Date.parse(
+                latestAnalysis.sourceUpdatedAt
+            )
+        ) ||
+        !Number.isSafeInteger(
+            latestAnalysis.sourceSize
+        ) ||
+        latestAnalysis.sourceSize < 0
+    ) {
+        throw new Error(
+            "解析済み原本の確認情報が不正です。もう一度解析してください。"
+        );
+    }
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/files/${encodeURIComponent(
+                selectedFilePath.trim()
+            )}/source-document`,
+            {
+                method: "POST",
+                headers: {
+                    "content-type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        sourceDocumentKey:
+                            latestAnalysis
+                                .sourceDocumentKey
+                                .trim(),
+                        sourceUpdatedAt:
+                            new Date(
+                                latestAnalysis
+                                    .sourceUpdatedAt
+                            ).toISOString(),
+                        sourceSize:
+                            latestAnalysis
+                                .sourceSize
+                    })
+            }
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (!response.ok) {
+        const error =
+            new Error(
+                response.status === 409
+                    ? "原本ファイルが更新されています。もう一度解析してください。"
+                    : result?.message ||
+                        "原本ファイルの保存に失敗しました。"
+            );
+
+        error.httpStatus =
+            response.status;
+
+        if (response.status === 409) {
+            error.code =
+                "source_snapshot_changed";
+        }
+
+        throw error;
+    }
+
+    if (
+        !result ||
+        result.success !== true ||
+        ![
+            "created",
+            "updated",
+            "unchanged"
+        ].includes(result.status)
+    ) {
+        throw new Error(
+            "原本ファイルの保存結果が不正です。"
+        );
+    }
+
+    return result;
+}
+
 async function persistSourceFieldInterpretations(
     interpretations
 ) {
@@ -1514,6 +2288,1410 @@ async function persistSourceFieldInterpretations(
     };
 }
 
+function getResidentLinkingSnapshot() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        !latestAnalysis.sourceDocumentKey.trim() ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        !latestAnalysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(
+            Date.parse(latestAnalysis.sourceUpdatedAt)
+        ) ||
+        !Number.isSafeInteger(
+            latestAnalysis.sourceSize
+        ) ||
+        latestAnalysis.sourceSize < 0
+    ) {
+        throw new Error(
+            "現在のファイル状態を確認できません"
+        );
+    }
+
+    return {
+        sourceDocumentKey:
+            latestAnalysis.sourceDocumentKey.trim(),
+        sourceUpdatedAt:
+            new Date(
+                latestAnalysis.sourceUpdatedAt
+            ).toISOString(),
+        sourceSize:
+            latestAnalysis.sourceSize
+    };
+}
+
+async function loadPersistedResidentLinks(snapshot) {
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-resident-links?${params}`
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        result.status !== "found" ||
+        !Array.isArray(result.links)
+    ) {
+        throw new Error(
+            result?.message ||
+            "保存済みの利用者紐付けを取得できませんでした"
+        );
+    }
+
+    return result.links;
+}
+
+async function loadPersistedSourceResidentMappings(
+    snapshot
+) {
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-resident-mappings?${params}`
+        );
+
+    const result =
+        await response
+            .json()
+            .catch(() => null);
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        result.status !== "found" ||
+        !Array.isArray(result.mappings)
+    ) {
+        throw new Error(
+            result?.message ||
+            "保存済みの利用者マッピングを取得できませんでした"
+        );
+    }
+
+    sourceResidentMappings.clear();
+
+    for (const mapping of result.mappings) {
+        if (
+            !mapping ||
+            !["user_code", "name"].includes(
+                mapping.identifierType
+            ) ||
+            !/^[0-9a-f]{64}$/.test(
+                mapping.identifierDigest || ""
+            ) ||
+            ![
+                "confirmed",
+                "deferred",
+                "no_match"
+            ].includes(mapping.mappingStatus)
+        ) {
+            continue;
+        }
+
+        sourceResidentMappings.set(
+            createSourceResidentMappingKey(
+                mapping.identifierType,
+                mapping.identifierDigest
+            ),
+            mapping
+        );
+    }
+}
+
+async function loadResidentCandidateGroups(
+    snapshot
+) {
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/resident-candidate-groups`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        sourceDocumentKey:
+                            snapshot.sourceDocumentKey,
+                        sourceUpdatedAt:
+                            snapshot.sourceUpdatedAt,
+                        sourceSize:
+                            snapshot.sourceSize
+                    })
+            }
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        !["user_code", "name"].includes(
+            result.identifierType
+        ) ||
+        !Number.isSafeInteger(
+            result.sourceEntityCount
+        ) ||
+        !Number.isSafeInteger(
+            result.unavailableSourceEntityCount
+        ) ||
+        !Array.isArray(result.groups)
+    ) {
+        throw new Error(
+            result?.message ||
+            "利用者候補グループを取得できませんでした"
+        );
+    }
+
+    return result;
+}
+
+async function persistSourceResidentLink({
+    snapshot,
+    sourceEntityKey,
+    linkStatus,
+    residentId = null
+}) {
+    if (
+        !snapshot ||
+        typeof sourceEntityKey !== "string" ||
+        !sourceEntityKey.trim()
+    ) {
+        throw new Error(
+            "利用者紐付けの保存対象が不正です"
+        );
+    }
+
+    if (
+        linkStatus !== "confirmed" &&
+        linkStatus !== "deferred" &&
+        linkStatus !== "no_match"
+    ) {
+        throw new Error(
+            "利用者紐付けの確認状態が不正です"
+        );
+    }
+
+    if (
+        linkStatus === "confirmed" &&
+        (
+            typeof residentId !== "string" ||
+            !residentId.trim()
+        )
+    ) {
+        throw new Error(
+            "確定する利用者を取得できません"
+        );
+    }
+
+    if (
+        linkStatus !== "confirmed" &&
+        residentId !== null
+    ) {
+        throw new Error(
+            "保留または該当なしに利用者IDは指定できません"
+        );
+    }
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-resident-links`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        sourceDocumentKey:
+                            snapshot.sourceDocumentKey,
+                        sourceEntityKey:
+                            sourceEntityKey.trim(),
+                        linkStatus,
+                        residentId:
+                            linkStatus === "confirmed"
+                                ? residentId.trim()
+                                : null,
+                        sourceUpdatedAt:
+                            snapshot.sourceUpdatedAt,
+                        sourceSize:
+                            snapshot.sourceSize
+                    })
+            }
+        );
+
+    const result =
+        await response
+            .json()
+            .catch(() => ({}));
+
+    if (!response.ok || result?.success === false) {
+        throw new Error(
+            result?.message ||
+            result?.error ||
+            `利用者紐付けの保存に失敗しました (${response.status})`
+        );
+    }
+
+    return result;
+}
+
+async function createResidentFromSourceName(
+    name
+) {
+    const normalizedName =
+        typeof name === "string"
+            ? name.trim()
+            : "";
+
+    if (!normalizedName) {
+        throw new Error(
+            "登録する利用者名を取得できません"
+        );
+    }
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/residents`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        name:
+                            normalizedName
+                    })
+            }
+        );
+
+    const result =
+        await response
+            .json()
+            .catch(() => ({}));
+
+    if (
+        response.status === 409 &&
+        result?.errorCode ===
+            "resident_name_ambiguous"
+    ) {
+        const error =
+            new Error(
+                "同名の利用者が複数存在します。候補を再確認してください"
+            );
+
+        error.code =
+            "resident_name_ambiguous";
+
+        throw error;
+    }
+
+    if (
+        !response.ok ||
+        result?.success !== true ||
+        !["created", "existing"].includes(
+            result.status
+        ) ||
+        !result.resident ||
+        typeof result.resident.residentId !==
+            "string" ||
+        !result.resident.residentId.trim()
+    ) {
+        throw new Error(
+            result?.message ||
+            `利用者台帳への登録に失敗しました (${response.status})`
+        );
+    }
+
+    return result;
+}
+
+async function persistSourceResidentMapping({
+    snapshot,
+    identifierType,
+    identifierDigest,
+    mappingStatus,
+    residentId = null
+}) {
+    if (
+        !snapshot ||
+        !["user_code", "name"].includes(identifierType) ||
+        !/^[0-9a-f]{64}$/.test(identifierDigest) ||
+        ![
+            "confirmed",
+            "deferred",
+            "no_match"
+        ].includes(mappingStatus)
+    ) {
+        throw new Error(
+            "利用者マッピングの保存対象が不正です"
+        );
+    }
+
+    if (
+        mappingStatus === "confirmed" &&
+        (
+            typeof residentId !== "string" ||
+            !residentId.trim()
+        )
+    ) {
+        throw new Error(
+            "確定する利用者を取得できません"
+        );
+    }
+
+    if (
+        mappingStatus !== "confirmed" &&
+        residentId !== null
+    ) {
+        throw new Error(
+            "保留または該当なしに利用者IDは指定できません"
+        );
+    }
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-resident-mappings`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify({
+                        sourceDocumentKey:
+                            snapshot.sourceDocumentKey,
+                        identifierType,
+                        identifierDigest,
+                        mappingStatus,
+                        residentId:
+                            mappingStatus === "confirmed"
+                                ? residentId.trim()
+                                : null,
+                        sourceUpdatedAt:
+                            snapshot.sourceUpdatedAt,
+                        sourceSize:
+                            snapshot.sourceSize
+                    })
+            }
+        );
+
+    const result =
+        await response
+            .json()
+            .catch(() => ({}));
+
+    if (
+        !response.ok ||
+        result?.success !== true ||
+        !["created", "updated", "unchanged"].includes(
+            result.status
+        )
+    ) {
+        throw new Error(
+            result?.message ||
+            `利用者マッピングの保存に失敗しました (${response.status})`
+        );
+    }
+
+    return result;
+}
+
+function renderResidentMappingState(mapping) {
+    if (!mapping) {
+        return "";
+    }
+
+    if (mapping.mappingStatus === "confirmed") {
+        return `
+            <div
+                style="
+                    margin-top: 10px;
+                    padding: 10px;
+                    background: #f1fbf4;
+                    border: 1px solid #86c99a;
+                    border-radius: 8px;
+                "
+            >
+                <strong>利用者紐付け確認済み</strong>
+                <p class="form-help">
+                    人が確認した利用者との紐付けを保存済みです。
+                </p>
+            </div>
+        `;
+    }
+
+    if (mapping.mappingStatus === "no_match") {
+        return `
+            <div
+                style="
+                    margin-top: 10px;
+                    padding: 10px;
+                    background: #f7f8fa;
+                    border-radius: 8px;
+                "
+            >
+                <strong>該当利用者なしとして確認済み</strong>
+            </div>
+        `;
+    }
+
+    return `
+        <div
+            style="
+                margin-top: 10px;
+                padding: 10px;
+                background: #fff8e8;
+                border-radius: 8px;
+            "
+        >
+            <strong>確認を保留中</strong>
+        </div>
+    `;
+}
+
+function renderResidentCandidateDetails(
+    candidateResult,
+    mapping = null
+) {
+    const candidates =
+        Array.isArray(candidateResult?.candidates)
+            ? candidateResult.candidates
+            : [];
+
+    const sourceName =
+        candidateResult?.identifierType === "name" &&
+        typeof candidateResult.identifierValue ===
+            "string"
+            ? candidateResult.identifierValue.trim()
+            : "";
+
+    if (
+        mapping?.mappingStatus === "confirmed"
+    ) {
+        return `
+            ${
+                sourceName
+                    ? `
+                        <p style="margin: 0 0 10px;">
+                            原本の利用者名:
+                            <strong>${escapeHtml(
+                                sourceName
+                            )}</strong>
+                        </p>
+                    `
+                    : ""
+            }
+            ${renderResidentMappingState(mapping)}
+        `;
+    }
+
+    const candidateButtons =
+        candidates.map(candidate => {
+            const residentId =
+                typeof candidate?.residentId === "string"
+                    ? candidate.residentId.trim()
+                    : "";
+
+            if (!residentId) {
+                return "";
+            }
+
+            return `
+                <div
+                    style="
+                        margin-top: 10px;
+                        padding: 10px;
+                        border: 1px solid #e1e7f0;
+                        border-radius: 8px;
+                    "
+                >
+                    <p style="margin: 0 0 8px;">
+                        <strong>
+                            ${escapeHtml(
+                                candidate.name || "氏名未設定"
+                            )}
+                        </strong>
+                        ${
+                            candidate.userCode
+                                ? ` / ${escapeHtml(
+                                    candidate.userCode
+                                )}`
+                                : ""
+                        }
+                    </p>
+                    <button
+                        class="primary-button"
+                        type="button"
+                        data-resident-mapping-action="confirmed"
+                        data-resident-id="${escapeHtml(
+                            residentId
+                        )}"
+                    >
+                        この利用者に紐付け
+                    </button>
+                </div>
+            `;
+        }).join("");
+
+    if (
+        candidateResult?.status === "matched" ||
+        candidateResult?.status === "ambiguous"
+    ) {
+        return `
+            <div>
+                ${
+                    sourceName
+                        ? `
+                            <p style="margin: 0 0 10px;">
+                                原本の利用者名:
+                                <strong>${escapeHtml(
+                                    sourceName
+                                )}</strong>
+                            </p>
+                        `
+                        : ""
+                }
+                <strong>
+                    ${
+                        candidateResult.status === "matched"
+                            ? "候補が1件見つかりました"
+                            : "複数の候補があります"
+                    }
+                </strong>
+                <p class="form-help">
+                    候補を確認し、紐付ける利用者を選択してください。
+                    選択するまで確定しません。
+                </p>
+                ${candidateButtons}
+                <div
+                    class="bottom-actions csv-step-actions"
+                    style="
+                        justify-content: flex-start;
+                        margin-top: 12px;
+                    "
+                >
+                    <button
+                        class="secondary-button"
+                        type="button"
+                        data-resident-mapping-action="deferred"
+                    >
+                        保留
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    if (
+        candidateResult?.status === "not_found" &&
+        candidateResult?.identifierType === "name" &&
+        sourceName
+    ) {
+        return `
+            <div>
+                <p style="margin: 0 0 10px;">
+                    原本の利用者名:
+                    <strong>${escapeHtml(
+                        sourceName
+                    )}</strong>
+                </p>
+                <strong>利用者台帳に未登録です</strong>
+                <p class="form-help">
+                    自動登録はしません。
+                    原本の氏名を確認し、登録する場合だけ
+                    下のボタンを押してください。
+                </p>
+                ${
+                    mapping?.mappingStatus === "no_match"
+                        ? `
+                            <p class="form-help" style="color: #9a6700;">
+                                以前「該当利用者なし」と確認されていますが、
+                                日次記録には利用者の確定が必要なため
+                                未解決として扱います。
+                            </p>
+                        `
+                        : mapping?.mappingStatus === "deferred"
+                            ? `
+                                <p class="form-help" style="color: #9a6700;">
+                                    現在、この利用者は確認保留中です。
+                                </p>
+                            `
+                            : ""
+                }
+                <div
+                    class="bottom-actions csv-step-actions"
+                    style="
+                        justify-content: flex-start;
+                        margin-top: 12px;
+                    "
+                >
+                    <button
+                        class="primary-button"
+                        type="button"
+                        data-resident-mapping-action="create_resident"
+                    >
+                        利用者台帳に登録して紐付け
+                    </button>
+                    <button
+                        class="secondary-button"
+                        type="button"
+                        data-resident-mapping-action="deferred"
+                    >
+                        保留
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div>
+            <strong>利用者を確定できません</strong>
+            <p class="form-help">
+                利用者識別情報を確認してください。
+            </p>
+        </div>
+    `;
+}
+async function loadImportPreview() {
+    const snapshot =
+        getResidentLinkingSnapshot();
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/import-preview`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify(snapshot)
+            }
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        !["ready", "blocked"].includes(
+            result.status
+        )
+    ) {
+        throw new Error(
+            result?.message ||
+            "取り込みプレビューを確認できませんでした"
+        );
+    }
+
+    return result;
+}
+
+async function executeConfirmedImport() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        !latestAnalysis.sourceDocumentKey.trim() ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        !latestAnalysis.sourceUpdatedAt.trim() ||
+        !Number.isSafeInteger(latestAnalysis.sourceSize) ||
+        latestAnalysis.sourceSize < 0 ||
+        typeof confirmedImportPreviewFingerprint !== "string" ||
+        !/^[0-9a-f]{64}$/.test(
+            confirmedImportPreviewFingerprint
+        )
+    ) {
+        throw new Error(
+            "最終確定する取り込み条件を確認できません"
+        );
+    }
+
+    const payload = {
+        sourceDocumentKey:
+            latestAnalysis.sourceDocumentKey.trim(),
+        sourceUpdatedAt:
+            new Date(
+                latestAnalysis.sourceUpdatedAt
+            ).toISOString(),
+        sourceSize:
+            latestAnalysis.sourceSize,
+        expectedFingerprint:
+            confirmedImportPreviewFingerprint
+    };
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/import-execute`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body:
+                    JSON.stringify(payload)
+            }
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        response.ok &&
+        result?.success === true &&
+        result.status === "completed" &&
+        Number.isSafeInteger(result.processed) &&
+        Number.isSafeInteger(result.created) &&
+        Number.isSafeInteger(result.updated) &&
+        Number.isSafeInteger(result.alreadyApplied)
+    ) {
+        return result;
+    }
+
+    const error =
+        new Error(
+            result?.message ||
+            "取り込み結果を確認できませんでした"
+        );
+
+    error.status =
+        typeof result?.status === "string"
+            ? result.status
+            : "error";
+
+    error.result =
+        result;
+
+    throw error;
+}
+
+function applyImportPreviewGate(preview) {
+    if (!residentLinkingNextButton) {
+        return;
+    }
+
+    const ready =
+        preview?.status === "ready" &&
+        Number.isSafeInteger(
+            preview.sourceEntityCount
+        ) &&
+        preview.sourceEntityCount > 0 &&
+        preview.readySourceEntityCount ===
+            preview.sourceEntityCount &&
+        preview.unresolvedResidentCount === 0 &&
+        preview.missingResidentNameCount === 0 &&
+        Number.isSafeInteger(
+            preview.readyRowCount
+        ) &&
+        preview.readyRowCount ===
+            preview.sourceEntityCount &&
+        Number.isSafeInteger(
+            preview.invalidRowCount
+        ) &&
+        preview.invalidRowCount === 0 &&
+        Number.isSafeInteger(
+            preview.newRecordCount
+        ) &&
+        preview.newRecordCount >= 0 &&
+        Number.isSafeInteger(
+            preview.unchangedRecordCount
+        ) &&
+        preview.unchangedRecordCount >= 0 &&
+        Number.isSafeInteger(
+            preview.updateCandidateCount
+        ) &&
+        preview.updateCandidateCount >= 0 &&
+        Number.isSafeInteger(
+            preview.reviewRequiredCount
+        ) &&
+        preview.reviewRequiredCount === 0 &&
+        preview.newRecordCount +
+            preview.unchangedRecordCount +
+            preview.updateCandidateCount +
+            preview.reviewRequiredCount ===
+            preview.readyRowCount &&
+        Number.isSafeInteger(
+            preview.duplicateSourceRecordKeyCount
+        ) &&
+        preview.duplicateSourceRecordKeyCount === 0;
+
+    residentLinkingNextButton.disabled =
+        !ready;
+
+    residentLinkingNextButton.dataset.ready =
+        ready ? "true" : "false";
+}
+
+async function refreshImportPreviewGate() {
+    if (residentLinkingNextButton) {
+        residentLinkingNextButton.dataset.ready =
+            "false";
+    }
+
+    const preview =
+        await loadImportPreview();
+
+    applyImportPreviewGate(preview);
+
+    return preview;
+}
+
+function renderImportPreviewSummary(preview) {
+    if (!importPreviewSummary) {
+        return;
+    }
+
+    const total =
+        Number.isSafeInteger(
+            preview?.sourceEntityCount
+        )
+            ? preview.sourceEntityCount
+            : 0;
+
+    const ready =
+        Number.isSafeInteger(
+            preview?.readySourceEntityCount
+        )
+            ? preview.readySourceEntityCount
+            : 0;
+
+    const unresolved =
+        Number.isSafeInteger(
+            preview?.unresolvedResidentCount
+        )
+            ? preview.unresolvedResidentCount
+            : 0;
+
+    const missingName =
+        Number.isSafeInteger(
+            preview?.missingResidentNameCount
+        )
+            ? preview.missingResidentNameCount
+            : 0;
+
+    const readyRows =
+        Number.isSafeInteger(
+            preview?.readyRowCount
+        )
+            ? preview.readyRowCount
+            : 0;
+
+    const invalidRows =
+        Number.isSafeInteger(
+            preview?.invalidRowCount
+        )
+            ? preview.invalidRowCount
+            : 0;
+
+    const newRecords =
+        Number.isSafeInteger(
+            preview?.newRecordCount
+        )
+            ? preview.newRecordCount
+            : 0;
+
+    const unchangedRecords =
+        Number.isSafeInteger(
+            preview?.unchangedRecordCount
+        )
+            ? preview.unchangedRecordCount
+            : 0;
+
+    const updateCandidates =
+        Number.isSafeInteger(
+            preview?.updateCandidateCount
+        )
+            ? preview.updateCandidateCount
+            : 0;
+
+    const reviewRequired =
+        Number.isSafeInteger(
+            preview?.reviewRequiredCount
+        )
+            ? preview.reviewRequiredCount
+            : 0;
+
+    const previewBatches =
+        Number.isSafeInteger(
+            preview?.semanticPreviewBatchCount
+        )
+            ? preview.semanticPreviewBatchCount
+            : 0;
+
+    const duplicateSourceRecordKeys =
+        Number.isSafeInteger(
+            preview?.duplicateSourceRecordKeyCount
+        )
+            ? preview.duplicateSourceRecordKeyCount
+            : 0;
+
+    const invalidReasons =
+        preview?.invalidReasons &&
+        typeof preview.invalidReasons === "object" &&
+        !Array.isArray(preview.invalidReasons)
+            ? preview.invalidReasons
+            : {};
+
+    const invalidReasonLabels = {
+        resident_name_missing:
+            "利用者名欠損",
+        record_date_missing:
+            "記録日時欠損",
+        record_content_missing:
+            "支援記録本文欠損",
+        resident_id_unresolved:
+            "利用者未確定",
+        source_record_identity_duplicate:
+            "原本レコードID重複"
+    };
+
+    const invalidReasonLines =
+        Object.entries(invalidReasons)
+            .filter(
+                ([, count]) =>
+                    Number.isSafeInteger(count) &&
+                    count > 0
+            )
+            .map(
+                ([reason, count]) =>
+                    `${
+                        invalidReasonLabels[reason] ||
+                        escapeHtml(reason)
+                    }: ${count}件`
+            );
+
+    importPreviewSummary.innerHTML = `
+        <strong>
+            ${
+                preview?.status === "ready"
+                    ? "取り込み準備が整いました"
+                    : "取り込み前の確認が必要です"
+            }
+        </strong>
+        <p class="form-help">
+            原本行: ${total}件<br>
+            利用者確定済み: ${ready}件<br>
+            利用者未確定: ${unresolved}件<br>
+            利用者名欠損: ${missingName}件<br>
+            取り込み可能: ${readyRows}件<br>
+            新規: ${newRecords}件<br>
+            変更なし: ${unchangedRecords}件<br>
+            更新候補: ${updateCandidates}件<br>
+            要確認: ${reviewRequired}件<br>
+            原本レコードID重複: ${duplicateSourceRecordKeys}件<br>
+            照合バッチ: ${previewBatches}件<br>
+            取り込み不可: ${invalidRows}件
+            ${
+                invalidReasonLines.length > 0
+                    ? `<br>${invalidReasonLines.join("<br>")}`
+                    : ""
+            }
+        </p>
+        <p class="form-help">
+            このSTEPでは確認のみを行います。
+            記録データへの書き込みはまだ行いません。
+        </p>
+    `;
+}
+
+async function openImportPreviewStep() {
+    confirmedImportPreviewFingerprint = null;
+    confirmedImportPreview = null;
+
+    if (importPreviewNextButton) {
+        importPreviewNextButton.disabled = true;
+    }
+
+    if (!residentLinkingNextButton) {
+        setStatus(
+            "利用者紐付けの確認状態を取得できません。",
+            "error"
+        );
+        return;
+    }
+
+    if (
+        residentLinkingNextButton.dataset.ready !==
+            "true"
+    ) {
+        try {
+            const gatePreview =
+                await refreshImportPreviewGate();
+
+            if (
+                gatePreview?.status !== "ready" ||
+                residentLinkingNextButton.dataset.ready !==
+                    "true"
+            ) {
+                setStatus(
+                    "すべての利用者紐付けを確認してから次へ進んでください。",
+                    "error"
+                );
+                return;
+            }
+        } catch (error) {
+            setStatus(
+                `利用者紐付けの最新状態を確認できませんでした: ${error.message}`,
+                "error"
+            );
+            return;
+        }
+    }
+
+    showStep(5);
+
+    if (importPreviewSummary) {
+        importPreviewSummary.textContent =
+            "取り込み内容を確認しています...";
+    }
+
+    setStatus(
+        "取り込みプレビューを確認しています..."
+    );
+
+    try {
+        const preview =
+            await loadImportPreview();
+
+        applyImportPreviewGate(preview);
+        renderImportPreviewSummary(preview);
+
+        if (
+            preview.status !== "ready" ||
+            typeof preview.previewFingerprint !==
+                "string" ||
+            !/^[0-9a-f]{64}$/.test(
+                preview.previewFingerprint
+            )
+        ) {
+            confirmedImportPreviewFingerprint = null;
+            confirmedImportPreview = null;
+            showStep(4);
+
+            setStatus(
+                "利用者紐付けの状態が変わりました。再確認してください。",
+                "error"
+            );
+            return;
+        }
+
+        confirmedImportPreviewFingerprint =
+            preview.previewFingerprint;
+        confirmedImportPreview =
+            preview;
+
+        if (importPreviewNextButton) {
+            importPreviewNextButton.disabled =
+                false;
+        }
+
+        setStatus(
+            "取り込みプレビューを確認しました。記録データへの書き込みはまだ行っていません。",
+            "success"
+        );
+    } catch (error) {
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+        showStep(4);
+
+        setStatus(
+            `取り込みプレビューの確認に失敗しました: ${error.message}`,
+            "error"
+        );
+    }
+}
+
+async function renderResidentLinking() {
+    if (
+        !residentLinkingSummary ||
+        !residentLinkingList
+    ) {
+        return;
+    }
+
+    const sourceEntities =
+        Array.isArray(
+            latestAnalysis?.extracted?.sourceEntities
+        )
+            ? latestAnalysis.extracted.sourceEntities
+            : [];
+
+    if (sourceEntities.length === 0) {
+        throw new Error(
+            "利用者紐付けの対象行を取得できません"
+        );
+    }
+
+    const snapshot =
+        getResidentLinkingSnapshot();
+
+    residentLinkingSummary.innerHTML = `
+        <strong>利用者候補を確認しています</strong>
+        <p class="form-help">
+            ${sourceEntities.length}件の原本行を、
+            同じ利用者識別値ごとにまとめて確認します。
+            候補が見つかっても、人が確認するまで
+            紐付けは確定しません。
+        </p>
+    `;
+
+    residentLinkingList.textContent =
+        "利用者候補を取得しています...";
+
+    const [
+        candidateResult
+    ] =
+        await Promise.all([
+            loadResidentCandidateGroups(
+                snapshot
+            ),
+            loadPersistedSourceResidentMappings(
+                snapshot
+            )
+        ]);
+
+    residentCandidateGroups.clear();
+
+    for (const group of candidateResult.groups) {
+        residentCandidateGroups.set(
+            createSourceResidentMappingKey(
+                group.identifierType,
+                group.identifierDigest
+            ),
+            group
+        );
+    }
+
+    const rows =
+        candidateResult.groups.map(
+            group => `
+                <div
+                    style="
+                        padding: 14px 0;
+                        border-bottom: 1px solid #e1e7f0;
+                    "
+                >
+                    <div
+                        data-resident-identifier-type="${escapeHtml(
+                            group.identifierType
+                        )}"
+                        data-resident-identifier-digest="${escapeHtml(
+                            group.identifierDigest
+                        )}"
+                    >
+                        <p class="form-help">
+                            原本 ${group.sourceEntityCount}件
+                        </p>
+                        ${renderResidentCandidateDetails(
+                            group,
+                            sourceResidentMappings.get(
+                                createSourceResidentMappingKey(
+                                    group.identifierType,
+                                    group.identifierDigest
+                                )
+                            ) || null
+                        )}
+                    </div>
+                </div>
+            `
+        );
+
+    const unavailableMessage =
+        candidateResult
+            .unavailableSourceEntityCount > 0
+            ? candidateResult.identifierType === "name"
+                ? `
+                    <div
+                        style="
+                            margin-top: 12px;
+                            padding: 12px;
+                            border: 1px solid #d92d20;
+                            border-radius: 8px;
+                            background: #fff5f4;
+                            color: #b42318;
+                        "
+                    >
+                        <strong>
+                            原本データに利用者名がない行があります
+                        </strong>
+                        <p class="form-help">
+                            ${candidateResult.unavailableSourceEntityCount}件の
+                            原本行で利用者名を取得できません。
+                            日次記録の利用者を確定できないため、
+                            この状態では次の取り込み工程へ進めません。
+                        </p>
+                    </div>
+                `
+                : `
+                    <p class="form-help">
+                        識別値を取得できない原本行が
+                        ${candidateResult.unavailableSourceEntityCount}件あります。
+                        これらは自動では紐付けません。
+                    </p>
+                `
+            : "";
+
+    residentLinkingSummary.innerHTML = `
+        <strong>利用者紐付け</strong>
+        <p class="form-help">
+            ${candidateResult.sourceEntityCount}件の原本行を
+            ${candidateResult.groups.length}件の
+            利用者識別グループとして確認します。
+            候補はまだ確定ではありません。
+        </p>
+        ${unavailableMessage}
+    `;
+
+    residentLinkingList.innerHTML =
+        rows.length > 0
+            ? rows.join("")
+            : "<p>確認対象がありません。</p>";
+
+    const preview =
+        await refreshImportPreviewGate();
+
+    const confirmedRows =
+        Number.isSafeInteger(
+            preview.readySourceEntityCount
+        )
+            ? preview.readySourceEntityCount
+            : 0;
+
+    const unresolvedRows =
+        Number.isSafeInteger(
+            preview.unresolvedResidentCount
+        )
+            ? preview.unresolvedResidentCount
+            : 0;
+
+    residentLinkingSummary.innerHTML += `
+        <p class="form-help">
+            利用者確定済み ${confirmedRows}件 /
+            ${preview.sourceEntityCount}件、
+            未確定 ${unresolvedRows}件です。
+            ${
+                preview.status === "ready"
+                    ? "すべて確認済みです。取り込みプレビューへ進めます。"
+                    : "すべての利用者を確認すると次へ進めます。"
+            }
+        </p>
+    `;
+}
+
+async function openResidentLinkingStep() {
+    showStep(4);
+
+    if (residentLinkingNextButton) {
+        residentLinkingNextButton.disabled = true;
+        residentLinkingNextButton.dataset.ready =
+            "false";
+    }
+
+    setStatus(
+        "利用者候補を確認しています..."
+    );
+
+    if (residentLinkingSummary) {
+        residentLinkingSummary.innerHTML = `
+            <strong>利用者候補を確認しています</strong>
+            <p class="form-help">
+                保存済みの紐付け状態と利用者候補を確認しています。
+            </p>
+        `;
+    }
+
+    if (residentLinkingList) {
+        residentLinkingList.textContent =
+            "利用者候補を取得しています...";
+    }
+
+    try {
+        await renderResidentLinking();
+
+        setStatus(
+            "利用者候補を確認してください。",
+            "success"
+        );
+    } catch (error) {
+        setStatus(
+            `利用者候補の確認に失敗しました: ${error.message}`,
+            "error"
+        );
+
+        if (residentLinkingList) {
+            residentLinkingList.innerHTML = `
+                <strong>
+                    利用者候補を確認できませんでした
+                </strong>
+                <p class="form-help">
+                    STEP 3の確認内容は保存済みです。
+                    原本データの登録や利用者紐付けの確定は
+                    行っていません。
+                </p>
+            `;
+        }
+    }
+}
+
 analysisBackButton?.addEventListener(
     "click",
     () => showStep(1)
@@ -1521,9 +3699,43 @@ analysisBackButton?.addEventListener(
 
 analysisConfirmButton?.addEventListener(
     "click",
-    () => {
-        renderConfirmation();
-        showStep(3);
+    async () => {
+        if (analysisConfirmButton.disabled) {
+            return;
+        }
+
+        analysisConfirmButton.disabled = true;
+
+        const originalText =
+            analysisConfirmButton.textContent;
+
+        analysisConfirmButton.textContent =
+            "確認対象の原本を固定しています...";
+
+        setStatus(
+            "解析した時点の原本を確認対象として固定しています..."
+        );
+
+        try {
+            await persistAnalyzedSourceDocumentSnapshot();
+
+            renderConfirmation();
+            showStep(3);
+
+            setStatus(
+                "確認対象の原本を固定しました。項目を確認してください。",
+                "success"
+            );
+        } catch (error) {
+            setStatus(
+                `確認対象の原本を固定できませんでした: ${error.message}`,
+                "error"
+            );
+        } finally {
+            analysisConfirmButton.disabled = false;
+            analysisConfirmButton.textContent =
+                originalText;
+        }
     }
 );
 
@@ -1531,6 +3743,435 @@ importBackButton?.addEventListener(
     "click",
     () => showStep(2)
 );
+
+residentLinkingBackButton?.addEventListener(
+    "click",
+    () => showStep(3)
+);
+
+residentLinkingNextButton?.addEventListener(
+    "click",
+    openImportPreviewStep
+);
+
+importPreviewBackButton?.addEventListener(
+    "click",
+    () => {
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+
+        if (importPreviewNextButton) {
+            importPreviewNextButton.disabled =
+                true;
+        }
+
+        showStep(4);
+    }
+);
+
+importPreviewNextButton?.addEventListener(
+    "click",
+    () => {
+        if (
+            !confirmedImportPreview ||
+            typeof confirmedImportPreviewFingerprint !==
+                "string" ||
+            !/^[0-9a-f]{64}$/.test(
+                confirmedImportPreviewFingerprint
+            ) ||
+            confirmedImportPreview.status !== "ready"
+        ) {
+            setStatus(
+                "取り込みプレビューをもう一度確認してください。",
+                "error"
+            );
+            return;
+        }
+
+        const total =
+            confirmedImportPreview.sourceEntityCount;
+        const newRecords =
+            confirmedImportPreview.newRecordCount;
+        const updates =
+            confirmedImportPreview.updateCandidateCount;
+        const unchanged =
+            confirmedImportPreview.unchangedRecordCount;
+
+        if (
+            !Number.isSafeInteger(total) ||
+            total < 1 ||
+            !Number.isSafeInteger(newRecords) ||
+            newRecords < 0 ||
+            !Number.isSafeInteger(updates) ||
+            updates < 0 ||
+            !Number.isSafeInteger(unchanged) ||
+            unchanged < 0
+        ) {
+            setStatus(
+                "最終確定する件数を確認できません。",
+                "error"
+            );
+            return;
+        }
+
+        if (importExecutionSummary) {
+            importExecutionSummary.innerHTML = `
+                <strong>この内容を記録データへ取り込みます</strong>
+                <p class="form-help">
+                    対象: ${total}件<br>
+                    新規: ${newRecords}件<br>
+                    更新: ${updates}件<br>
+                    変更なし: ${unchanged}件
+                </p>
+                <p class="form-help">
+                    「この内容で取り込む」を押すまでは、
+                    記録データへの書き込みは行いません。
+                </p>
+            `;
+        }
+
+        if (importExecutionConfirmButton) {
+            importExecutionConfirmButton.disabled =
+                false;
+            importExecutionConfirmButton.textContent =
+                "この内容で取り込む";
+        }
+
+        showStep(6);
+
+        setStatus(
+            "最終確定する取り込み件数を確認してください。"
+        );
+    }
+);
+
+importExecutionBackButton?.addEventListener(
+    "click",
+    async () => {
+        if (importExecutionConfirmButton) {
+            importExecutionConfirmButton.disabled =
+                true;
+        }
+
+        importExecutionBackButton.disabled =
+            true;
+
+        try {
+            await openImportPreviewStep();
+        } finally {
+            importExecutionBackButton.disabled =
+                false;
+        }
+    }
+);
+
+importExecutionConfirmButton?.addEventListener(
+    "click",
+    async () => {
+        if (
+            !confirmedImportPreview ||
+            confirmedImportPreview.status !== "ready" ||
+            typeof confirmedImportPreviewFingerprint !==
+                "string" ||
+            !/^[0-9a-f]{64}$/.test(
+                confirmedImportPreviewFingerprint
+            )
+        ) {
+            setStatus(
+                "取り込みプレビューをもう一度確認してください。",
+                "error"
+            );
+            showStep(5);
+            return;
+        }
+
+        importExecutionConfirmButton.disabled =
+            true;
+        importExecutionBackButton.disabled =
+            true;
+
+        const originalText =
+            importExecutionConfirmButton.textContent;
+
+        importExecutionConfirmButton.textContent =
+            "取り込んでいます...";
+
+        setStatus(
+            "確認済みの内容を取り込んでいます..."
+        );
+
+        try {
+            const result =
+                await executeConfirmedImport();
+
+            confirmedImportPreviewFingerprint =
+                null;
+            confirmedImportPreview =
+                null;
+
+            if (importPreviewNextButton) {
+                importPreviewNextButton.disabled =
+                    true;
+            }
+
+            if (importExecutionSummary) {
+                importExecutionSummary.innerHTML = `
+                    <strong>取り込みが完了しました</strong>
+                    <p class="form-help">
+                        処理済み: ${result.processed}件<br>
+                        新規登録: ${result.created}件<br>
+                        更新: ${result.updated}件<br>
+                        既に反映済み: ${result.alreadyApplied}件
+                    </p>
+                `;
+            }
+
+            importExecutionConfirmButton.textContent =
+                "取り込み完了";
+
+            importExecutionBackButton.disabled =
+                false;
+
+            setStatus(
+                "記録データへの取り込みが完了しました。",
+                "success"
+            );
+        } catch (error) {
+            const executionFailureStatus =
+                typeof error?.status === "string"
+                    ? error.status
+                    : "error";
+
+            console.error(
+                "import_execution_failed",
+                {
+                    status:
+                        executionFailureStatus
+                }
+            );
+
+            confirmedImportPreviewFingerprint =
+                null;
+            confirmedImportPreview =
+                null;
+
+            if (importPreviewNextButton) {
+                importPreviewNextButton.disabled =
+                    true;
+            }
+
+            importExecutionConfirmButton.textContent =
+                originalText;
+            importExecutionConfirmButton.disabled =
+                true;
+            importExecutionBackButton.disabled =
+                false;
+
+            try {
+                await openImportPreviewStep();
+
+                const failureLabel =
+                    {
+                        stale:
+                            "プレビュー条件が変化しました。",
+                        blocked:
+                            "取り込み条件を確定できませんでした。",
+                        invalid:
+                            "取り込み条件が不正です。",
+                        conflict:
+                            "取り込み対象と現在のデータに差異が発生しました。",
+                        resident_mismatch:
+                            "利用者の紐付けに差異が発生しました。",
+                        error:
+                            "取り込み結果を確定できませんでした。"
+                    }[executionFailureStatus] ||
+                    "取り込み結果を確定できませんでした。";
+
+                setStatus(
+                    `${failureLabel} 自動再試行は行いません。最新の取り込みプレビューを再取得しました。内容を再確認してください。`,
+                    "error"
+                );
+            } catch (previewError) {
+                showStep(4);
+
+                setStatus(
+                    `${error.message} 自動再試行は行いません。取り込みプレビューの再取得にも失敗しました: ${previewError.message}`,
+                    "error"
+                );
+            }
+        }
+    }
+);
+
+residentLinkingList?.addEventListener(
+    "click",
+    async event => {
+        const button =
+            event.target.closest(
+                "[data-resident-mapping-action]"
+            );
+
+        if (!button) {
+            return;
+        }
+
+        const groupElement =
+            button.closest(
+                "[data-resident-identifier-type][data-resident-identifier-digest]"
+            );
+
+        const identifierType =
+            groupElement?.dataset
+                ?.residentIdentifierType?.trim() ||
+            "";
+
+        const identifierDigest =
+            groupElement?.dataset
+                ?.residentIdentifierDigest?.trim() ||
+            "";
+
+        const mappingAction =
+            button.dataset.residentMappingAction;
+
+        let mappingStatus =
+            mappingAction;
+
+        let residentId =
+            mappingStatus === "confirmed"
+                ? button.dataset.residentId?.trim() || ""
+                : null;
+
+        const key =
+            createSourceResidentMappingKey(
+                identifierType,
+                identifierDigest
+            );
+
+        const group =
+            residentCandidateGroups.get(key);
+
+        if (
+            !group ||
+            !["user_code", "name"].includes(
+                identifierType
+            ) ||
+            !/^[0-9a-f]{64}$/.test(
+                identifierDigest
+            ) ||
+            ![
+                "confirmed",
+                "deferred",
+                "create_resident"
+            ].includes(mappingAction) ||
+            (
+                mappingAction === "confirmed" &&
+                !residentId
+            ) ||
+            (
+                mappingAction === "create_resident" &&
+                (
+                    identifierType !== "name" ||
+                    typeof group.identifierValue !== "string" ||
+                    !group.identifierValue.trim()
+                )
+            )
+        ) {
+            setStatus(
+                "利用者マッピングの保存対象を確認できません。",
+                "error"
+            );
+            return;
+        }
+
+        const snapshot =
+            getResidentLinkingSnapshot();
+
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+        button.disabled = true;
+
+        setStatus(
+            mappingAction === "confirmed"
+                ? "利用者紐付けを保存しています..."
+                : mappingAction === "create_resident"
+                    ? "利用者台帳へ登録して紐付けています..."
+                    : "保留として保存しています..."
+        );
+
+        try {
+            if (
+                mappingAction === "create_resident"
+            ) {
+                const creationResult =
+                    await createResidentFromSourceName(
+                        group.identifierValue
+                    );
+
+                residentId =
+                    creationResult.resident
+                        .residentId;
+
+                mappingStatus =
+                    "confirmed";
+            }
+
+            await persistSourceResidentMapping({
+                snapshot,
+                identifierType,
+                identifierDigest,
+                mappingStatus,
+                residentId
+            });
+
+            const mapping = {
+                identifierType,
+                identifierDigest,
+                mappingStatus,
+                residentId:
+                    mappingStatus === "confirmed"
+                        ? residentId
+                        : null
+            };
+
+            sourceResidentMappings.set(
+                key,
+                mapping
+            );
+
+            groupElement.innerHTML = `
+                <p class="form-help">
+                    原本 ${group.sourceEntityCount}件
+                </p>
+                ${renderResidentCandidateDetails(
+                    group,
+                    mapping
+                )}
+            `;
+
+            const preview =
+                await refreshImportPreviewGate();
+
+            setStatus(
+                preview.status === "ready"
+                    ? "すべての利用者紐付けを確認しました。取り込みプレビューへ進めます。"
+                    : mappingAction === "create_resident"
+                        ? "利用者台帳への登録と紐付けを確認しました。"
+                        : mappingStatus === "confirmed"
+                            ? "利用者紐付けを確認しました。"
+                            : "利用者紐付けを保留しました。",
+                "success"
+            );
+        } catch (error) {
+            button.disabled = false;
+
+            setStatus(
+                `利用者マッピングの保存に失敗しました: ${error.message}`,
+                "error"
+            );
+        }
+    }
+);
+
 
 importReadyButton?.addEventListener(
     "click",
@@ -1541,12 +4182,81 @@ importReadyButton?.addEventListener(
         const interpretations =
             collectSourceFieldInterpretations();
 
+
+const requiredStep3Meanings = [
+            {
+                entityName: "user",
+                fieldName: "name",
+                label: "利用者名"
+            },
+            {
+                entityName: "support_record",
+                fieldName: "record_date",
+                label: "記録日時"
+            },
+            {
+                entityName: "support_record",
+                fieldName: "record_content",
+                label: "支援記録本文"
+            }
+        ];
+
+        const missingRequiredStep3Meanings =
+            requiredStep3Meanings.filter(required =>
+                !mappings.some(mapping =>
+                    mapping.standardEntityName ===
+                        required.entityName &&
+                    mapping.standardFieldName ===
+                        required.fieldName
+                )
+            );
+
+        if (missingRequiredStep3Meanings.length > 0) {
+            setStatus(
+                "STEP 3の必須項目が未確認です: " +
+                missingRequiredStep3Meanings
+                    .map(required => required.label)
+                    .join("、"),
+                "error"
+            );
+
+            return;
+        }
+
         if (
-            mappings.length === 0 &&
-            interpretations.length === 0
+            !confirmedSourceRecordIdentity ||
+            typeof confirmedSourceRecordIdentity
+                .sourceFieldKey !== "string" ||
+            !confirmedSourceRecordIdentity
+                .sourceFieldKey.trim()
         ) {
             setStatus(
-                "保存する項目対応または確認状態がありません。",
+                "STEP 3の原本レコードIDが未確認です。原本側で各記録を一意に識別する項目を選択して確認してください。",
+                "error"
+            );
+
+            return;
+        }
+
+        const identityFieldDefinitions =
+            Array.isArray(
+                latestAnalysis?.extracted?.fieldDefinitions
+            )
+                ? latestAnalysis.extracted.fieldDefinitions
+                : [];
+
+        const confirmedIdentityFieldExists =
+            identityFieldDefinitions.some(
+                field =>
+                    typeof field?.sourceFieldKey === "string" &&
+                    field.sourceFieldKey.trim() ===
+                        confirmedSourceRecordIdentity
+                            .sourceFieldKey.trim()
+            );
+
+        if (!confirmedIdentityFieldExists) {
+            setStatus(
+                "確認済みの原本レコードIDが現在の原本構造と一致しません。もう一度確認してください。",
                 "error"
             );
 
@@ -1561,6 +4271,8 @@ importReadyButton?.addEventListener(
         let interpretationSavedCount = 0;
 
         try {
+            await persistAnalyzedSourceDocumentSnapshot();
+
             if (mappings.length > 0) {
                 const result =
                     await persistConfirmedSourceFieldMappings(
@@ -1628,6 +4340,8 @@ importReadyButton?.addEventListener(
                 behavior: "smooth",
                 block: "nearest"
             });
+
+            await openResidentLinkingStep();
         } catch (error) {
             const partialCount =
                 Number.isInteger(

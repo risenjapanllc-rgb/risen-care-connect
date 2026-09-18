@@ -39,7 +39,11 @@ function validInput() {
         headerLabel:
             "血液型",
         confirmedAt:
-            "2026-09-12T01:00:00.000Z"
+            "2026-09-12T01:00:00.000Z",
+        sourceUpdatedAt:
+            "2026-09-15T02:30:00.000Z",
+        sourceSize:
+            9520
     };
 }
 
@@ -141,7 +145,11 @@ test("calls source field mapping RPC and returns created status", async () => {
                 p_header_label:
                     "血液型",
                 p_confirmed_at:
-                    "2026-09-12T01:00:00.000Z"
+                    "2026-09-12T01:00:00.000Z",
+                p_source_updated_at:
+                    "2026-09-15T02:30:00.000Z",
+                p_source_size:
+                    9520
             }
         );
     } finally {

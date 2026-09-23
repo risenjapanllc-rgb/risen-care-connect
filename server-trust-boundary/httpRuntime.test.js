@@ -274,3 +274,149 @@ test("mounts source-field-mapping endpoint in HTTP runtime", async () => {
         }
     );
 });
+
+
+test("mounts voice-call endpoint in HTTP runtime", async () => {
+    const runtime =
+        createServerTrustBoundaryHttpRuntime({
+            supabaseUrl:
+                "https://example.supabase.co",
+            apiKey:
+                "test-publishable-key",
+            connectorTrustEmail:
+                "connector@example.local",
+            connectorTrustPassword:
+                "test-password",
+            authorizationScheme:
+                "RISEN-Connector",
+            connectorIdHeader:
+                "x-risen-connector-id",
+            endpointPath:
+                "/connector/ingest",
+            jsonBodyLimit:
+                "100kb",
+            sourceDocumentJsonBodyLimit:
+                "25mb"
+        });
+
+    await withServer(
+        runtime.app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/voice-calls`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                to:
+                                    "09012345678"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                401
+            );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                body.errorCode,
+                "connector_trust_denied"
+            );
+
+            assert.strictEqual(
+                typeof body.requestId,
+                "string"
+            );
+        }
+    );
+});
+
+
+test(
+    "voice-call HTTP runtime rejects client-supplied facilityId",
+    async () => {
+        const runtime =
+            createServerTrustBoundaryHttpRuntime({
+                supabaseUrl:
+                    "https://example.supabase.co",
+                apiKey:
+                    "test-publishable-key",
+                connectorTrustEmail:
+                    "connector@example.local",
+                connectorTrustPassword:
+                    "test-password",
+                authorizationScheme:
+                    "RISEN-Connector",
+                connectorIdHeader:
+                    "x-risen-connector-id",
+                endpointPath:
+                    "/connector/ingest",
+                jsonBodyLimit:
+                    "100kb",
+                sourceDocumentJsonBodyLimit:
+                    "25mb"
+            });
+
+        await withServer(
+            runtime.app,
+            async (baseUrl) => {
+                const response =
+                    await fetch(
+                        `${baseUrl}/connector/voice-calls`,
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-RISEN-Connector-Id":
+                                    "connector-A",
+
+                                "Authorization":
+                                    "RISEN-Connector test-credential"
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    facilityId:
+                                        "facility-ATTACKER",
+
+                                    to:
+                                        "09012345678"
+                                })
+                        }
+                    );
+
+                assert.strictEqual(
+                    response.status,
+                    400
+                );
+
+                const body =
+                    await response.json();
+
+                assert.strictEqual(
+                    body.errorCode,
+                    "malformed_json"
+                );
+
+                assert.strictEqual(
+                    typeof body.requestId,
+                    "string"
+                );
+            }
+        );
+    }
+);

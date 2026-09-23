@@ -85,11 +85,40 @@ const SourceRecordIdentityMappingQueryHttpAdapter =
 const SourceRecordIdentityMappingQueryTransport =
     require("./SourceRecordIdentityMappingQueryTransport");
 
+const ConfirmedDocumentTypeHttpAdapter =
+    require("./ConfirmedDocumentTypeHttpAdapter");
+
+const ConfirmedDocumentTypeTransport =
+    require("./ConfirmedDocumentTypeTransport");
+
+const ConfirmedDocumentTypeQueryHttpAdapter =
+    require("./ConfirmedDocumentTypeQueryHttpAdapter");
+
+const ConfirmedDocumentTypeQueryTransport =
+    require("./ConfirmedDocumentTypeQueryTransport");
+
+const ResidentAdmissionDecisionHttpAdapter =
+    require("./ResidentAdmissionDecisionHttpAdapter");
+const ResidentAdmissionDecisionTransport =
+    require("./ResidentAdmissionDecisionTransport");
+const ResidentAdmissionDecisionQueryHttpAdapter =
+    require("./ResidentAdmissionDecisionQueryHttpAdapter");
+const ResidentAdmissionDecisionQueryTransport =
+    require("./ResidentAdmissionDecisionQueryTransport");
+
 const ConnectorSemanticRecordPreviewHttpAdapter =
     require("./ConnectorSemanticRecordPreviewHttpAdapter");
 
 const ConnectorSemanticRecordPreviewTransport =
     require("./ConnectorSemanticRecordPreviewTransport");
+const ConnectorSemanticLogicalRecordHttpAdapter =
+    require("./ConnectorSemanticLogicalRecordHttpAdapter");
+const ConnectorSemanticLogicalRecordTransport =
+    require("./ConnectorSemanticLogicalRecordTransport");
+const ConnectorSemanticLogicalRecordPersistenceHttpAdapter =
+    require("./ConnectorSemanticLogicalRecordPersistenceHttpAdapter");
+const ConnectorSemanticLogicalRecordPersistenceTransport =
+    require("./ConnectorSemanticLogicalRecordPersistenceTransport");
 
 const ConnectorSupportRecordBatchWriteHttpAdapter =
     require("./ConnectorSupportRecordBatchWriteHttpAdapter");
@@ -102,9 +131,14 @@ const ResidentCreationHttpAdapter =
 
 const ResidentCreationTransport =
     require("./ResidentCreationTransport");
+const ConnectorResidentAdmissionHttpAdapter =
+    require("./ConnectorResidentAdmissionHttpAdapter");
+const ConnectorResidentAdmissionTransport =
+    require("./ConnectorResidentAdmissionTransport");
 
 
-
+const VoiceCallTransport =
+    require("./VoiceCallTransport");
 
 
 const {
@@ -381,6 +415,62 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const confirmedDocumentTypeHttpAdapter =
+        new ConfirmedDocumentTypeHttpAdapter({
+            persistenceService:
+                coreRuntime.confirmedDocumentTypePersistenceService,
+            diagnosticLogger
+        });
+
+    const confirmedDocumentTypeTransport =
+        new ConfirmedDocumentTypeTransport({
+            httpAdapter: confirmedDocumentTypeHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const confirmedDocumentTypeQueryHttpAdapter =
+        new ConfirmedDocumentTypeQueryHttpAdapter({
+            queryService:
+                coreRuntime.confirmedDocumentTypeQueryService,
+            diagnosticLogger
+        });
+
+    const confirmedDocumentTypeQueryTransport =
+        new ConfirmedDocumentTypeQueryTransport({
+            httpAdapter: confirmedDocumentTypeQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const residentAdmissionDecisionHttpAdapter =
+        new ResidentAdmissionDecisionHttpAdapter({
+            persistenceService:
+                coreRuntime.residentAdmissionDecisionPersistenceService,
+            diagnosticLogger
+        });
+
+    const residentAdmissionDecisionTransport =
+        new ResidentAdmissionDecisionTransport({
+            httpAdapter: residentAdmissionDecisionHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const residentAdmissionDecisionQueryHttpAdapter =
+        new ResidentAdmissionDecisionQueryHttpAdapter({
+            queryService:
+                coreRuntime.residentAdmissionDecisionQueryService,
+            diagnosticLogger
+        });
+
+    const residentAdmissionDecisionQueryTransport =
+        new ResidentAdmissionDecisionQueryTransport({
+            httpAdapter: residentAdmissionDecisionQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const connectorSemanticRecordPreviewHttpAdapter =
         new ConnectorSemanticRecordPreviewHttpAdapter({
             previewService:
@@ -392,6 +482,37 @@ function createServerTrustBoundaryHttpRuntime({
         new ConnectorSemanticRecordPreviewTransport({
             httpAdapter:
                 connectorSemanticRecordPreviewHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const connectorSemanticLogicalRecordHttpAdapter =
+        new ConnectorSemanticLogicalRecordHttpAdapter({
+            service:
+                coreRuntime.connectorSemanticLogicalRecordService,
+            diagnosticLogger
+        });
+
+    const connectorSemanticLogicalRecordTransport =
+        new ConnectorSemanticLogicalRecordTransport({
+            httpAdapter:
+                connectorSemanticLogicalRecordHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const connectorSemanticLogicalRecordPersistenceHttpAdapter =
+        new ConnectorSemanticLogicalRecordPersistenceHttpAdapter({
+            service:
+                coreRuntime
+                    .connectorSemanticLogicalRecordPersistenceService,
+            diagnosticLogger
+        });
+
+    const connectorSemanticLogicalRecordPersistenceTransport =
+        new ConnectorSemanticLogicalRecordPersistenceTransport({
+            httpAdapter:
+                connectorSemanticLogicalRecordPersistenceHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -426,6 +547,31 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const connectorResidentAdmissionHttpAdapter =
+        new ConnectorResidentAdmissionHttpAdapter({
+            service:
+                coreRuntime.connectorResidentAdmissionService,
+            diagnosticLogger
+        });
+
+    const connectorResidentAdmissionTransport =
+        new ConnectorResidentAdmissionTransport({
+            httpAdapter:
+                connectorResidentAdmissionHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const voiceCallTransport =
+        new VoiceCallTransport({
+            httpAdapter:
+                coreRuntime.voiceCallHttpAdapter,
+
+            credentialTransport,
+
+            connectorIdHeader
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
@@ -454,15 +600,35 @@ function createServerTrustBoundaryHttpRuntime({
             sourceRecordIdentityMappingQueryTransport,
             sourceRecordIdentityMappingEndpointPath:
                 "/connector/source-record-identity-mapping",
+            confirmedDocumentTypeTransport,
+            confirmedDocumentTypeQueryTransport,
+            confirmedDocumentTypeEndpointPath:
+                "/connector/confirmed-document-type",
+            residentAdmissionDecisionTransport,
+            residentAdmissionDecisionQueryTransport,
+            residentAdmissionDecisionEndpointPath:
+                "/connector/resident-admission-decisions",
             connectorSemanticRecordPreviewTransport,
             connectorSemanticRecordPreviewEndpointPath:
                 "/connector/semantic-record-preview",
+            connectorSemanticLogicalRecordTransport,
+            connectorSemanticLogicalRecordEndpointPath:
+                "/connector/semantic-logical-record",
+            connectorSemanticLogicalRecordPersistenceTransport,
+            connectorSemanticLogicalRecordPersistenceEndpointPath:
+                "/connector/semantic-logical-record-persistence",
             connectorSupportRecordBatchWriteTransport,
             connectorSupportRecordBatchWriteEndpointPath:
                 "/connector/support-record-batch-write",
             residentCreationTransport,
             residentCreationEndpointPath:
                 "/connector/residents",
+            connectorResidentAdmissionTransport,
+            connectorResidentAdmissionEndpointPath:
+                "/connector/resident-admission",
+            voiceCallTransport,
+            voiceCallEndpointPath:
+                "/connector/voice-calls",
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",
             jsonBodyLimit,

@@ -67,6 +67,9 @@ function createServerTrustBoundaryApp({
     connectorResidentAdmissionTransport,
     connectorResidentAdmissionEndpointPath =
         "/connector/resident-admission",
+    voiceCallTransport,
+    voiceCallEndpointPath =
+        "/connector/voice-calls",
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
         jsonBodyLimit
@@ -802,6 +805,82 @@ function createServerTrustBoundaryApp({
         );
     }
 
+    if (connectorSupportRecordBatchWriteTransport) {
+        if (
+            typeof connectorSupportRecordBatchWriteTransport.handle !==
+                "function" ||
+            typeof connectorSupportRecordBatchWriteTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorSupportRecordBatchWriteTransport"
+            );
+        }
+
+        app.post(
+            connectorSupportRecordBatchWriteEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorSupportRecordBatchWriteTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (residentCreationTransport) {
+        if (
+            typeof residentCreationTransport.handle !==
+                "function" ||
+            typeof residentCreationTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete residentCreationTransport"
+            );
+        }
+
+        app.post(
+            residentCreationEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await residentCreationTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
     if (connectorResidentAdmissionTransport) {
         if (
             typeof connectorResidentAdmissionTransport.handle !==
@@ -839,6 +918,106 @@ function createServerTrustBoundaryApp({
             }
         );
     }
+
+    if (voiceCallTransport) {
+        if (
+            typeof voiceCallTransport.handle !==
+                "function" ||
+            typeof voiceCallTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete voiceCallTransport"
+            );
+        }
+
+        app.all(
+            voiceCallEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceCallTransport.handle({
+                            method:
+                                req.method,
+
+                            contentType:
+                                req.get(
+                                    "content-type"
+                                ),
+
+                            headers:
+                                req.headers,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    app.use(
+        (
+            error,
+            req,
+            res,
+            next
+        ) => {
+            if (
+                error &&
+                error.type === "entity.too.large"
+            ) {
+                const result =
+                    transport.createErrorResponse({
+                        httpStatus: 413,
+                        errorCode:
+                            "payload_too_large"
+                    });
+
+                return res
+                    .status(result.httpStatus)
+                    .json(result.body);
+            }
+
+            if (
+                error instanceof SyntaxError &&
+                error.status === 400
+            ) {
+                const result =
+                    transport.createErrorResponse({
+                        httpStatus: 400,
+                        errorCode:
+                            "malformed_json"
+                    });
+
+                return res
+                    .status(result.httpStatus)
+                    .json(result.body);
+            }
+
+            const result =
+                transport.createErrorResponse({
+                    httpStatus: 503,
+                    errorCode:
+                        "connector_processing_unavailable"
+                });
+
+            return res
+                .status(result.httpStatus)
+                .json(result.body);
+        }
+    );
 
     if (connectorSemanticLogicalRecordPersistenceTransport) {
         app.post(

@@ -119,12 +119,50 @@ const SourceRecordIdentityMappingPersistenceService =
 
 const SourceRecordIdentityMappingQueryService =
     require("./SourceRecordIdentityMappingQueryService");
+const SupabaseConfirmedDocumentTypeRepository =
+    require("./SupabaseConfirmedDocumentTypeRepository");
+const ConfirmedDocumentTypePersistenceService =
+    require("./ConfirmedDocumentTypePersistenceService");
+const ConfirmedDocumentTypeQueryService =
+    require("./ConfirmedDocumentTypeQueryService");
+
+const SupabaseResidentAdmissionDecisionRepository =
+    require("./SupabaseResidentAdmissionDecisionRepository");
+const ResidentAdmissionDecisionPersistenceService =
+    require("./ResidentAdmissionDecisionPersistenceService");
+const ResidentAdmissionDecisionQueryService =
+    require("./ResidentAdmissionDecisionQueryService");
 
 const SupabaseResidentCreationRepository =
     require("./SupabaseResidentCreationRepository");
 
 const ResidentCreationService =
     require("./ResidentCreationService");
+const SupabaseConnectorResidentAdmissionRepository =
+    require("./SupabaseConnectorResidentAdmissionRepository");
+const ConnectorResidentAdmissionService =
+    require("./ConnectorResidentAdmissionService");
+
+const VoiceCallService =
+    require("./VoiceCallService");
+
+const VoiceCallHttpAdapter =
+    require("./VoiceCallHttpAdapter");
+
+const VoiceCallTransport =
+    require("./VoiceCallTransport");
+
+const {
+    SupabaseFacilityPhoneNumberRepository
+} =
+    require(
+        "../server-domain/storage/SupabaseFacilityPhoneNumberRepository"
+    );
+
+const {
+    createOutboundCall
+} = require("../services/vonageVoiceService");
+
 
 const ResidentMatcher =
     require("../server-domain/resident/ResidentMatcher");
@@ -173,6 +211,14 @@ const SupabaseConnectorSemanticRecordPreviewRepository =
 
 const ConnectorSemanticRecordPreviewService =
     require("./ConnectorSemanticRecordPreviewService");
+const SupabaseConnectorSemanticLogicalRecordRepository =
+    require("./SupabaseConnectorSemanticLogicalRecordRepository");
+const ConnectorSemanticLogicalRecordService =
+    require("./ConnectorSemanticLogicalRecordService");
+const SupabaseConnectorSemanticLogicalRecordPersistenceRepository =
+    require("./SupabaseConnectorSemanticLogicalRecordPersistenceRepository");
+const ConnectorSemanticLogicalRecordPersistenceService =
+    require("./ConnectorSemanticLogicalRecordPersistenceService");
 
 const ConnectorSupportRecordPersistenceService =
     require("./ConnectorSupportRecordPersistenceService");
@@ -312,6 +358,33 @@ function createServerTrustBoundaryRuntime({
         new ConnectorSemanticRecordPreviewService({
             connectorTrustService,
             semanticRecordPreviewRepository
+        });
+
+    const semanticLogicalRecordRepository =
+        new SupabaseConnectorSemanticLogicalRecordRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorSemanticLogicalRecordService =
+        new ConnectorSemanticLogicalRecordService({
+            connectorTrustService,
+            repository: semanticLogicalRecordRepository
+        });
+
+    const semanticLogicalRecordPersistenceRepository =
+        new SupabaseConnectorSemanticLogicalRecordPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorSemanticLogicalRecordPersistenceService =
+        new ConnectorSemanticLogicalRecordPersistenceService({
+            connectorTrustService,
+            repository:
+                semanticLogicalRecordPersistenceRepository
         });
 
     const canonicalizationCompatibilityPolicy =
@@ -534,6 +607,44 @@ function createServerTrustBoundaryRuntime({
             sourceRecordIdentityMappingRepository
         });
 
+    const confirmedDocumentTypeRepository =
+        new SupabaseConfirmedDocumentTypeRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const confirmedDocumentTypePersistenceService =
+        new ConfirmedDocumentTypePersistenceService({
+            connectorTrustService,
+            confirmedDocumentTypeRepository
+        });
+
+    const confirmedDocumentTypeQueryService =
+        new ConfirmedDocumentTypeQueryService({
+            connectorTrustService,
+            confirmedDocumentTypeRepository
+        });
+
+    const residentAdmissionDecisionRepository =
+        new SupabaseResidentAdmissionDecisionRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const residentAdmissionDecisionPersistenceService =
+        new ResidentAdmissionDecisionPersistenceService({
+            connectorTrustService,
+            residentAdmissionDecisionRepository
+        });
+
+    const residentAdmissionDecisionQueryService =
+        new ResidentAdmissionDecisionQueryService({
+            connectorTrustService,
+            residentAdmissionDecisionRepository
+        });
+
     const residentCreationRepository =
         new SupabaseResidentCreationRepository({
             supabaseUrl,
@@ -547,11 +658,53 @@ function createServerTrustBoundaryRuntime({
             residentCreationRepository
         });
 
+    const connectorResidentAdmissionRepository =
+        new SupabaseConnectorResidentAdmissionRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorResidentAdmissionService =
+        new ConnectorResidentAdmissionService({
+            connectorTrustService,
+            repository:
+                connectorResidentAdmissionRepository
+        });
+
 
     // ==========================================
     // Vonage Voice
     // ==========================================
 
+    const facilityPhoneNumberRepository =
+        new SupabaseFacilityPhoneNumberRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const vonageVoiceService = {
+        createOutboundCall
+    };
+
+    const voiceCallService =
+        new VoiceCallService({
+            connectorTrustService,
+            facilityPhoneNumberRepository,
+            vonageVoiceService
+        });
+
+
+    const voiceCallHttpAdapter =
+        new VoiceCallHttpAdapter({
+            voiceCallService
+        });
+
+    /*
+     * Voice TransportはHTTP Runtime側で
+     * 共通のConnectorCredentialTransportを注入して生成する。
+     */
     return {
         serverTrustBoundaryIngestionService,
         sourceDocumentIngestionService,
@@ -566,9 +719,18 @@ function createServerTrustBoundaryRuntime({
         sourceResidentMappingQueryService,
         sourceRecordIdentityMappingPersistenceService,
         sourceRecordIdentityMappingQueryService,
+        confirmedDocumentTypePersistenceService,
+        confirmedDocumentTypeQueryService,
+        residentAdmissionDecisionPersistenceService,
+        residentAdmissionDecisionQueryService,
         connectorSemanticRecordPreviewService,
+        connectorSemanticLogicalRecordService,
+        connectorSemanticLogicalRecordPersistenceService,
         connectorSupportRecordBatchWriteService,
         residentCreationService,
+        connectorResidentAdmissionService,
+        voiceCallService,
+        voiceCallHttpAdapter
     };
 }
 

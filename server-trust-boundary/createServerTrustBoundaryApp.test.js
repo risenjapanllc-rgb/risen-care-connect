@@ -767,6 +767,312 @@ test("mounts source-document transport on separate endpoint without changing sem
 });
 
 
+test("mounts voice-call transport on separate endpoint", async () => {
+    let receivedVoiceRequest;
+
+    const voiceCallTransport = {
+        async handle(input) {
+            receivedVoiceRequest =
+                input;
+
+            return {
+                httpStatus: 200,
+
+                body: {
+                    requestId:
+                        input.requestId,
+
+                    status:
+                        "initiated",
+
+                    facilityId:
+                        "facility-A"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+
+                body: {
+                    requestId:
+                        "voice-error-request-id",
+
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+
+                body: {
+                    status:
+                        "unmatched"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+
+                body: {
+                    requestId:
+                        "semantic-request-id",
+
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+
+            endpointPath:
+                "/connector/ingest",
+
+            voiceCallTransport,
+
+            voiceCallEndpointPath:
+                "/connector/voice-calls"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/voice-calls`,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                to:
+                                    "09012345678",
+
+                                answerUrl:
+                                    "https://example.com/answer",
+
+                                eventUrl:
+                                    "https://example.com/event"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                body.status,
+                "initiated"
+            );
+
+            assert.strictEqual(
+                body.facilityId,
+                "facility-A"
+            );
+
+            assert.ok(
+                receivedVoiceRequest
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.method,
+                "POST"
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.headers[
+                    "x-risen-connector-id"
+                ],
+                "connector-A"
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.headers[
+                    "authorization"
+                ],
+                "RISEN-Connector test-credential"
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.body.to,
+                "09012345678"
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.body.answerUrl,
+                "https://example.com/answer"
+            );
+
+            assert.strictEqual(
+                receivedVoiceRequest.body.eventUrl,
+                "https://example.com/event"
+            );
+        }
+    );
+});
+
+
+test("voice-call endpoint rejects client-supplied facilityId", async () => {
+    let voiceTransportCalled = false;
+
+    const voiceCallTransport = {
+        async handle() {
+            voiceTransportCalled = true;
+
+            return {
+                httpStatus: 200,
+
+                body: {
+                    status:
+                        "unexpected"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+
+                body: {
+                    requestId:
+                        "voice-error-request-id",
+
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const semanticTransport = {
+        async handle() {
+            return {
+                httpStatus: 200,
+
+                body: {
+                    status:
+                        "unmatched"
+                }
+            };
+        },
+
+        createErrorResponse({
+            httpStatus,
+            errorCode
+        }) {
+            return {
+                httpStatus,
+
+                body: {
+                    requestId:
+                        "semantic-request-id",
+
+                    errorCode
+                }
+            };
+        }
+    };
+
+    const app =
+        createServerTrustBoundaryApp({
+            transport:
+                semanticTransport,
+
+            voiceCallTransport,
+
+            voiceCallEndpointPath:
+                "/connector/voice-calls"
+        });
+
+    await withServer(
+        app,
+        async (baseUrl) => {
+            const response =
+                await fetch(
+                    `${baseUrl}/connector/voice-calls`,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            "X-RISEN-Connector-Id":
+                                "connector-A",
+
+                            "Authorization":
+                                "RISEN-Connector test-credential"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                facilityId:
+                                    "facility-ATTACKER",
+
+                                to:
+                                    "09012345678"
+                            })
+                    }
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            const body =
+                await response.json();
+
+            assert.strictEqual(
+                body.status,
+                "unexpected"
+            );
+
+            assert.strictEqual(
+                voiceTransportCalled,
+                true
+            );
+        }
+    );
+});
+
 test("mounts source resident link GET query transport on the same endpoint without invoking POST transport", async () => {
     let postTransportCalled = false;
     let receivedQueryRequest = null;

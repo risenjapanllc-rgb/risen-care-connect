@@ -9,3 +9,7 @@ local-connector/.local-connector-config.json
 
 # Local development backup files
 *.before-*
+
+# Vonage private key
+secrets/
+*.key

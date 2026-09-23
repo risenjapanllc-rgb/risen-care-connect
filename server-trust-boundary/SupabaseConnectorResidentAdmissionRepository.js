@@ -1,5 +1,76 @@
 "use strict";
 
+const ALLOWED_RESIDENT_PROFILE_FIELDS =
+    new Set(["name", "birth_date", "gender", "user_code"]);
+
+function normalizeOptionalProfileValue(value) {
+    return typeof value === "string" && value.trim()
+        ? value.trim()
+        : null;
+}
+
+function isValidIsoCalendarDate(value) {
+    if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
+    ) {
+        return false;
+    }
+
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+    );
+}
+
+function isValidResidentProfile(profile, name) {
+    if (
+        !profile ||
+        typeof profile !== "object" ||
+        Array.isArray(profile)
+    ) {
+        return false;
+    }
+
+    if (
+        Object.keys(profile).some(
+            field => !ALLOWED_RESIDENT_PROFILE_FIELDS.has(field)
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        Object.values(profile).some(
+            value =>
+                typeof value !== "string" ||
+                !value.trim()
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        typeof profile.name !== "string" ||
+        profile.name.trim() !== name.trim()
+    ) {
+        return false;
+    }
+
+    if (
+        profile.birth_date !== undefined &&
+        !isValidIsoCalendarDate(profile.birth_date.trim())
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
 class SupabaseConnectorResidentAdmissionRepository {
     constructor({
         supabaseUrl,
@@ -34,6 +105,7 @@ class SupabaseConnectorResidentAdmissionRepository {
         identifierType,
         identifierDigest,
         name,
+        residentProfile,
         sourceUpdatedAt,
         sourceSize
     } = {}) {
@@ -44,6 +116,7 @@ class SupabaseConnectorResidentAdmissionRepository {
             identifierType,
             identifierDigest,
             name,
+            residentProfile,
             sourceUpdatedAt,
             sourceSize
         })) {
@@ -73,6 +146,15 @@ class SupabaseConnectorResidentAdmissionRepository {
                     p_identifier_type: identifierType.trim(),
                     p_identifier_digest: identifierDigest.trim(),
                     p_name: name.trim(),
+                    p_birth_date: normalizeOptionalProfileValue(
+                        residentProfile.birth_date
+                    ),
+                    p_gender: normalizeOptionalProfileValue(
+                        residentProfile.gender
+                    ),
+                    p_user_code: normalizeOptionalProfileValue(
+                        residentProfile.user_code
+                    ),
                     p_source_updated_at:
                         new Date(sourceUpdatedAt).toISOString(),
                     p_source_size: sourceSize
@@ -81,8 +163,11 @@ class SupabaseConnectorResidentAdmissionRepository {
         );
 
         if (!response.ok) {
+            const errorBody =
+                await response.text();
+
             throw new Error(
-                `Supabase resident admission failed: ${response.status}`
+                `Supabase resident admission failed: ${response.status} ${errorBody}`
             );
         }
 
@@ -94,7 +179,9 @@ class SupabaseConnectorResidentAdmissionRepository {
             !result[0] ||
             typeof result[0] !== "object"
         ) {
-            throw new Error("Supabase resident admission returned invalid result");
+            throw new Error(
+                "Supabase resident admission returned invalid result"
+            );
         }
 
         const row = result[0];
@@ -104,15 +191,19 @@ class SupabaseConnectorResidentAdmissionRepository {
             "stale",
             "not_approved",
             "conflict",
-            "name_conflict"
+            "name_conflict",
+            "user_code_conflict"
         ]);
 
         if (!validStatuses.has(row.status)) {
-            throw new Error("Supabase resident admission returned invalid status");
+            throw new Error(
+                "Supabase resident admission returned invalid status"
+            );
         }
 
         const residentId =
-            typeof row.resident_id === "string" && row.resident_id.trim()
+            typeof row.resident_id === "string" &&
+            row.resident_id.trim()
                 ? row.resident_id.trim()
                 : null;
 
@@ -120,7 +211,9 @@ class SupabaseConnectorResidentAdmissionRepository {
             ["created", "existing"].includes(row.status) &&
             !residentId
         ) {
-            throw new Error("Supabase resident admission returned invalid resident");
+            throw new Error(
+                "Supabase resident admission returned invalid resident"
+            );
         }
 
         if (
@@ -128,7 +221,9 @@ class SupabaseConnectorResidentAdmissionRepository {
             (row.status === "created" && !row.resident_created) ||
             (row.status !== "created" && row.resident_created)
         ) {
-            throw new Error("Supabase resident admission returned invalid creation state");
+            throw new Error(
+                "Supabase resident admission returned invalid creation state"
+            );
         }
 
         return {
@@ -155,11 +250,24 @@ class SupabaseConnectorResidentAdmissionRepository {
             return false;
         }
 
-        if (!["name", "user_code"].includes(input.identifierType.trim())) {
+        if (!["name", "user_code"].includes(
+            input.identifierType.trim()
+        )) {
             return false;
         }
 
-        if (!/^[0-9a-f]{64}$/.test(input.identifierDigest.trim())) {
+        if (!/^[0-9a-f]{64}$/.test(
+            input.identifierDigest.trim()
+        )) {
+            return false;
+        }
+
+        if (
+            !isValidResidentProfile(
+                input.residentProfile,
+                input.name
+            )
+        ) {
             return false;
         }
 
@@ -167,8 +275,12 @@ class SupabaseConnectorResidentAdmissionRepository {
             return false;
         }
 
-        return Number.isSafeInteger(input.sourceSize) && input.sourceSize >= 0;
+        return (
+            Number.isSafeInteger(input.sourceSize) &&
+            input.sourceSize >= 0
+        );
     }
 }
 
-module.exports = SupabaseConnectorResidentAdmissionRepository;
+module.exports =
+    SupabaseConnectorResidentAdmissionRepository;

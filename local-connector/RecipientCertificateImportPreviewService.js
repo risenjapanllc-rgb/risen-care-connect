@@ -3,6 +3,9 @@
 const {
     createResidentAdmissionSubjectKey
 } = require("./ResidentAdmissionSubjectKey");
+const {
+    ResidentProfileProjection
+} = require("../server-domain/resident/ResidentProfileProjection");
 
 class RecipientCertificateImportPreviewService {
     constructor({
@@ -14,6 +17,9 @@ class RecipientCertificateImportPreviewService {
         sourceFieldInterpretationClient = null,
         semanticPlanner = null,
         semanticLogicalRecordClient = null,
+        residentProfileQueryClient = null,
+        residentProfileProjection =
+            new ResidentProfileProjection(),
         previewFingerprint,
         strategy
     } = {}) {
@@ -41,6 +47,10 @@ class RecipientCertificateImportPreviewService {
         this.sourceFieldInterpretationClient = sourceFieldInterpretationClient;
         this.semanticPlanner = semanticPlanner;
         this.semanticLogicalRecordClient = semanticLogicalRecordClient;
+        this.residentProfileQueryClient =
+            residentProfileQueryClient;
+        this.residentProfileProjection =
+            residentProfileProjection;
         this.previewFingerprint = previewFingerprint;
         this.strategy = strategy;
     }
@@ -389,7 +399,7 @@ class RecipientCertificateImportPreviewService {
                 )
             );
 
-        const executionPlan =
+        let executionPlan =
             executionSafe
                 ? includedItems.map(item => ({
                     resolution: item.resolution,
@@ -403,6 +413,75 @@ class RecipientCertificateImportPreviewService {
                         item.persistenceContract
                 }))
                 : [];
+
+        if (
+            executionPlan.some(
+                item => item.resolution === "existing"
+            )
+        ) {
+            if (
+                !this.residentProfileQueryClient ||
+                typeof this.residentProfileQueryClient.get !==
+                    "function" ||
+                !this.residentProfileProjection ||
+                typeof this.residentProfileProjection.project !==
+                    "function"
+            ) {
+                executionPlan = [];
+            } else {
+                const enrichedPlan = [];
+
+                for (const item of executionPlan) {
+                    if (item.resolution !== "existing") {
+                        enrichedPlan.push(item);
+                        continue;
+                    }
+
+                    const profileResult =
+                        await this.residentProfileQueryClient.get({
+                            sourceDocumentKey:
+                                resolvedSnapshot.sourceDocumentKey,
+                            identifierType:
+                                item.identifierType,
+                            identifierDigest:
+                                item.identifierDigest,
+                            sourceUpdatedAt:
+                                resolvedSnapshot.sourceUpdatedAt,
+                            sourceSize:
+                                resolvedSnapshot.sourceSize
+                        });
+
+                    if (
+                        !profileResult ||
+                        profileResult.status !== "found" ||
+                        !profileResult.profile ||
+                        profileResult.profile.residentId !==
+                            item.residentId
+                    ) {
+                        executionPlan = [];
+                        break;
+                    }
+
+                    const residentProfileComparison =
+                        this.residentProfileProjection.project({
+                            semanticContent:
+                                item.persistenceContract
+                                    .semanticContent,
+                            currentResident:
+                                profileResult.profile
+                        });
+
+                    enrichedPlan.push({
+                        ...item,
+                        residentProfileComparison
+                    });
+                }
+
+                if (executionPlan.length > 0) {
+                    executionPlan = enrichedPlan;
+                }
+            }
+        }
 
         const previewFingerprint =
             executionPlan.length > 0

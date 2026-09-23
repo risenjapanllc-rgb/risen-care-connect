@@ -66,13 +66,23 @@ test("existing resident identity is fingerprint-bound", () => {
         fingerprint.create([
             entry({
                 resolution: "existing",
-                residentId: "resident-1"
+                residentId: "resident-1",
+                residentProfileComparison: {
+                    fill: {},
+                    unchanged: {},
+                    conflicts: {}
+                }
             })
         ]),
         fingerprint.create([
             entry({
                 resolution: "existing",
-                residentId: "resident-2"
+                residentId: "resident-2",
+                residentProfileComparison: {
+                    fill: {},
+                    unchanged: {},
+                    conflicts: {}
+                }
             })
         ])
     );
@@ -113,5 +123,53 @@ test("duplicate identity fails closed", () => {
             entry()
         ]),
         TypeError
+    );
+});
+
+test("resident profile comparison changes fingerprint", () => {
+    const fingerprint = new Fingerprint();
+
+    const basePlan = [
+        {
+            resolution: "existing",
+            identifierType: "name",
+            identifierDigest: "a".repeat(64),
+            residentId: "resident-1",
+            displayName: "Test Resident",
+            persistenceAction: "create",
+            persistenceContract: {
+                semanticType: "recipient_certificate",
+                logicalSlot: "primary",
+                semanticContent: {
+                    "user.gender": "男性"
+                },
+                contentHash: "b".repeat(64),
+                canonicalizationVersion:
+                    "risen-recipient-certificate-canonicalization-1",
+                expectedContentHash: null
+            },
+            residentProfileComparison: {
+                fill: {
+                    gender: "男性"
+                },
+                unchanged: {},
+                conflicts: {}
+            }
+        }
+    ];
+
+    const changedPlan = structuredClone(basePlan);
+
+    changedPlan[0].residentProfileComparison = {
+        fill: {},
+        unchanged: {
+            gender: "男性"
+        },
+        conflicts: {}
+    };
+
+    assert.notStrictEqual(
+        fingerprint.create(basePlan),
+        fingerprint.create(changedPlan)
     );
 });

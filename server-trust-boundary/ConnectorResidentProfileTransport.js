@@ -2,58 +2,74 @@
 
 const crypto = require("crypto");
 
-class ConnectorResidentAdmissionTransport {
+class ConnectorResidentProfileTransport {
     constructor({
         httpAdapter,
         credentialTransport,
         connectorIdHeader = "x-risen-connector-id"
     } = {}) {
         if (!httpAdapter || typeof httpAdapter.handle !== "function") {
-            throw new Error("ConnectorResidentAdmissionTransport requires httpAdapter");
+            throw new Error("ConnectorResidentProfileTransport requires httpAdapter");
         }
-        if (!credentialTransport || typeof credentialTransport.extract !== "function") {
-            throw new Error("ConnectorResidentAdmissionTransport requires credentialTransport");
+
+        if (
+            !credentialTransport ||
+            typeof credentialTransport.extract !== "function"
+        ) {
+            throw new Error(
+                "ConnectorResidentProfileTransport requires credentialTransport"
+            );
         }
 
         this.httpAdapter = httpAdapter;
         this.credentialTransport = credentialTransport;
-        this.connectorIdHeader = String(connectorIdHeader).trim().toLowerCase();
+        this.connectorIdHeader =
+            String(connectorIdHeader).trim().toLowerCase();
     }
 
     createRequestId() {
         return crypto.randomUUID();
     }
 
-    createErrorResponse({ httpStatus, errorCode } = {}) {
-        return {
-            httpStatus,
-            body: { requestId: this.createRequestId(), errorCode }
-        };
-    }
-
     async handle({ method, contentType, headers, body } = {}) {
         const requestId = this.createRequestId();
 
         if (method !== "POST") {
-            return { httpStatus: 405, body: { requestId, errorCode: "method_not_allowed" } };
+            return {
+                httpStatus: 405,
+                body: {
+                    requestId,
+                    errorCode: "method_not_allowed"
+                }
+            };
         }
 
         if (
             typeof contentType !== "string" ||
             !contentType.toLowerCase().startsWith("application/json")
         ) {
-            return { httpStatus: 415, body: { requestId, errorCode: "unsupported_media_type" } };
+            return {
+                httpStatus: 415,
+                body: {
+                    requestId,
+                    errorCode: "unsupported_media_type"
+                }
+            };
         }
 
         const normalizedHeaders = {};
+
         for (const [key, value] of Object.entries(headers || {})) {
             normalizedHeaders[String(key).toLowerCase()] = value;
         }
 
-        const connectorId = normalizedHeaders[this.connectorIdHeader];
-        const credential = this.credentialTransport.extract(
-            normalizedHeaders.authorization
-        );
+        const connectorId =
+            normalizedHeaders[this.connectorIdHeader];
+
+        const credential =
+            this.credentialTransport.extract(
+                normalizedHeaders.authorization
+            );
 
         if (
             typeof connectorId !== "string" ||
@@ -62,7 +78,10 @@ class ConnectorResidentAdmissionTransport {
         ) {
             return {
                 httpStatus: 401,
-                body: { requestId, errorCode: "connector_trust_denied" }
+                body: {
+                    requestId,
+                    errorCode: "connector_trust_denied"
+                }
             };
         }
 
@@ -88,23 +107,31 @@ class ConnectorResidentAdmissionTransport {
             typeof body !== "object" ||
             Array.isArray(body) ||
             Object.keys(body).length !== allowedKeys.size ||
-            Object.keys(body).some(key => !allowedKeys.has(key)) ||
+            Object.keys(body).some(
+                key => !allowedKeys.has(key)
+            ) ||
+            typeof body.name !== "string" ||
+            !body.name.trim() ||
             !body.residentProfile ||
             typeof body.residentProfile !== "object" ||
             Array.isArray(body.residentProfile) ||
-            Object.keys(body.residentProfile)
-                .some(key => !allowedProfileKeys.has(key)) ||
-            Object.values(body.residentProfile)
-                .some(value =>
+            Object.keys(body.residentProfile).some(
+                key => !allowedProfileKeys.has(key)
+            ) ||
+            Object.values(body.residentProfile).some(
+                value =>
                     typeof value !== "string" ||
                     !value.trim()
-                ) ||
+            ) ||
             typeof body.residentProfile.name !== "string" ||
             body.residentProfile.name.trim() !== body.name.trim()
         ) {
             return {
                 httpStatus: 422,
-                body: { requestId, errorCode: "resident_admission_invalid" }
+                body: {
+                    requestId,
+                    errorCode: "resident_profile_invalid"
+                }
             };
         }
 
@@ -124,7 +151,10 @@ class ConnectorResidentAdmissionTransport {
         ) {
             return {
                 httpStatus: 503,
-                body: { requestId, errorCode: "connector_processing_unavailable" }
+                body: {
+                    requestId,
+                    errorCode: "connector_processing_unavailable"
+                }
             };
         }
 
@@ -135,4 +165,4 @@ class ConnectorResidentAdmissionTransport {
     }
 }
 
-module.exports = ConnectorResidentAdmissionTransport;
+module.exports = ConnectorResidentProfileTransport;

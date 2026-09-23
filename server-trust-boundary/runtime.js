@@ -142,6 +142,14 @@ const SupabaseConnectorResidentAdmissionRepository =
     require("./SupabaseConnectorResidentAdmissionRepository");
 const ConnectorResidentAdmissionService =
     require("./ConnectorResidentAdmissionService");
+const SupabaseConnectorResidentProfileRepository =
+    require("./SupabaseConnectorResidentProfileRepository");
+const ConnectorResidentProfileService =
+    require("./ConnectorResidentProfileService");
+const SupabaseConnectorResidentProfileQueryRepository =
+    require("./SupabaseConnectorResidentProfileQueryRepository");
+const ConnectorResidentProfileQueryService =
+    require("./ConnectorResidentProfileQueryService");
 
 const VoiceCallService =
     require("./VoiceCallService");
@@ -672,6 +680,34 @@ function createServerTrustBoundaryRuntime({
                 connectorResidentAdmissionRepository
         });
 
+    const connectorResidentProfileRepository =
+        new SupabaseConnectorResidentProfileRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorResidentProfileService =
+        new ConnectorResidentProfileService({
+            connectorTrustService,
+            repository:
+                connectorResidentProfileRepository
+        });
+
+    const connectorResidentProfileQueryRepository =
+        new SupabaseConnectorResidentProfileQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const connectorResidentProfileQueryService =
+        new ConnectorResidentProfileQueryService({
+            connectorTrustService,
+            repository:
+                connectorResidentProfileQueryRepository
+        });
+
 
     // ==========================================
     // Vonage Voice
@@ -729,6 +765,8 @@ function createServerTrustBoundaryRuntime({
         connectorSupportRecordBatchWriteService,
         residentCreationService,
         connectorResidentAdmissionService,
+        connectorResidentProfileService,
+        connectorResidentProfileQueryService,
         voiceCallService,
         voiceCallHttpAdapter
     };

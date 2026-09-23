@@ -100,6 +100,10 @@ const ConnectorSupportRecordExecutionService =
     require("./ConnectorSupportRecordExecutionService");
 const ConnectorResidentAdmissionHttpClient =
     require("./ConnectorResidentAdmissionHttpClient");
+const ConnectorResidentProfileHttpClient =
+    require("./ConnectorResidentProfileHttpClient");
+const ConnectorResidentProfileQueryHttpClient =
+    require("./ConnectorResidentProfileQueryHttpClient");
 const ConnectorSemanticLogicalRecordPersistenceHttpClient =
     require("./ConnectorSemanticLogicalRecordPersistenceHttpClient");
 const RecipientCertificateExecutionGate =
@@ -522,6 +526,7 @@ async function createRecipientCertificateImportPreviewService({
     residentMappingEndpoint,
     admissionDecisionEndpoint,
     semanticLogicalRecordEndpoint,
+    residentProfileQueryEndpoint,
     credential,
     authorizationScheme,
     connectorIdHeader =
@@ -612,6 +617,18 @@ async function createRecipientCertificateImportPreviewService({
             fetchImpl
         });
 
+    const residentProfileQueryClient =
+        new ConnectorResidentProfileQueryHttpClient({
+            endpoint:
+                residentProfileQueryEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
     return new RecipientCertificateImportPreviewService({
         candidateResolver,
         sourceResidentMappingClient,
@@ -620,6 +637,7 @@ async function createRecipientCertificateImportPreviewService({
         sourceFieldMappingClient,
         sourceFieldInterpretationClient,
         semanticLogicalRecordClient,
+        residentProfileQueryClient,
         semanticPlanner:
             new RecipientCertificateSemanticPlanner(),
         previewFingerprint:
@@ -719,6 +737,8 @@ async function createRecipientCertificateImportExecutionService({
     residentMappingEndpoint,
     admissionDecisionEndpoint,
     semanticLogicalRecordEndpoint,
+    residentProfileQueryEndpoint,
+    residentProfileEndpoint,
     residentAdmissionEndpoint,
     semanticLogicalRecordPersistenceEndpoint,
     credential,
@@ -737,6 +757,7 @@ async function createRecipientCertificateImportExecutionService({
             residentMappingEndpoint,
             admissionDecisionEndpoint,
             semanticLogicalRecordEndpoint,
+            residentProfileQueryEndpoint,
             credential,
             authorizationScheme,
             connectorIdHeader,
@@ -776,6 +797,18 @@ async function createRecipientCertificateImportExecutionService({
             fetchImpl
         });
 
+    const residentProfileClient =
+        new ConnectorResidentProfileHttpClient({
+            endpoint:
+                residentProfileEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
     const semanticPersistenceClient =
         new ConnectorSemanticLogicalRecordPersistenceHttpClient({
             endpoint:
@@ -797,6 +830,7 @@ async function createRecipientCertificateImportExecutionService({
         new RecipientCertificateExecutionService({
             sourceResidentMappingClient,
             residentAdmissionClient,
+            residentProfileClient,
             semanticPersistenceClient
         });
 

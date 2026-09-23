@@ -25,6 +25,12 @@ function validInput() {
         identifierType: "name",
         identifierDigest: digest,
         name: " Test Resident ",
+        residentProfile: {
+            name: " Test Resident ",
+            birth_date: "1977-02-22",
+            gender: " 男性 ",
+            user_code: " U-001 "
+        },
         sourceUpdatedAt: "2026-09-22T01:02:03.000Z",
         sourceSize: 1234
     };
@@ -59,6 +65,9 @@ test("calls atomic admission RPC with verified scope and exact snapshot", async 
         p_identifier_type: "name",
         p_identifier_digest: digest,
         p_name: "Test Resident",
+        p_birth_date: "1977-02-22",
+        p_gender: "男性",
+        p_user_code: "U-001",
         p_source_updated_at: "2026-09-22T01:02:03.000Z",
         p_source_size: 1234
     });
@@ -71,7 +80,7 @@ test("calls atomic admission RPC with verified scope and exact snapshot", async 
 
 test("preserves all atomic admission statuses", async () => {
     for (const status of [
-        "existing", "stale", "not_approved", "conflict", "name_conflict"
+        "existing", "stale", "not_approved", "conflict", "name_conflict", "user_code_conflict"
     ]) {
         const repository = createRepository(async () => ({
             ok: true,
@@ -126,6 +135,30 @@ test("rejects invalid request before fetch", async () => {
         { verifiedConnectorId: "" },
         { identifierType: "other" },
         { identifierDigest: "bad" },
+        { residentProfile: null },
+        {
+            residentProfile: {
+                name: "Test Resident",
+                active: "false"
+            }
+        },
+        {
+            residentProfile: {
+                name: "Different Resident"
+            }
+        },
+        {
+            residentProfile: {
+                name: "Test Resident",
+                birth_date: "2/22/77"
+            }
+        },
+        {
+            residentProfile: {
+                name: "Test Resident",
+                birth_date: "2026-02-30"
+            }
+        },
         { sourceUpdatedAt: "bad-date" },
         { sourceSize: -1 }
     ]) {

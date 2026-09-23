@@ -47,6 +47,48 @@ class RecipientCertificatePreviewFingerprint {
                 );
             }
 
+            let residentProfileComparison = null;
+
+            if (entry.resolution === "existing") {
+                const comparison =
+                    entry.residentProfileComparison;
+
+                if (
+                    !comparison ||
+                    typeof comparison !== "object" ||
+                    !comparison.fill ||
+                    typeof comparison.fill !== "object" ||
+                    Array.isArray(comparison.fill) ||
+                    !comparison.unchanged ||
+                    typeof comparison.unchanged !== "object" ||
+                    Array.isArray(comparison.unchanged) ||
+                    !comparison.conflicts ||
+                    typeof comparison.conflicts !== "object" ||
+                    Array.isArray(comparison.conflicts)
+                ) {
+                    throw new TypeError(
+                        "Existing resident fingerprint requires profile comparison"
+                    );
+                }
+
+                const sortObject = value =>
+                    Object.fromEntries(
+                        Object.entries(value)
+                            .sort(([a], [b]) =>
+                                a.localeCompare(b)
+                            )
+                    );
+
+                residentProfileComparison = {
+                    fill:
+                        sortObject(comparison.fill),
+                    unchanged:
+                        sortObject(comparison.unchanged),
+                    conflicts:
+                        sortObject(comparison.conflicts)
+                };
+            }
+
             return {
                 resolution: entry.resolution,
                 identifierType: entry.identifierType,
@@ -69,7 +111,8 @@ class RecipientCertificatePreviewFingerprint {
                 contentHash: contract.contentHash,
                 canonicalizationVersion:
                     contract.canonicalizationVersion,
-                semanticContent: contract.semanticContent
+                semanticContent: contract.semanticContent,
+                residentProfileComparison
             };
         });
 

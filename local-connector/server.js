@@ -332,6 +332,18 @@ app.locals.getRecipientCertificateImportExecutionService =
                             endpointFor(
                                 "/connector/semantic-logical-record"
                             ),
+                        residentProfileQueryEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_PROFILE_QUERY_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-profile-query"
+                            ),
+                        residentProfileEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_PROFILE_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-profile"
+                            ),
                         residentAdmissionEndpoint:
                             process.env
                                 .RISEN_RESIDENT_ADMISSION_ENDPOINT ||
@@ -1692,6 +1704,12 @@ app.locals.getRecipientCertificateImportPreviewService =
                                 .RISEN_SEMANTIC_LOGICAL_RECORD_ENDPOINT ||
                             endpointFor(
                                 "/connector/semantic-logical-record"
+                            ),
+                        residentProfileQueryEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_PROFILE_QUERY_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-profile-query"
                             ),
                         credential:
                             process.env
@@ -3422,6 +3440,7 @@ app.post(
                         "取り込みプレビューの条件が整っていません"
                 });
             }
+
 
             return res.status(503).json({
                 success: false,

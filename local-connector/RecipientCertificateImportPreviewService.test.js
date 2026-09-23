@@ -313,3 +313,221 @@ test("planned new user_code without trusted name fails closed", async () => {
         status: "blocked"
     });
 });
+
+test("existing resident profile preview identifies safe fill without ambiguous birth date", async () => {
+    const {
+        service,
+        requestedSnapshot,
+        resolvedSnapshot
+    } = createHarness();
+
+    const profileCalls = [];
+
+    service.sourceResidentMappingClient = {
+        async list() {
+            return {
+                status: "found",
+                mappings: [
+                    {
+                        identifierType: "name",
+                        identifierDigest: digest,
+                        residentId: "resident-1",
+                        mappingStatus: "confirmed",
+                        reviewedByHuman: true
+                    }
+                ]
+            };
+        }
+    };
+
+    service.admissionDecisionService = {
+        async list() {
+            return {
+                status: "found",
+                decisions: []
+            };
+        }
+    };
+
+    service.residentProfileQueryClient = {
+        async get(input) {
+            profileCalls.push(input);
+            return {
+                status: "found",
+                profile: {
+                    residentId: "resident-1",
+                    name: "Test Resident",
+                    birth_date: null,
+                    gender: null,
+                    user_code: null
+                }
+            };
+        }
+    };
+
+    service.strategy = {
+        build() {
+            return {
+                status: "preview_only",
+                executionAvailable: false,
+                summary: {},
+                items: [
+                    {
+                        resolution: "existing",
+                        identifierType: "name",
+                        identifierDigest: digest,
+                        residentId: "resident-1",
+                        displayName: "Test Resident",
+                        persistenceAction: "create",
+                        persistenceContract: {
+                            semanticType:
+                                "recipient_certificate",
+                            logicalSlot: "primary",
+                            semanticContent: {
+                                "user.name":
+                                    "Test Resident",
+                                "user.gender":
+                                    "男性",
+                                "user.birth_date":
+                                    "2/22/77",
+                                "recipient_certificate.certificate_number":
+                                    "ABC123"
+                            },
+                            contentHash: "b".repeat(64),
+                            canonicalizationVersion:
+                                "risen-recipient-certificate-canonicalization-1",
+                            expectedContentHash: null
+                        },
+                        semanticRecords: []
+                    }
+                ]
+            };
+        }
+    };
+
+    const result =
+        await service.buildExecutionPlan(
+            requestedSnapshot
+        );
+
+    assert.strictEqual(result.status, "ready");
+    assert.deepStrictEqual(profileCalls, [
+        {
+            sourceDocumentKey:
+                resolvedSnapshot.sourceDocumentKey,
+            identifierType: "name",
+            identifierDigest: digest,
+            sourceUpdatedAt:
+                resolvedSnapshot.sourceUpdatedAt,
+            sourceSize:
+                resolvedSnapshot.sourceSize
+        }
+    ]);
+
+    const comparison =
+        result.executionPlan[0].residentProfileComparison;
+
+    assert.deepStrictEqual(
+        comparison.fill,
+        {
+            gender: "男性"
+        }
+    );
+    assert.deepStrictEqual(
+        comparison.conflicts,
+        {}
+    );
+    assert.strictEqual(
+        Object.hasOwn(
+            comparison.fill,
+            "birth_date"
+        ),
+        false
+    );
+});
+
+test("existing resident profile unavailable fails closed", async () => {
+    const {
+        service,
+        requestedSnapshot
+    } = createHarness();
+
+    service.sourceResidentMappingClient = {
+        async list() {
+            return {
+                status: "found",
+                mappings: [
+                    {
+                        identifierType: "name",
+                        identifierDigest: digest,
+                        residentId: "resident-1",
+                        mappingStatus: "confirmed",
+                        reviewedByHuman: true
+                    }
+                ]
+            };
+        }
+    };
+
+    service.admissionDecisionService = {
+        async list() {
+            return {
+                status: "found",
+                decisions: []
+            };
+        }
+    };
+
+    service.residentProfileQueryClient = {
+        async get() {
+            return {
+                status: "unavailable"
+            };
+        }
+    };
+
+    service.strategy = {
+        build() {
+            return {
+                status: "preview_only",
+                executionAvailable: false,
+                summary: {},
+                items: [
+                    {
+                        resolution: "existing",
+                        identifierType: "name",
+                        identifierDigest: digest,
+                        residentId: "resident-1",
+                        displayName: "Test Resident",
+                        persistenceAction: "create",
+                        persistenceContract: {
+                            semanticType:
+                                "recipient_certificate",
+                            logicalSlot: "primary",
+                            semanticContent: {
+                                "user.name":
+                                    "Test Resident",
+                                "user.gender":
+                                    "男性"
+                            },
+                            contentHash: "b".repeat(64),
+                            canonicalizationVersion:
+                                "risen-recipient-certificate-canonicalization-1",
+                            expectedContentHash: null
+                        },
+                        semanticRecords: []
+                    }
+                ]
+            };
+        }
+    };
+
+    const result =
+        await service.buildExecutionPlan(
+            requestedSnapshot
+        );
+
+    assert.deepStrictEqual(result, {
+        status: "blocked"
+    });
+});

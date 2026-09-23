@@ -1,9 +1,12 @@
 "use strict";
 
+const { ResidentProfileProjection } = require("../server-domain/resident/ResidentProfileProjection");
+
 class RecipientCertificateExecutionService {
     constructor({
         sourceResidentMappingClient,
         residentAdmissionClient,
+        residentProfileClient,
         semanticPersistenceClient
     } = {}) {
         if (
@@ -29,6 +32,8 @@ class RecipientCertificateExecutionService {
             sourceResidentMappingClient;
         this.residentAdmissionClient =
             residentAdmissionClient;
+        this.residentProfileClient =
+            residentProfileClient || null;
         this.semanticPersistenceClient =
             semanticPersistenceClient;
     }
@@ -188,6 +193,12 @@ class RecipientCertificateExecutionService {
                                 entry.identifierDigest,
                             name:
                                 entry.displayName.trim(),
+                            residentProfile:
+                                new ResidentProfileProjection().project({
+                                    semanticContent:
+                                        entry.persistenceContract.semanticContent,
+                                    currentResident: {}
+                                }).fill,
                             sourceUpdatedAt:
                                 snapshot.sourceUpdatedAt,
                             sourceSize:
@@ -225,6 +236,120 @@ class RecipientCertificateExecutionService {
                     };
                 } else {
                     return { status: "error", ...counts };
+                }
+            }
+
+            if (entry.resolution === "existing") {
+                if (
+                    !this.residentProfileClient ||
+                    typeof this.residentProfileClient.fill !== "function"
+                ) {
+                    return { status: "error", ...counts };
+                }
+
+                const comparison =
+                    entry.residentProfileComparison;
+
+                if (
+                    !comparison ||
+                    typeof comparison !== "object" ||
+                    !comparison.fill ||
+                    typeof comparison.fill !== "object" ||
+                    Array.isArray(comparison.fill) ||
+                    !comparison.conflicts ||
+                    typeof comparison.conflicts !== "object" ||
+                    Array.isArray(comparison.conflicts)
+                ) {
+                    return { status: "invalid", ...counts };
+                }
+
+                if (
+                    Object.keys(comparison.conflicts).length > 0
+                ) {
+                    return {
+                        status: "conflict",
+                        identifierType: entry.identifierType,
+                        identifierDigest: entry.identifierDigest,
+                        ...counts
+                    };
+                }
+
+                const name =
+                    typeof entry.displayName === "string" &&
+                    entry.displayName.trim()
+                        ? entry.displayName.trim()
+                        : entry.persistenceContract.semanticContent[
+                            "user.name"
+                        ];
+
+                if (
+                    typeof name !== "string" ||
+                    !name.trim()
+                ) {
+                    return { status: "invalid", ...counts };
+                }
+
+                let profileResult;
+
+                try {
+                    profileResult =
+                        await this.residentProfileClient.fill({
+                            sourceDocumentKey:
+                                snapshot.sourceDocumentKey,
+                            identifierType:
+                                entry.identifierType,
+                            identifierDigest:
+                                entry.identifierDigest,
+                            name: name.trim(),
+                            residentProfile: {
+                                name: name.trim(),
+                                ...comparison.fill
+                            },
+                            sourceUpdatedAt:
+                                snapshot.sourceUpdatedAt,
+                            sourceSize:
+                                snapshot.sourceSize
+                        });
+                } catch {
+                    return { status: "error", ...counts };
+                }
+
+                if (
+                    profileResult?.status !== "filled" &&
+                    profileResult?.status !== "unchanged"
+                ) {
+                    if (
+                        [
+                            "stale",
+                            "not_confirmed",
+                            "conflict",
+                            "user_code_conflict"
+                        ].includes(profileResult?.status)
+                    ) {
+                        return {
+                            status: profileResult.status,
+                            identifierType:
+                                entry.identifierType,
+                            identifierDigest:
+                                entry.identifierDigest,
+                            ...counts
+                        };
+                    }
+
+                    return { status: "error", ...counts };
+                }
+
+                if (
+                    typeof profileResult.residentId === "string" &&
+                    profileResult.residentId.trim() &&
+                    profileResult.residentId.trim() !== residentId
+                ) {
+                    return {
+                        status: "conflict",
+                        identifierType: entry.identifierType,
+                        identifierDigest: entry.identifierDigest,
+                        ...counts
+                    };
                 }
             }
 

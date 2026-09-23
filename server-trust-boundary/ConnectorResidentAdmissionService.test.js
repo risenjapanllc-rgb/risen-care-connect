@@ -14,6 +14,11 @@ function request() {
         identifierType: "name",
         identifierDigest: digest,
         name: "Test Resident",
+        residentProfile: {
+            name: "Test Resident",
+            birth_date: "2/22/77",
+            gender: "男性"
+        },
         sourceUpdatedAt: "2026-09-22T01:02:03.000Z",
         sourceSize: 1234
     };
@@ -65,6 +70,11 @@ test("uses only trust-verified facility and connector scope", async () => {
         identifierType: "name",
         identifierDigest: digest,
         name: "Test Resident",
+        residentProfile: {
+            name: "Test Resident",
+            birth_date: "2/22/77",
+            gender: "男性"
+        },
         sourceUpdatedAt: "2026-09-22T01:02:03.000Z",
         sourceSize: 1234
     });
@@ -116,4 +126,37 @@ test("preserves repository admission status", async () => {
 
         assert.strictEqual(result.status, status);
     }
+});
+
+
+test("rejects unsafe resident profile before repository", async () => {
+    let called = false;
+    const service = createService({
+        onAdmit() { called = true; }
+    });
+
+    const input = request();
+    input.residentProfile.active = "false";
+
+    assert.deepStrictEqual(
+        await service.admit(input),
+        { status: "invalid", errorCode: "resident_admission_invalid" }
+    );
+    assert.strictEqual(called, false);
+});
+
+test("rejects resident profile name mismatch before repository", async () => {
+    let called = false;
+    const service = createService({
+        onAdmit() { called = true; }
+    });
+
+    const input = request();
+    input.residentProfile.name = "Different Resident";
+
+    assert.deepStrictEqual(
+        await service.admit(input),
+        { status: "invalid", errorCode: "resident_admission_invalid" }
+    );
+    assert.strictEqual(called, false);
 });

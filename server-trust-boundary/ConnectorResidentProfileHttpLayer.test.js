@@ -2,8 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Adapter = require("./ConnectorResidentAdmissionHttpAdapter");
-const Transport = require("./ConnectorResidentAdmissionTransport");
+const Adapter = require("./ConnectorResidentProfileHttpAdapter");
+const Transport = require("./ConnectorResidentProfileTransport");
 
 const digest = "c".repeat(64);
 
@@ -15,7 +15,7 @@ function validBody() {
         name: "Test Resident",
         residentProfile: {
             name: "Test Resident",
-            birth_date: "2/22/77",
+            birth_date: "1977-02-22",
             gender: "男性"
         },
         sourceUpdatedAt: "2026-09-22T01:02:03.000Z",
@@ -23,15 +23,14 @@ function validBody() {
     };
 }
 
-function createLayer({ serviceResult, onAdmit = () => {} } = {}) {
+function createLayer({ serviceResult, onFill = () => {} } = {}) {
     const adapter = new Adapter({
         service: {
-            async admit(input) {
-                onAdmit(input);
+            async fill(input) {
+                onFill(input);
                 return serviceResult || {
-                    status: "created",
+                    status: "filled",
                     residentId: "resident-1",
-                    residentCreated: true
                 };
             }
         }
@@ -62,7 +61,7 @@ function request(transport, body = validBody()) {
 test("passes connector identity only from trusted transport headers", async () => {
     let serviceInput;
     const transport = createLayer({
-        onAdmit(input) { serviceInput = input; }
+        onFill(input) { serviceInput = input; }
     });
 
     const result = await request(transport);
@@ -76,7 +75,7 @@ test("passes connector identity only from trusted transport headers", async () =
 test("rejects extra facility or connector scope in body", async () => {
     let called = false;
     const transport = createLayer({
-        onAdmit() { called = true; }
+        onFill() { called = true; }
     });
 
     for (const extra of [
@@ -97,7 +96,7 @@ test("rejects unauthenticated malformed body at trust boundary before body valid
     let called = false;
 
     const transport = createLayer({
-        onAdmit() {
+        onFill() {
             called = true;
         }
     });
@@ -142,13 +141,12 @@ test("requires connector header and credential", async () => {
     }
 });
 
-test("maps successful admission statuses to 200", async () => {
-    for (const status of ["created", "existing"]) {
+test("maps successful profile statuses to 200", async () => {
+    for (const status of ["filled", "unchanged"]) {
         const result = await request(createLayer({
             serviceResult: {
                 status,
-                residentId: "resident-1",
-                residentCreated: status === "created"
+                residentId: "resident-1"
             }
         }));
 
@@ -158,21 +156,22 @@ test("maps successful admission statuses to 200", async () => {
     }
 });
 
-test("maps non-writing admission outcomes to 409", async () => {
+test("maps non-writing profile outcomes to 409", async () => {
     for (const status of [
-        "stale", "not_approved", "conflict", "name_conflict"
+        "stale", "not_confirmed", "conflict", "user_code_conflict"
     ]) {
         const result = await request(createLayer({
             serviceResult: {
                 status,
-                residentId: null,
-                residentCreated: false
+                residentId:
+                    ["conflict", "user_code_conflict"].includes(status)
+                        ? "resident-1"
+                        : null
             }
         }));
 
         assert.strictEqual(result.httpStatus, 409);
         assert.strictEqual(result.body.status, status);
-        assert.strictEqual(result.body.residentCreated, false);
     }
 });
 
@@ -192,7 +191,7 @@ test("maps invalid, denied and unavailable distinctly", async () => {
 test("rejects malformed method media type and body before service", async () => {
     let called = false;
     const transport = createLayer({
-        onAdmit() { called = true; }
+        onFill() { called = true; }
     });
 
     const wrongMethod = await transport.handle({
@@ -227,9 +226,8 @@ test("rejects unknown resident profile fields at trust boundary", async () => {
                 return {
                     statusCode: 200,
                     body: {
-                        status: "created",
-                        residentId: "resident-1",
-                        residentCreated: true
+                        status: "filled",
+                        residentId: "resident-1"
                     }
                 };
             }
@@ -268,9 +266,8 @@ test("rejects resident profile name mismatch at trust boundary", async () => {
                 return {
                     statusCode: 200,
                     body: {
-                        status: "created",
-                        residentId: "resident-1",
-                        residentCreated: true
+                        status: "filled",
+                        residentId: "resident-1"
                     }
                 };
             }

@@ -45,16 +45,34 @@ class ConnectorResidentAdmissionHttpClient {
             "identifierType",
             "identifierDigest",
             "name",
+            "residentProfile",
             "sourceUpdatedAt",
             "sourceSize"
         ];
+
+        const allowedProfileKeys = new Set([
+            "name",
+            "birth_date",
+            "gender",
+            "user_code"
+        ]);
 
         if (
             !input ||
             typeof input !== "object" ||
             Array.isArray(input) ||
             Object.keys(input).length !== allowedKeys.length ||
-            Object.keys(input).some(key => !allowedKeys.includes(key))
+            Object.keys(input).some(key => !allowedKeys.includes(key)) ||
+            !input.residentProfile ||
+            typeof input.residentProfile !== "object" ||
+            Array.isArray(input.residentProfile) ||
+            Object.keys(input.residentProfile)
+                .some(key => !allowedProfileKeys.has(key)) ||
+            Object.values(input.residentProfile)
+                .some(value =>
+                    typeof value !== "string" ||
+                    !value.trim()
+                )
         ) {
             const error = new Error(
                 "Invalid resident admission contract"

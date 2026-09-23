@@ -135,6 +135,14 @@ const ConnectorResidentAdmissionHttpAdapter =
     require("./ConnectorResidentAdmissionHttpAdapter");
 const ConnectorResidentAdmissionTransport =
     require("./ConnectorResidentAdmissionTransport");
+const ConnectorResidentProfileHttpAdapter =
+    require("./ConnectorResidentProfileHttpAdapter");
+const ConnectorResidentProfileTransport =
+    require("./ConnectorResidentProfileTransport");
+const ConnectorResidentProfileQueryHttpAdapter =
+    require("./ConnectorResidentProfileQueryHttpAdapter");
+const ConnectorResidentProfileQueryTransport =
+    require("./ConnectorResidentProfileQueryTransport");
 
 
 const VoiceCallTransport =
@@ -562,6 +570,36 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const connectorResidentProfileHttpAdapter =
+        new ConnectorResidentProfileHttpAdapter({
+            service:
+                coreRuntime.connectorResidentProfileService,
+            diagnosticLogger
+        });
+
+    const connectorResidentProfileTransport =
+        new ConnectorResidentProfileTransport({
+            httpAdapter:
+                connectorResidentProfileHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const connectorResidentProfileQueryHttpAdapter =
+        new ConnectorResidentProfileQueryHttpAdapter({
+            service:
+                coreRuntime.connectorResidentProfileQueryService,
+            diagnosticLogger
+        });
+
+    const connectorResidentProfileQueryTransport =
+        new ConnectorResidentProfileQueryTransport({
+            httpAdapter:
+                connectorResidentProfileQueryHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const voiceCallTransport =
         new VoiceCallTransport({
             httpAdapter:
@@ -626,6 +664,12 @@ function createServerTrustBoundaryHttpRuntime({
             connectorResidentAdmissionTransport,
             connectorResidentAdmissionEndpointPath:
                 "/connector/resident-admission",
+            connectorResidentProfileTransport,
+            connectorResidentProfileEndpointPath:
+                "/connector/resident-profile",
+            connectorResidentProfileQueryTransport,
+            connectorResidentProfileQueryEndpointPath:
+                "/connector/resident-profile-query",
             voiceCallTransport,
             voiceCallEndpointPath:
                 "/connector/voice-calls",

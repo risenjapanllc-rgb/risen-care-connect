@@ -1,6 +1,32 @@
 "use strict";
 
-class ConnectorResidentAdmissionService {
+const ALLOWED_PROFILE_KEYS = new Set([
+    "name",
+    "birth_date",
+    "gender",
+    "user_code"
+]);
+
+function isRealIsoDate(value) {
+    if (typeof value !== "string") {
+        return false;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return false;
+    }
+
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+    );
+}
+
+class ConnectorResidentProfileService {
     constructor({
         connectorTrustService,
         repository
@@ -9,18 +35,22 @@ class ConnectorResidentAdmissionService {
             !connectorTrustService ||
             typeof connectorTrustService.authenticate !== "function"
         ) {
-            throw new Error("ConnectorResidentAdmissionService requires connectorTrustService");
+            throw new Error(
+                "ConnectorResidentProfileService requires connectorTrustService"
+            );
         }
 
-        if (!repository || typeof repository.admit !== "function") {
-            throw new Error("ConnectorResidentAdmissionService requires repository");
+        if (!repository || typeof repository.fill !== "function") {
+            throw new Error(
+                "ConnectorResidentProfileService requires repository"
+            );
         }
 
         this.connectorTrustService = connectorTrustService;
         this.repository = repository;
     }
 
-    async admit({
+    async fill({
         connectorId,
         credential,
         sourceDocumentKey,
@@ -34,10 +64,11 @@ class ConnectorResidentAdmissionService {
         let trustResult;
 
         try {
-            trustResult = await this.connectorTrustService.authenticate({
-                connectorId,
-                credential
-            });
+            trustResult =
+                await this.connectorTrustService.authenticate({
+                    connectorId,
+                    credential
+                });
         } catch {
             return {
                 status: "error",
@@ -78,12 +109,12 @@ class ConnectorResidentAdmissionService {
         })) {
             return {
                 status: "invalid",
-                errorCode: "resident_admission_invalid"
+                errorCode: "resident_profile_invalid"
             };
         }
 
         try {
-            return await this.repository.admit({
+            return await this.repository.fill({
                 verifiedFacilityId: context.facilityId.trim(),
                 verifiedConnectorId: context.connectorId.trim(),
                 sourceDocumentKey: sourceDocumentKey.trim(),
@@ -101,7 +132,7 @@ class ConnectorResidentAdmissionService {
         } catch {
             return {
                 status: "error",
-                errorCode: "resident_admission_unavailable"
+                errorCode: "resident_profile_unavailable"
             };
         }
     }
@@ -119,13 +150,19 @@ class ConnectorResidentAdmissionService {
             typeof input.residentProfile !== "object" ||
             Array.isArray(input.residentProfile) ||
             Object.keys(input.residentProfile).some(
-                key => !["name", "birth_date", "gender", "user_code"].includes(key)
+                key => !ALLOWED_PROFILE_KEYS.has(key)
             ) ||
             Object.values(input.residentProfile).some(
-                value => typeof value !== "string" || !value.trim()
+                value =>
+                    typeof value !== "string" ||
+                    !value.trim()
             ) ||
             typeof input.residentProfile.name !== "string" ||
             input.residentProfile.name.trim() !== input.name.trim() ||
+            (
+                input.residentProfile.birth_date !== undefined &&
+                !isRealIsoDate(input.residentProfile.birth_date)
+            ) ||
             typeof input.sourceUpdatedAt !== "string" ||
             Number.isNaN(Date.parse(input.sourceUpdatedAt)) ||
             !Number.isSafeInteger(input.sourceSize) ||
@@ -138,4 +175,4 @@ class ConnectorResidentAdmissionService {
     }
 }
 
-module.exports = ConnectorResidentAdmissionService;
+module.exports = ConnectorResidentProfileService;

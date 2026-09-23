@@ -302,3 +302,40 @@ test("exact snapshot is used for mapping and persistence", async () => {
     );
     assert.strictEqual(calls.persistence[0].sourceSize, 123);
 });
+
+test("planned new passes writable user semantic fields as resident profile to admission", async () => {
+    const entry = plan({
+        displayName: "鈴木 大輔",
+        persistenceContract: {
+            semanticType: "recipient_certificate",
+            logicalSlot: "primary",
+            semanticContent: {
+                "user.name": "鈴木 大輔",
+                "user.birth_date": "2/22/77",
+                "user.gender": "男性",
+                "recipient_certificate.certificate_number": "1234567893",
+                "user.active": "false"
+            },
+            contentHash: "b".repeat(64),
+            canonicalizationVersion:
+                "risen-recipient-certificate-canonicalization-1",
+            expectedContentHash: null
+        }
+    });
+
+    const { instance, calls } = service();
+
+    const result = await instance.execute(request([entry]));
+
+    assert.strictEqual(result.status, "completed");
+    assert.strictEqual(calls.admission.length, 1);
+
+    assert.deepStrictEqual(
+        calls.admission[0].residentProfile,
+        {
+            name: "鈴木 大輔",
+
+            gender: "男性"
+        }
+    );
+});

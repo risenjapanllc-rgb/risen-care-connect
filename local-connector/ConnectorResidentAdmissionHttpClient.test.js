@@ -12,6 +12,11 @@ function contract() {
         identifierType: "name",
         identifierDigest: digest,
         name: "Test Resident",
+        residentProfile: {
+            name: "Test Resident",
+            birth_date: "2/22/77",
+            gender: "男性"
+        },
         sourceUpdatedAt: "2026-09-22T01:02:03.000Z",
         sourceSize: 1234
     };
@@ -153,4 +158,34 @@ test("maps trust invalid and unavailable responses safely", async () => {
             error => error.code === code
         );
     }
+});
+
+
+test("rejects unknown resident profile fields before fetch", async () => {
+    let fetchCalled = false;
+
+    const client = new Client({
+        endpoint: "http://127.0.0.1/admission",
+        connectorId: "connector-1",
+        credential: "secret",
+        fetchImpl: async () => {
+            fetchCalled = true;
+            return response(200, {});
+        }
+    });
+
+    const input = contract();
+    input.residentProfile = {
+        ...input.residentProfile,
+        active: "false"
+    };
+
+    await assert.rejects(
+        () => client.admit(input),
+        error =>
+            error &&
+            error.code === "resident_admission_invalid"
+    );
+
+    assert.strictEqual(fetchCalled, false);
 });

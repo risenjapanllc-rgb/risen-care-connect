@@ -67,6 +67,12 @@ function createServerTrustBoundaryApp({
     connectorResidentAdmissionTransport,
     connectorResidentAdmissionEndpointPath =
         "/connector/resident-admission",
+    connectorResidentProfileTransport,
+    connectorResidentProfileEndpointPath =
+        "/connector/resident-profile",
+    connectorResidentProfileQueryTransport,
+    connectorResidentProfileQueryEndpointPath =
+        "/connector/resident-profile-query",
     voiceCallTransport,
     voiceCallEndpointPath =
         "/connector/voice-calls",
@@ -907,6 +913,74 @@ function createServerTrustBoundaryApp({
                                 req.headers,
                             body:
                                 req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorResidentProfileTransport) {
+        if (
+            typeof connectorResidentProfileTransport.handle !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorResidentProfileTransport"
+            );
+        }
+
+        app.post(
+            connectorResidentProfileEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorResidentProfileTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorResidentProfileQueryTransport) {
+        if (
+            typeof connectorResidentProfileQueryTransport.handle !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires connectorResidentProfileQueryTransport"
+            );
+        }
+
+        app.post(
+            connectorResidentProfileQueryEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorResidentProfileQueryTransport.handle({
+                            method: req.method,
+                            contentType: req.get("content-type"),
+                            headers: req.headers,
+                            body: req.body
                         });
 
                     return res

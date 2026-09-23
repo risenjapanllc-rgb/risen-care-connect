@@ -493,62 +493,80 @@ app.get("/api/sample/:table", async (req, res) => {
 // RISEN CARE標準項目一覧取得
 // ==========================================
 
-app.get("/api/standard-fields", async (req, res) => {
-    let connection;
-
+app.get("/api/standard-fields", (req, res) => {
     try {
-        const config =
-            getDatabaseConfig();
+        const {
+            listStandardMeanings
+        } = require("./server-domain/standard-fields/RisenStandardMeaningCatalog");
 
-        if (
-            !config.host ||
-            !config.database ||
-            !config.user
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "MySQL接続セッションが無効です。接続設定からやり直してください"
-            });
-        }
-
-        connection = await mysql.createConnection(
-            config
-        );
-
-        const [rows] = await connection.query(
-            `
-            SELECT
-                id,
-                entity_name,
-                field_name,
-                display_name,
-                data_type,
-                required_flag,
-                description,
-                created_at,
-                updated_at
-            FROM standard_fields
-            ORDER BY entity_name, id
-            `
+        const rows = listStandardMeanings().map(
+            (meaning, index) => ({
+                id: `risen-standard-meaning-${index + 1}`,
+                entity_name: meaning.entityName,
+                field_name: meaning.fieldName,
+                display_name: meaning.displayName,
+                data_type: null,
+                required_flag: 0,
+                description: null,
+                synonyms: meaning.synonyms
+            })
         );
 
         return res.json(rows);
-
     } catch (error) {
-        console.error("標準項目取得エラー:", error);
+        console.error(
+            "RISEN標準意味カタログ取得エラー:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "標準項目一覧の取得に失敗しました",
-            error: error.message || "詳細メッセージなし"
+            message:
+                "RISEN標準項目一覧の取得に失敗しました"
         });
-
-    } finally {
-        await closeConnection(connection);
     }
 });
 
+
+
+app.post("/api/context-resolution", (req, res) => {
+    try {
+        const {
+            resolveSubjectContext
+        } = require("./server-domain/context-resolution/ContextResolver");
+
+        const fieldDefinitions =
+            Array.isArray(req.body?.fieldDefinitions)
+                ? req.body.fieldDefinitions
+                : [];
+
+        const confirmedDocumentType =
+            typeof req.body?.confirmedDocumentType === "string"
+                ? req.body.confirmedDocumentType.trim()
+                : null;
+
+        const result = resolveSubjectContext({
+            fieldDefinitions,
+            confirmedDocumentType
+        });
+
+        return res.json({
+            success: true,
+            context: result
+        });
+    } catch (error) {
+        console.error(
+            "Context Resolution エラー:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "データ文脈の解析に失敗しました"
+        });
+    }
+});
 
 // ==========================================
 // 保存済みマッピング一覧取得

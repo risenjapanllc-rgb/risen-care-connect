@@ -146,6 +146,38 @@
                 利用者候補を取得しています...
             </div>
 
+            <div
+                id="residentBulkActionBar"
+                class="resident-bulk-action-bar"
+                hidden
+            >
+                <strong id="residentBulkActionCount">0人選択中</strong>
+                <button
+                    type="button"
+                    data-resident-bulk-fixed-action="approved_new"
+                >
+                    新規登録予定にする
+                </button>
+                <button
+                    type="button"
+                    data-resident-bulk-fixed-action="rejected"
+                >
+                    取り込まない
+                </button>
+                <button
+                    type="button"
+                    data-resident-bulk-fixed-action="deferred"
+                >
+                    保留
+                </button>
+                <button
+                    type="button"
+                    data-resident-bulk-fixed-clear
+                >
+                    選択解除
+                </button>
+            </div>
+
             <div class="bottom-actions csv-step-actions">
                 <button
                     id="residentLinkingBackButton"
@@ -246,8 +278,9 @@
 </footer>
 
 <script src="/js/common.js"></script>
-<script src="/js/standard-field-mapping.js?v=20260912-2"></script>
-<script src="/js/local-connector.js?v=20260917-step6-execute-1"></script>
+<script src="/js/standard-field-mapping.js?v=20260919-context-1"></script>
+<script src="/js/document-type-profiles.js?v=20260919-1"></script>
+<script src="/js/local-connector.js?v=20260922-step3-confirmed-ui-1"></script>
 
 </body>
 </html>

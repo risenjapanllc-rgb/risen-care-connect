@@ -16,7 +16,21 @@ let residentCandidateServicePromise = null;
 let sourceResidentLinkClientPromise = null;
 let sourceResidentMappingClientPromise = null;
 let sourceRecordIdentityMappingServicePromise = null;
+let sourceRecordIdentityCandidateServicePromise = null;
+let confirmedDocumentTypeServicePromise = null;
+let residentAdmissionDecisionServicePromise = null;
+let recipientCertificateImportPreviewServicePromise = null;
 let residentCreationClientPromise = null;
+
+const CONFIRMED_DOCUMENT_TYPES = Object.freeze([
+    "support_record",
+    "individual_support_plan",
+    "assessment",
+    "monitoring",
+    "recipient_certificate",
+    "resident_master",
+    "other"
+]);
 
 app.locals.getSourceDocumentIngestionService =
     async () => {
@@ -244,6 +258,115 @@ app.locals.getImportExecutionService =
         return await importExecutionServicePromise;
     };
 
+let recipientCertificateImportExecutionServicePromise = null;
+
+app.locals.getRecipientCertificateImportExecutionService =
+    async () => {
+        if (!recipientCertificateImportExecutionServicePromise) {
+            const semanticEndpoint =
+                process.env
+                    .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+            const endpointFor =
+                pathname => {
+                    if (!semanticEndpoint) {
+                        return undefined;
+                    }
+
+                    const url =
+                        new URL(
+                            semanticEndpoint
+                        );
+
+                    url.pathname = pathname;
+                    url.search = "";
+                    url.hash = "";
+
+                    return url.toString();
+                };
+
+            recipientCertificateImportExecutionServicePromise =
+                LocalConnectorCompositionRoot
+                    .createRecipientCertificateImportExecutionService({
+                        fieldMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-field-mappings"
+                            ),
+                        interpretationEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-field-interpretations"
+                            ),
+                        candidateEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_CANDIDATE_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_RESIDENT_CANDIDATE_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-candidates"
+                            ),
+                        residentMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-resident-mappings"
+                            ),
+                        admissionDecisionEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_ADMISSION_DECISION_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-admission-decisions"
+                            ),
+                        semanticLogicalRecordEndpoint:
+                            process.env
+                                .RISEN_SEMANTIC_LOGICAL_RECORD_ENDPOINT ||
+                            endpointFor(
+                                "/connector/semantic-logical-record"
+                            ),
+                        residentAdmissionEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_ADMISSION_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-admission"
+                            ),
+                        semanticLogicalRecordPersistenceEndpoint:
+                            process.env
+                                .RISEN_SEMANTIC_LOGICAL_RECORD_PERSISTENCE_ENDPOINT ||
+                            endpointFor(
+                                "/connector/semantic-logical-record-persistence"
+                            ),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        recipientCertificateImportExecutionServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await recipientCertificateImportExecutionServicePromise;
+    };
+
 app.locals.getSourceFieldMappingIngestionService =
     async () => {
         if (!sourceFieldMappingIngestionServicePromise) {
@@ -382,6 +505,32 @@ app.locals.getResidentCandidateService =
 
                                 url.pathname =
                                     "/connector/source-field-mappings";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        interpretationEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-field-interpretations";
                                 url.search = "";
                                 url.hash = "";
 
@@ -1071,11 +1220,34 @@ app.get(
                     ? req.query.sourceDocumentKey.trim()
                     : "";
 
-            if (!sourceDocumentKey) {
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSizeText =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(sourceSizeText)
+                    ? Number(sourceSizeText)
+                    : Number.NaN;
+
+            if (
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
                 return res.status(422).json({
                     success: false,
                     message:
-                        "原本識別子が指定されていません"
+                        "現在の原本ファイル状態を確認できません"
                 });
             }
 
@@ -1084,9 +1256,14 @@ app.get(
                     .getSourceFieldInterpretationIngestionService();
 
             const result =
-                await queryService.list(
-                    sourceDocumentKey
-                );
+                await queryService.list({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(
+                            sourceUpdatedAt
+                        ).toISOString(),
+                    sourceSize
+                });
 
             if (
                 result?.status === "found" &&
@@ -1168,6 +1345,10 @@ app.post(
             const sourceFieldInterpretation = {
                 sourceDocumentKey:
                     interpretation.sourceDocumentKey,
+                sourceUpdatedAt:
+                    interpretation.sourceUpdatedAt,
+                sourceSize:
+                    interpretation.sourceSize,
                 sourceFieldKey:
                     interpretation.sourceFieldKey,
                 interpretationStatus:
@@ -1175,8 +1356,36 @@ app.post(
                 mappingStatus:
                     interpretation.mappingStatus,
                 confirmedMeaning:
-                    interpretation.confirmedMeaning ?? null
+                    interpretation.confirmedMeaning ?? null,
+                confirmedByHuman: true
             };
+
+            if (
+                typeof sourceFieldInterpretation.sourceDocumentKey !== "string" ||
+                !sourceFieldInterpretation.sourceDocumentKey.trim() ||
+                typeof sourceFieldInterpretation.sourceUpdatedAt !== "string" ||
+                !sourceFieldInterpretation.sourceUpdatedAt.trim() ||
+                Number.isNaN(
+                    Date.parse(
+                        sourceFieldInterpretation.sourceUpdatedAt
+                    )
+                ) ||
+                !Number.isSafeInteger(
+                    sourceFieldInterpretation.sourceSize
+                ) ||
+                sourceFieldInterpretation.sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "現在の原本ファイル状態を確認できません"
+                });
+            }
+
+            sourceFieldInterpretation.sourceUpdatedAt =
+                new Date(
+                    sourceFieldInterpretation.sourceUpdatedAt
+                ).toISOString();
 
             const ingestionService =
                 await app.locals
@@ -1291,6 +1500,23 @@ app.locals.getSourceResidentMappingClient =
         return await sourceResidentMappingClientPromise;
     };
 
+app.locals.getSourceRecordIdentityCandidateService =
+    async () => {
+        if (!sourceRecordIdentityCandidateServicePromise) {
+            sourceRecordIdentityCandidateServicePromise =
+                Promise.resolve(
+                    LocalConnectorCompositionRoot
+                        .createSourceRecordIdentityCandidateService()
+                ).catch(error => {
+                    sourceRecordIdentityCandidateServicePromise =
+                        null;
+                    throw error;
+                });
+        }
+
+        return await sourceRecordIdentityCandidateServicePromise;
+    };
+
 app.locals.getSourceRecordIdentityMappingService =
     async () => {
         if (!sourceRecordIdentityMappingServicePromise) {
@@ -1342,6 +1568,203 @@ app.locals.getSourceRecordIdentityMappingService =
         }
 
         return await sourceRecordIdentityMappingServicePromise;
+    };
+
+app.locals.getConfirmedDocumentTypeService =
+    async () => {
+        if (!confirmedDocumentTypeServicePromise) {
+            confirmedDocumentTypeServicePromise =
+                LocalConnectorCompositionRoot
+                    .createConfirmedDocumentTypeService({
+                        endpoint:
+                            process.env
+                                .RISEN_CONFIRMED_DOCUMENT_TYPE_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/confirmed-document-type";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id",
+                        allowedDocumentTypes:
+                            CONFIRMED_DOCUMENT_TYPES
+                    })
+                    .catch(error => {
+                        confirmedDocumentTypeServicePromise =
+                            null;
+                        throw error;
+                    });
+        }
+
+        return await confirmedDocumentTypeServicePromise;
+    };
+
+app.locals.getRecipientCertificateImportPreviewService =
+    async () => {
+        if (!recipientCertificateImportPreviewServicePromise) {
+            const semanticEndpoint =
+                process.env
+                    .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+            const endpointFor = pathname => {
+                if (!semanticEndpoint) {
+                    return undefined;
+                }
+
+                const url =
+                    new URL(semanticEndpoint);
+
+                url.pathname = pathname;
+                url.search = "";
+                url.hash = "";
+
+                return url.toString();
+            };
+
+            recipientCertificateImportPreviewServicePromise =
+                LocalConnectorCompositionRoot
+                    .createRecipientCertificateImportPreviewService({
+                        fieldMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-field-mappings"
+                            ),
+                        interpretationEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-field-interpretations"
+                            ),
+                        candidateEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_CANDIDATE_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_RESIDENT_CANDIDATE_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-candidates"
+                            ),
+                        residentMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_RESIDENT_MAPPING_ENDPOINT ||
+                            endpointFor(
+                                "/connector/source-resident-mappings"
+                            ),
+                        admissionDecisionEndpoint:
+                            process.env
+                                .RISEN_RESIDENT_ADMISSION_DECISION_ENDPOINT ||
+                            endpointFor(
+                                "/connector/resident-admission-decisions"
+                            ),
+                        semanticLogicalRecordEndpoint:
+                            process.env
+                                .RISEN_SEMANTIC_LOGICAL_RECORD_ENDPOINT ||
+                            endpointFor(
+                                "/connector/semantic-logical-record"
+                            ),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        recipientCertificateImportPreviewServicePromise =
+                            null;
+                        throw error;
+                    });
+        }
+
+        return await recipientCertificateImportPreviewServicePromise;
+    };
+
+app.locals.getResidentAdmissionDecisionService =
+    async () => {
+        if (!residentAdmissionDecisionServicePromise) {
+            residentAdmissionDecisionServicePromise =
+                LocalConnectorCompositionRoot
+                    .createResidentAdmissionDecisionService({
+                        endpoint:
+                            process.env
+                                .RISEN_RESIDENT_ADMISSION_DECISION_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/resident-admission-decisions";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+                        credential:
+                            process.env
+                                .CONNECTOR_CREDENTIAL,
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        residentAdmissionDecisionServicePromise =
+                            null;
+                        throw error;
+                    });
+        }
+
+        return await residentAdmissionDecisionServicePromise;
     };
 
 app.locals.getResidentCreationClient =
@@ -1790,6 +2213,654 @@ app.post(
                 success: false,
                 message:
                     "利用者マッピングの保存に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/source-record-identity-candidates",
+    async (req, res) => {
+        try {
+            const queryKeys = Object.keys(req.query || {});
+            const allowedQueryKeys = new Set([
+                "sourceDocumentKey",
+                "sourceUpdatedAt",
+                "sourceSize"
+            ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(key => !allowedQueryKeys.has(key)) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "識別候補の取得条件が不正です"
+                });
+            }
+
+            const candidateService =
+                await app.locals
+                    .getSourceRecordIdentityCandidateService();
+
+            const result =
+                await candidateService.findCandidates({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt).toISOString(),
+                    sourceSize
+                });
+
+            return res.status(200).json({
+                success: true,
+                status: result.status,
+                candidates:
+                    Array.isArray(result.candidates)
+                        ? result.candidates
+                        : []
+            });
+        } catch (error) {
+            if (
+                error?.code === "source_snapshot_changed" ||
+                error?.code === "source_snapshot_unsupported" ||
+                error?.code === "source_entities_unavailable"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message:
+                        "原本の状態を再確認してください"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "識別候補の確認に失敗しました"
+            });
+        }
+    }
+);
+
+
+app.get(
+    "/confirmed-document-type",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+
+            if (
+                queryKeys.length !== 3 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "データ種別の取得条件が不正です"
+                });
+            }
+
+            const confirmedDocumentTypeService =
+                await app.locals
+                    .getConfirmedDocumentTypeService();
+
+            const result =
+                await confirmedDocumentTypeService.get({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize
+                });
+
+            if (result?.status === "not_found") {
+                return res.status(200).json({
+                    success: true,
+                    status: "not_found",
+                    confirmation: null
+                });
+            }
+
+            if (
+                result?.status === "found" &&
+                result.confirmation &&
+                typeof result.confirmation.documentType ===
+                    "string" &&
+                result.confirmation.documentType.trim()
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "found",
+                    confirmation:
+                        result.confirmation
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (error instanceof TypeError) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "データ種別の取得条件が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "データ種別の取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/confirmed-document-type",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "documentType"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+            const sourceSize =
+                input.sourceSize;
+            const documentType =
+                typeof input.documentType === "string"
+                    ? input.documentType.trim()
+                    : "";
+
+            if (
+                inputKeys.length !== 4 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !documentType
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "データ種別の確認内容が不正です"
+                });
+            }
+
+            const confirmedDocumentTypeService =
+                await app.locals
+                    .getConfirmedDocumentTypeService();
+
+            const result =
+                await confirmedDocumentTypeService.confirm({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize,
+                    documentType
+                });
+
+            if (
+                result?.status ===
+                    "invalid_document_type"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "対応していないデータ種別です"
+                });
+            }
+
+            if (
+                result?.status === "confirmed" &&
+                result.documentType === documentType &&
+                ["created", "updated", "unchanged"]
+                    .includes(result.persistenceStatus)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "confirmed",
+                    documentType:
+                        result.documentType,
+                    persistenceStatus:
+                        result.persistenceStatus
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "source_snapshot_changed" ||
+                error?.code ===
+                    "source_document_not_found"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message:
+                        "原本の状態が変わっています。再解析してください"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "データ種別の確認に失敗しました"
+            });
+        }
+    }
+);
+
+app.get(
+    "/resident-admission-decisions",
+    async (req, res) => {
+        try {
+            const queryKeys =
+                Object.keys(req.query || {});
+            const allowedQueryKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "identifierType",
+                    "identifierDigest"
+                ]);
+
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey === "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt === "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+            const rawSourceSize =
+                typeof req.query?.sourceSize === "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+            const sourceSize =
+                /^\d+$/.test(rawSourceSize)
+                    ? Number(rawSourceSize)
+                    : Number.NaN;
+            const identifierType =
+                typeof req.query?.identifierType === "string"
+                    ? req.query.identifierType.trim()
+                    : "";
+            const identifierDigest =
+                typeof req.query?.identifierDigest === "string"
+                    ? req.query.identifierDigest.trim()
+                    : "";
+
+            if (
+                queryKeys.length !== 5 ||
+                queryKeys.some(
+                    key => !allowedQueryKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !identifierType ||
+                !identifierDigest
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録判断の取得条件が不正です"
+                });
+            }
+
+            const service =
+                await app.locals
+                    .getResidentAdmissionDecisionService();
+
+            const result =
+                await service.get({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize,
+                    identifierType,
+                    identifierDigest
+                });
+
+            if (result?.status === "not_found") {
+                return res.status(200).json({
+                    success: true,
+                    status: "not_found",
+                    decision: null
+                });
+            }
+
+            if (
+                result?.status === "found" &&
+                result.decision &&
+                [
+                    "approved_new",
+                    "rejected",
+                    "deferred"
+                ].includes(result.decision.decision)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "found",
+                    decision: {
+                        decision:
+                            result.decision.decision,
+                        reviewedAt:
+                            result.decision.reviewedAt
+                    }
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError ||
+                error?.code ===
+                    "source_snapshot_changed" ||
+                error?.code ===
+                    "source_document_not_found"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message:
+                        "原本の状態が変わっています。再解析してください"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者登録判断の取得に失敗しました"
+            });
+        }
+    }
+);
+
+app.post(
+    "/resident-admission-decisions",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const inputKeys =
+                Object.keys(input);
+            const allowedInputKeys =
+                new Set([
+                    "sourceDocumentKey",
+                    "sourceUpdatedAt",
+                    "sourceSize",
+                    "identifierType",
+                    "identifierDigest",
+                    "decision"
+                ]);
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+            const sourceSize =
+                input.sourceSize;
+            const identifierType =
+                typeof input.identifierType === "string"
+                    ? input.identifierType.trim()
+                    : "";
+            const identifierDigest =
+                typeof input.identifierDigest === "string"
+                    ? input.identifierDigest.trim()
+                    : "";
+            const decision =
+                typeof input.decision === "string"
+                    ? input.decision.trim()
+                    : "";
+
+            if (
+                inputKeys.length !== 6 ||
+                inputKeys.some(
+                    key => !allowedInputKeys.has(key)
+                ) ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(Date.parse(sourceUpdatedAt)) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !identifierType ||
+                !identifierDigest ||
+                ![
+                    "approved_new",
+                    "rejected",
+                    "deferred"
+                ].includes(decision)
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録判断の内容が不正です"
+                });
+            }
+
+            const service =
+                await app.locals
+                    .getResidentAdmissionDecisionService();
+
+            const result =
+                await service.decide({
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(sourceUpdatedAt)
+                            .toISOString(),
+                    sourceSize,
+                    identifierType,
+                    identifierDigest,
+                    decision
+                });
+
+            if (
+                result?.status === "decided" &&
+                result.decision === decision &&
+                ["created", "updated", "unchanged"]
+                    .includes(result.persistenceStatus)
+            ) {
+                return res.status(200).json({
+                    success: true,
+                    status: "decided",
+                    decision:
+                        result.decision,
+                    persistenceStatus:
+                        result.persistenceStatus
+                });
+            }
+
+            if (
+                result?.status ===
+                    "invalid_decision"
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録判断の内容が不正です"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Server Trust Boundaryから不正な応答を受信しました"
+            });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Connector認証に失敗しました"
+                });
+            }
+
+            if (
+                error instanceof TypeError
+            ) {
+                return res.status(422).json({
+                    success: false,
+                    message:
+                        "利用者登録判断の内容が不正です"
+                });
+            }
+
+            if (
+                error?.code ===
+                    "source_snapshot_changed" ||
+                error?.code ===
+                    "source_document_not_found"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message:
+                        "原本の状態が変わっています。再解析してください"
+                });
+            }
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "利用者登録判断の保存に失敗しました"
             });
         }
     }
@@ -2256,9 +3327,63 @@ app.post(
                 });
             }
 
-            const previewService =
+            const confirmedDocumentTypeService =
                 await app.locals
-                    .getImportPreviewService();
+                    .getConfirmedDocumentTypeService();
+
+            const confirmedDocumentTypeResult =
+                await confirmedDocumentTypeService.get({
+                    sourceDocumentKey:
+                        input.sourceDocumentKey,
+                    sourceUpdatedAt:
+                        input.sourceUpdatedAt,
+                    sourceSize:
+                        input.sourceSize
+                });
+
+            if (
+                confirmedDocumentTypeResult?.status !== "found" ||
+                !confirmedDocumentTypeResult.confirmation ||
+                typeof confirmedDocumentTypeResult
+                    .confirmation.documentType !== "string" ||
+                !confirmedDocumentTypeResult
+                    .confirmation.documentType.trim()
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        "document_type_confirmation_required",
+                    message:
+                        "データ種別の確認が必要です"
+                });
+            }
+
+            const trustedDocumentType =
+                confirmedDocumentTypeResult
+                    .confirmation.documentType.trim();
+
+            let previewService;
+
+            if (trustedDocumentType === "support_record") {
+                previewService =
+                    await app.locals
+                        .getImportPreviewService();
+            } else if (
+                trustedDocumentType ===
+                    "recipient_certificate"
+            ) {
+                previewService =
+                    await app.locals
+                        .getRecipientCertificateImportPreviewService();
+            } else {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        "document_type_not_supported_for_preview",
+                    message:
+                        "このデータ種別の取り込みプレビューはまだ利用できません"
+                });
+            }
 
             const result =
                 await previewService.preview({
@@ -2369,9 +3494,59 @@ app.post(
                 });
             }
 
-            const executionService =
+            const confirmedDocumentTypeService =
                 await app.locals
-                    .getImportExecutionService();
+                    .getConfirmedDocumentTypeService();
+
+            const confirmedDocumentTypeResult =
+                await confirmedDocumentTypeService.get({
+                    sourceDocumentKey,
+                    sourceUpdatedAt,
+                    sourceSize
+                });
+
+            if (
+                confirmedDocumentTypeResult?.status !== "found" ||
+                !confirmedDocumentTypeResult.confirmation ||
+                typeof confirmedDocumentTypeResult
+                    .confirmation.documentType !== "string" ||
+                !confirmedDocumentTypeResult
+                    .confirmation.documentType.trim()
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        "document_type_confirmation_required",
+                    message:
+                        "データ種別の確認が必要です"
+                });
+            }
+
+            const trustedDocumentType =
+                confirmedDocumentTypeResult
+                    .confirmation.documentType.trim();
+
+            if (
+                ![
+                    "support_record",
+                    "recipient_certificate"
+                ].includes(trustedDocumentType)
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    status:
+                        "document_type_not_supported_for_execution",
+                    message:
+                        "このデータ種別の最終確定はまだ利用できません"
+                });
+            }
+
+            const executionService =
+                trustedDocumentType === "recipient_certificate"
+                    ? await app.locals
+                        .getRecipientCertificateImportExecutionService()
+                    : await app.locals
+                        .getImportExecutionService();
 
             const result =
                 await executionService.execute({
@@ -2385,6 +3560,26 @@ app.post(
                 result &&
                 result.status === "completed"
             ) {
+                if (
+                    trustedDocumentType ===
+                    "recipient_certificate"
+                ) {
+                    return res.status(200).json({
+                        success: true,
+                        status: "completed",
+                        processed:
+                            result.processed,
+                        created:
+                            result.created,
+                        updated:
+                            result.updated,
+                        unchanged:
+                            result.unchanged,
+                        residentsCreated:
+                            result.residentsCreated
+                    });
+                }
+
                 return res.status(200).json({
                     success: true,
                     status: "completed",
@@ -2787,6 +3982,29 @@ app.post(
                 success: true,
                 identifierType:
                     result.identifierType,
+                identifierHeaderLabel:
+                    typeof result.identifierHeaderLabel === "string" &&
+                    result.identifierHeaderLabel.trim()
+                        ? result.identifierHeaderLabel.trim()
+                        : null,
+                identityDiagnostic:
+                    result.identityDiagnostic &&
+                    typeof result.identityDiagnostic === "object"
+                        ? {
+                            fieldDefinitionMatched:
+                                result.identityDiagnostic.fieldDefinitionMatched === true,
+                            mappingHasHeaderLabel:
+                                result.identityDiagnostic.mappingHasHeaderLabel === true,
+                            keyPresentInEverySourceEntity:
+                                result.identityDiagnostic.keyPresentInEverySourceEntity === true,
+                            fieldDefinitionCount:
+                                Number.isSafeInteger(
+                                    result.identityDiagnostic.fieldDefinitionCount
+                                )
+                                    ? result.identityDiagnostic.fieldDefinitionCount
+                                    : null
+                        }
+                        : null,
                 sourceEntityCount:
                     result.sourceEntityCount,
                 unavailableSourceEntityCount:
@@ -2804,6 +4022,17 @@ app.post(
             ) {
                 return res.status(422).json({
                     success: false,
+                    errorCode:
+                        error.code,
+                    identityReason:
+                        [
+                            "resident_mapping_missing",
+                            "human_confirmation_missing",
+                            "confirmed_meaning_mismatch",
+                            "resident_identity_mapping_ambiguous"
+                        ].includes(error?.identityReason)
+                            ? error.identityReason
+                            : null,
                     message:
                         "利用者候補グループを確認できませんでした"
                 });

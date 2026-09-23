@@ -1856,6 +1856,10 @@ test(
                                 sourceFieldInterpretation: {
                                     sourceDocumentKey:
                                         "document-key",
+                                    sourceUpdatedAt:
+                                        "2026-09-22T00:00:00.000Z",
+                                    sourceSize:
+                                        12345,
                                     sourceFieldKey:
                                         "sheet:0:column:3",
                                     interpretationStatus:
@@ -1871,7 +1875,9 @@ test(
                                     confirmedAt:
                                         "2000-01-01T00:00:00.000Z",
                                     model:
-                                        "must-not-pass"
+                                        "must-not-pass",
+                                    confirmedByHuman:
+                                        false
                                 }
                             })
                     }
@@ -1895,6 +1901,10 @@ test(
                 {
                     sourceDocumentKey:
                         "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-22T00:00:00.000Z",
+                    sourceSize:
+                        12345,
                     sourceFieldKey:
                         "sheet:0:column:3",
                     interpretationStatus:
@@ -1902,7 +1912,9 @@ test(
                     mappingStatus:
                         "no_standard_match",
                     confirmedMeaning:
-                        null
+                        null,
+                    confirmedByHuman:
+                        true
                 }
             );
         } finally {
@@ -1924,13 +1936,13 @@ test(
             app.locals
                 .getSourceFieldInterpretationIngestionService;
 
-        let receivedSourceDocumentKey = null;
+        let receivedSourceSnapshot = null;
 
         app.locals.getSourceFieldInterpretationIngestionService =
             async () => ({
-                async list(sourceDocumentKey) {
-                    receivedSourceDocumentKey =
-                        sourceDocumentKey;
+                async list(sourceSnapshot) {
+                    receivedSourceSnapshot =
+                        sourceSnapshot;
 
                     return {
                         status: "found",
@@ -1982,7 +1994,7 @@ test(
 
             const response =
                 await fetch(
-                    `http://127.0.0.1:${address.port}/source-field-interpretations?sourceDocumentKey=document-key`
+                    `http://127.0.0.1:${address.port}/source-field-interpretations?sourceDocumentKey=document-key&sourceUpdatedAt=${encodeURIComponent("2026-09-22T00:00:00.000Z")}&sourceSize=12345`
                 );
 
             assert.strictEqual(
@@ -1990,9 +2002,16 @@ test(
                 200
             );
 
-            assert.strictEqual(
-                receivedSourceDocumentKey,
-                "document-key"
+            assert.deepStrictEqual(
+                receivedSourceSnapshot,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-22T00:00:00.000Z",
+                    sourceSize:
+                        12345
+                }
             );
 
             assert.deepStrictEqual(
@@ -2094,7 +2113,7 @@ test(
                 {
                     success: false,
                     message:
-                        "原本識別子が指定されていません"
+                        "現在の原本ファイル状態を確認できません"
                 }
             );
         } finally {
@@ -3532,8 +3551,37 @@ test("POST /residents preserves safe same-name ambiguity", async () => {
 test("POST /import-preview returns read-only preview result", async () => {
     const original =
         app.locals.getImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
 
     let received = null;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                assert.deepStrictEqual(
+                    input,
+                    {
+                        sourceDocumentKey:
+                            "doc-preview-1",
+                        sourceUpdatedAt:
+                            "2026-09-17T00:00:00.000Z",
+                        sourceSize:
+                            15089594
+                    }
+                );
+
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "support_record",
+                        confirmedAt:
+                            "2026-09-17T01:00:00.000Z"
+                    }
+                };
+            }
+        });
 
     app.locals.getImportPreviewService =
         async () => ({
@@ -3627,6 +3675,176 @@ test("POST /import-preview returns read-only preview result", async () => {
 
         app.locals.getImportPreviewService =
             original;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+
+test("POST /import-preview dispatches recipient certificate to dedicated preview service", async () => {
+    const originalPreview =
+        app.locals.getImportPreviewService;
+    const originalRecipientCertificatePreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportPreviewCalled = false;
+    let certificatePreviewInput = null;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                assert.deepStrictEqual(
+                    input,
+                    {
+                        sourceDocumentKey:
+                            "doc-certificate-1",
+                        sourceUpdatedAt:
+                            "2026-09-21T00:00:00.000Z",
+                        sourceSize:
+                            12345
+                    }
+                );
+
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-21T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview() {
+                supportPreviewCalled = true;
+                throw new Error(
+                    "support preview must not be called"
+                );
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview(input) {
+                certificatePreviewInput = input;
+
+                return {
+                    status: "preview_only",
+                    executionAvailable: false,
+                    sourceEntityCount: 58,
+                    residentSubjectCount: 58,
+                    unavailableSourceEntityCount: 0,
+                    summary: {
+                        existingResidentCount: 0,
+                        plannedNewResidentCount: 1,
+                        excludedCount: 57,
+                        deferredCount: 0,
+                        undecidedCount: 0,
+                        recipientCertificateCreateCount: 1
+                    },
+                    items: []
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-certificate-1",
+                            sourceUpdatedAt:
+                                "2026-09-21T00:00:00.000Z",
+                            sourceSize:
+                                12345
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.strictEqual(
+            supportPreviewCalled,
+            false
+        );
+
+        assert.deepStrictEqual(
+            certificatePreviewInput,
+            {
+                sourceDocumentKey:
+                    "doc-certificate-1",
+                sourceUpdatedAt:
+                    "2026-09-21T00:00:00.000Z",
+                sourceSize:
+                    12345
+            }
+        );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            body.success,
+            true
+        );
+        assert.strictEqual(
+            body.status,
+            "preview_only"
+        );
+        assert.strictEqual(
+            body.executionAvailable,
+            false
+        );
+        assert.strictEqual(
+            body.summary.plannedNewResidentCount,
+            1
+        );
+        assert.strictEqual(
+            body.summary.recipientCertificateCreateCount,
+            1
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            originalPreview;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientCertificatePreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
     }
 });
 
@@ -3696,400 +3914,26 @@ test("POST /import-preview rejects an invalid request before preview", async () 
 
 
 
-test("POST /import-small-write-dry-run returns only a verified ten row sample", async () => {
-    const fingerprint = "a".repeat(64);
-    let previewInput = null;
-    let executionCalled = false;
-
-    app.locals.getImportPreviewService =
-        async () => ({
-            async buildExecutionPlan(input) {
-                previewInput = input;
-
-                return {
-                    status: "ready",
-                    previewFingerprint: fingerprint,
-                    executionPlan:
-                        Array.from(
-                            { length: 94198 },
-                            (_, index) => ({
-                                sourceRecordKey:
-                                    `source-${index + 1}`,
-                                action: "new"
-                            })
-                        )
-                };
-            }
-        });
-
-    app.locals.getImportExecutionService =
-        async () => {
-            executionCalled = true;
-            throw new Error(
-                "execution service must not be reached"
-            );
-        };
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-
-        const response =
-            await fetch(
-                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-                    body:
-                        JSON.stringify({
-                            sourceDocumentKey:
-                                "doc-1",
-                            sourceUpdatedAt:
-                                "2026-09-17T00:00:00.000Z",
-                            sourceSize:
-                                100,
-                            expectedFingerprint:
-                                fingerprint
-                        })
-                }
-            );
-
-        const body =
-            await response.json();
-
-        assert.equal(response.status, 200);
-        assert.deepEqual(body, {
-            success: true,
-            status: "dry_run_ready",
-            fullPlanCount: 94198,
-            sampleCount: 10,
-            actions: ["new"]
-        });
-        assert.deepEqual(previewInput, {
-            sourceDocumentKey: "doc-1",
-            sourceUpdatedAt:
-                "2026-09-17T00:00:00.000Z",
-            sourceSize: 100
-        });
-        assert.equal(executionCalled, false);
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
-test("POST /import-small-write-dry-run rejects extra browser authority before preview", async () => {
-    let previewCalled = false;
-
-    app.locals.getImportPreviewService =
-        async () => {
-            previewCalled = true;
-            throw new Error(
-                "preview must not be reached"
-            );
-        };
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-
-        const response =
-            await fetch(
-                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-                    body:
-                        JSON.stringify({
-                            sourceDocumentKey:
-                                "doc-1",
-                            sourceUpdatedAt:
-                                "2026-09-17T00:00:00.000Z",
-                            sourceSize: 100,
-                            expectedFingerprint:
-                                "a".repeat(64),
-                            operations: []
-                        })
-                }
-            );
-
-        const body =
-            await response.json();
-
-        assert.equal(response.status, 422);
-        assert.equal(body.success, false);
-        assert.equal(body.status, "invalid");
-        assert.equal(previewCalled, false);
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
-test("POST /import-small-write-dry-run rejects stale fingerprint without execution", async () => {
-    let executionCalled = false;
-
-    app.locals.getImportPreviewService =
-        async () => ({
-            async buildExecutionPlan() {
-                return {
-                    status: "ready",
-                    previewFingerprint:
-                        "b".repeat(64),
-                    executionPlan:
-                        Array.from(
-                            { length: 10 },
-                            (_, index) => ({
-                                sourceRecordKey:
-                                    `source-${index + 1}`,
-                                action: "new"
-                            })
-                        )
-                };
-            }
-        });
-
-    app.locals.getImportExecutionService =
-        async () => {
-            executionCalled = true;
-            throw new Error(
-                "execution service must not be reached"
-            );
-        };
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-
-        const response =
-            await fetch(
-                `http://127.0.0.1:${address.port}/import-small-write-dry-run`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-                    body:
-                        JSON.stringify({
-                            sourceDocumentKey:
-                                "doc-1",
-                            sourceUpdatedAt:
-                                "2026-09-17T00:00:00.000Z",
-                            sourceSize: 100,
-                            expectedFingerprint:
-                                "a".repeat(64)
-                        })
-                }
-            );
-
-        const body =
-            await response.json();
-
-        assert.equal(response.status, 409);
-        assert.equal(body.success, false);
-        assert.equal(body.status, "stale");
-        assert.equal(executionCalled, false);
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
-test("POST /import-small-write-verify forwards only confirmed authority to fixed ten row execution", async () => {
-    const fingerprint = "a".repeat(64);
-    let received = null;
-    let normalExecuteCalled = false;
-
-    app.locals.getImportExecutionService =
-        async () => ({
-            async execute() {
-                normalExecuteCalled = true;
-                throw new Error("normal execute must not be reached");
-            },
-            async executeSmallWriteVerification(input) {
-                received = input;
-                return {
-                    status: "completed",
-                    processed: 10,
-                    created: 10,
-                    updated: 0,
-                    alreadyApplied: 0
-                };
-            }
-        });
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-        const url =
-            "http://127.0.0.1:" +
-            address.port +
-            "/import-small-write-verify";
-
-        const response =
-            await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    sourceDocumentKey: "doc-1",
-                    sourceUpdatedAt:
-                        "2026-09-17T00:00:00.000Z",
-                    sourceSize: 100,
-                    expectedFingerprint: fingerprint
-                })
-            });
-
-        const body = await response.json();
-
-        assert.equal(response.status, 200);
-        assert.deepEqual(body, {
-            success: true,
-            status: "completed",
-            processed: 10,
-            created: 10,
-            updated: 0,
-            alreadyApplied: 0
-        });
-        assert.deepEqual(received, {
-            sourceDocumentKey: "doc-1",
-            sourceUpdatedAt:
-                "2026-09-17T00:00:00.000Z",
-            sourceSize: 100,
-            expectedFingerprint: fingerprint
-        });
-        assert.equal(normalExecuteCalled, false);
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
-test("POST /import-small-write-verify rejects browser supplied operations or limit before execution", async () => {
-    let executionServiceRequested = false;
-
-    app.locals.getImportExecutionService =
-        async () => {
-            executionServiceRequested = true;
-            throw new Error("execution service must not be reached");
-        };
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-        const url =
-            "http://127.0.0.1:" +
-            address.port +
-            "/import-small-write-verify";
-
-        for (const extra of [
-            { operations: [] },
-            { limit: 10 }
-        ]) {
-            const response =
-                await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        sourceDocumentKey: "doc-1",
-                        sourceUpdatedAt:
-                            "2026-09-17T00:00:00.000Z",
-                        sourceSize: 100,
-                        expectedFingerprint:
-                            "a".repeat(64),
-                        ...extra
-                    })
-                });
-
-            const body = await response.json();
-
-            assert.equal(response.status, 422);
-            assert.equal(body.success, false);
-            assert.equal(body.status, "invalid");
-        }
-
-        assert.equal(
-            executionServiceRequested,
-            false
-        );
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
-test("POST /import-small-write-verify preserves stale verification without successful execution", async () => {
-    let smallWriteCalls = 0;
-
-    app.locals.getImportExecutionService =
-        async () => ({
-            async executeSmallWriteVerification() {
-                smallWriteCalls += 1;
-                return { status: "stale" };
-            }
-        });
-
-    const server = app.listen(0);
-
-    try {
-        const address = server.address();
-        const url =
-            "http://127.0.0.1:" +
-            address.port +
-            "/import-small-write-verify";
-
-        const response =
-            await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    sourceDocumentKey: "doc-1",
-                    sourceUpdatedAt:
-                        "2026-09-17T00:00:00.000Z",
-                    sourceSize: 100,
-                    expectedFingerprint:
-                        "a".repeat(64)
-                })
-            });
-
-        const body = await response.json();
-
-        assert.equal(response.status, 409);
-        assert.equal(body.success, false);
-        assert.equal(body.status, "stale");
-        assert.equal(smallWriteCalls, 1);
-    } finally {
-        await new Promise(resolve =>
-            server.close(resolve)
-        );
-    }
-});
-
 test("POST /import-execute forwards only confirmed execution authority", async () => {
     const original =
         app.locals.getImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "support_record",
+                        confirmedAt:
+                            "2026-09-17T01:00:00.000Z"
+                    }
+                };
+            }
+        });
 
     let received = null;
 
@@ -4182,6 +4026,279 @@ test("POST /import-execute forwards only confirmed execution authority", async (
 
         app.locals.getImportExecutionService =
             original;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+
+test("POST /import-execute dispatches recipient certificate only to dedicated execution service", async () => {
+    const originalSupportExecution =
+        app.locals.getImportExecutionService;
+    const originalRecipientExecution =
+        app.locals.getRecipientCertificateImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportExecutionCalled = false;
+    let recipientReceived = null;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                assert.deepStrictEqual(
+                    input,
+                    {
+                        sourceDocumentKey:
+                            "doc-certificate-execute-1",
+                        sourceUpdatedAt:
+                            "2026-09-21T00:00:00.000Z",
+                        sourceSize:
+                            12345
+                    }
+                );
+
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-21T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                supportExecutionCalled = true;
+                throw new Error(
+                    "support execution service must not be called"
+                );
+            }
+        });
+
+    app.locals.getRecipientCertificateImportExecutionService =
+        async () => ({
+            async execute(input) {
+                recipientReceived = input;
+
+                return {
+                    status: "completed",
+                    processed: 2,
+                    created: 1,
+                    updated: 0,
+                    unchanged: 1,
+                    residentsCreated: 1
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-certificate-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-21T00:00:00.000Z",
+                            sourceSize:
+                                12345,
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.strictEqual(
+            supportExecutionCalled,
+            false
+        );
+
+        assert.deepStrictEqual(
+            recipientReceived,
+            {
+                sourceDocumentKey:
+                    "doc-certificate-execute-1",
+                sourceUpdatedAt:
+                    "2026-09-21T00:00:00.000Z",
+                sourceSize:
+                    12345,
+                expectedFingerprint:
+                    "a".repeat(64)
+            }
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                status: "completed",
+                processed: 2,
+                created: 1,
+                updated: 0,
+                unchanged: 1,
+                residentsCreated: 1
+            }
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            originalSupportExecution;
+        app.locals.getRecipientCertificateImportExecutionService =
+            originalRecipientExecution;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+test("POST /import-execute blocks unsupported document type before execution service", async () => {
+    const originalSupportExecution =
+        app.locals.getImportExecutionService;
+    const originalRecipientExecution =
+        app.locals.getRecipientCertificateImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportExecutionCalled = false;
+    let recipientExecutionCalled = false;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "assessment",
+                        confirmedAt:
+                            "2026-09-21T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                supportExecutionCalled = true;
+            }
+        });
+
+    app.locals.getRecipientCertificateImportExecutionService =
+        async () => ({
+            async execute() {
+                recipientExecutionCalled = true;
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-assessment-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-21T00:00:00.000Z",
+                            sourceSize:
+                                12345,
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            409
+        );
+        assert.strictEqual(
+            body.success,
+            false
+        );
+        assert.strictEqual(
+            body.status,
+            "document_type_not_supported_for_execution"
+        );
+        assert.strictEqual(
+            supportExecutionCalled,
+            false
+        );
+        assert.strictEqual(
+            recipientExecutionCalled,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            originalSupportExecution;
+        app.locals.getRecipientCertificateImportExecutionService =
+            originalRecipientExecution;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
     }
 });
 
@@ -4321,6 +4438,23 @@ test("POST /import-execute rejects invalid fingerprint before execution", async 
 test("POST /import-execute requires re-preview when execution is stale", async () => {
     const original =
         app.locals.getImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "support_record",
+                        confirmedAt:
+                            "2026-09-17T01:00:00.000Z"
+                    }
+                };
+            }
+        });
 
     app.locals.getImportExecutionService =
         async () => ({
@@ -4387,12 +4521,31 @@ test("POST /import-execute requires re-preview when execution is stale", async (
 
         app.locals.getImportExecutionService =
             original;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
     }
 });
 
 test("POST /import-execute preserves conflict partial counts", async () => {
     const original =
         app.locals.getImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "support_record",
+                        confirmedAt:
+                            "2026-09-17T01:00:00.000Z"
+                    }
+                };
+            }
+        });
 
     app.locals.getImportExecutionService =
         async () => ({
@@ -4483,6 +4636,8 @@ test("POST /import-execute preserves conflict partial counts", async () => {
 
         app.locals.getImportExecutionService =
             original;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
     }
 });
 

@@ -128,7 +128,32 @@ class SourceFieldInterpretationQueryTransport {
                 ? query.sourceDocumentKey.trim()
                 : "";
 
-        if (!sourceDocumentKey) {
+        const sourceUpdatedAt =
+            query &&
+            typeof query.sourceUpdatedAt === "string"
+                ? query.sourceUpdatedAt.trim()
+                : "";
+
+        const sourceSizeText =
+            query &&
+            typeof query.sourceSize === "string"
+                ? query.sourceSize.trim()
+                : "";
+
+        const sourceSize =
+            /^\d+$/.test(sourceSizeText)
+                ? Number(sourceSizeText)
+                : Number.NaN;
+
+        if (
+            !sourceDocumentKey ||
+            !sourceUpdatedAt ||
+            Number.isNaN(
+                Date.parse(sourceUpdatedAt)
+            ) ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
             return {
                 httpStatus: 422,
                 body: {
@@ -145,7 +170,12 @@ class SourceFieldInterpretationQueryTransport {
                 connectorId:
                     rawConnectorId.trim(),
                 credential,
-                sourceDocumentKey
+                sourceDocumentKey,
+                sourceUpdatedAt:
+                    new Date(
+                        sourceUpdatedAt
+                    ).toISOString(),
+                sourceSize
             });
 
         if (

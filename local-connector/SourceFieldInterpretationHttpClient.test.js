@@ -43,6 +43,10 @@ test("sends sourceFieldInterpretation with connector trust headers only", async 
     const sourceFieldInterpretation = {
         sourceDocumentKey:
             "document-key",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345,
         sourceFieldKey:
             "sheet:0:column:3",
         interpretationStatus:
@@ -144,6 +148,10 @@ test("accepts created updated and unchanged", async () => {
             await client.ingest({
                 sourceDocumentKey:
                     "document-key",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345,
                 sourceFieldKey:
                     "sheet:0:column:3",
                 interpretationStatus:
@@ -191,6 +199,10 @@ test("preserves safe interpretation invalid error code", async () => {
             client.ingest({
                 sourceDocumentKey:
                     "document-key",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345,
                 sourceFieldKey:
                     "sheet:0:column:3",
                 interpretationStatus:
@@ -280,9 +292,14 @@ test("lists persisted source field interpretations", async () => {
         });
 
     const result =
-        await client.list(
-            "source-document-1"
-        );
+        await client.list({
+            sourceDocumentKey:
+                "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345
+        });
 
     const url =
         new URL(request.url);
@@ -302,6 +319,20 @@ test("lists persisted source field interpretations", async () => {
             "sourceDocumentKey"
         ),
         "source-document-1"
+    );
+
+    assert.equal(
+        url.searchParams.get(
+            "sourceUpdatedAt"
+        ),
+        "2026-09-22T00:00:00.000Z"
+    );
+
+    assert.equal(
+        url.searchParams.get(
+            "sourceSize"
+        ),
+        "12345"
     );
 
     assert.equal(
@@ -350,8 +381,14 @@ test("rejects blank sourceDocumentKey before interpretation query", async () => 
         });
 
     await assert.rejects(
-        () => client.list("   "),
-        /sourceDocumentKey is required/
+        () => client.list({
+            sourceDocumentKey: "   ",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345
+        }),
+        /valid source snapshot is required/
     );
 
     assert.equal(

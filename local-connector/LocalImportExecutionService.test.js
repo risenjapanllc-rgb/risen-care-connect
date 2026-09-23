@@ -62,6 +62,9 @@ test("verified plan is the only plan sent to execution", async () => {
 
     assert.deepEqual(received, {
         sourceDocumentKey: "doc-1",
+        sourceUpdatedAt:
+            "2026-09-17T00:00:00.000Z",
+        sourceSize: 100,
         executionPlan: plan
     });
     assert.equal(result.status, "completed");

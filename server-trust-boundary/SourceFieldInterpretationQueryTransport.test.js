@@ -48,7 +48,11 @@ test("passes trusted GET query to adapter", async () => {
             },
             query: {
                 sourceDocumentKey:
-                    "source-document-1"
+                    "source-document-1",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    "12345"
             }
         });
 
@@ -70,6 +74,16 @@ test("passes trusted GET query to adapter", async () => {
     assert.equal(
         adapterInput.sourceDocumentKey,
         "source-document-1"
+    );
+
+    assert.equal(
+        adapterInput.sourceUpdatedAt,
+        "2026-09-22T00:00:00.000Z"
+    );
+
+    assert.equal(
+        adapterInput.sourceSize,
+        12345
     );
 });
 

@@ -14,6 +14,10 @@ test("validates deferred interpretation", () => {
         validator.validate({
             sourceDocumentKey:
                 " source-document-1 ",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 " sheet:0:column:2 ",
             interpretationStatus:
@@ -31,6 +35,10 @@ test("validates deferred interpretation", () => {
             validatedSourceFieldInterpretation: {
                 sourceDocumentKey:
                     "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
                 sourceFieldKey:
                     "sheet:0:column:2",
                 interpretationStatus:
@@ -52,6 +60,10 @@ test("validates no-standard-match interpretation", () => {
         validator.validate({
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:3",
             interpretationStatus:
@@ -79,6 +91,10 @@ test("rejects unsupported interpretation status", () => {
         validator.validate({
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:3",
             interpretationStatus:
@@ -105,6 +121,10 @@ test("rejects unsupported mapping status", () => {
         validator.validate({
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:3",
             interpretationStatus:

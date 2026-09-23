@@ -52,7 +52,9 @@ class SupabaseSourceFieldInterpretationQueryRepository {
     async list({
         verifiedFacilityId,
         verifiedConnectorId,
-        sourceDocumentKey
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
     } = {}) {
         if (
             typeof verifiedFacilityId !== "string" ||
@@ -60,7 +62,11 @@ class SupabaseSourceFieldInterpretationQueryRepository {
             typeof verifiedConnectorId !== "string" ||
             !verifiedConnectorId.trim() ||
             typeof sourceDocumentKey !== "string" ||
-            !sourceDocumentKey.trim()
+            !sourceDocumentKey.trim() ||
+            typeof sourceUpdatedAt !== "string" ||
+            !sourceUpdatedAt.trim() ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
         ) {
             return {
                 status: "invalid"
@@ -82,7 +88,7 @@ class SupabaseSourceFieldInterpretationQueryRepository {
 
         const response =
             await this.fetchImpl(
-                `${this.supabaseUrl}/rest/v1/rpc/list_connector_source_field_interpretations`,
+                `${this.supabaseUrl}/rest/v1/rpc/list_connector_source_field_interpretations_snapshot`,
                 {
                     method: "POST",
                     headers: {
@@ -100,7 +106,11 @@ class SupabaseSourceFieldInterpretationQueryRepository {
                             p_connector_id:
                                 verifiedConnectorId,
                             p_source_document_key:
-                                sourceDocumentKey.trim()
+                                sourceDocumentKey.trim(),
+                            p_source_updated_at:
+                                sourceUpdatedAt.trim(),
+                            p_source_size:
+                                sourceSize
                         })
                 }
             );

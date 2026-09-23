@@ -72,7 +72,7 @@ class SupabaseSourceFieldInterpretationPersistenceRepository
 
         const response =
             await fetch(
-                `${this.supabaseUrl}/rest/v1/rpc/confirm_connector_source_field_interpretation`,
+                `${this.supabaseUrl}/rest/v1/rpc/confirm_connector_source_field_interpretation_snapshot`,
                 {
                     method: "POST",
                     headers: {
@@ -98,14 +98,45 @@ class SupabaseSourceFieldInterpretationPersistenceRepository
                             p_mapping_status:
                                 input.mappingStatus,
                             p_confirmed_meaning:
-                                input.confirmedMeaning ?? null
+                                input.confirmedMeaning ?? null,
+                            p_source_updated_at:
+                                input.sourceUpdatedAt,
+                            p_source_size:
+                                input.sourceSize
                         })
                 }
             );
 
         if (!response.ok) {
+            const errorText =
+                await response.text()
+                    .catch(() => "");
+
+            let errorDetail =
+                errorText;
+
+            try {
+                const parsed =
+                    JSON.parse(errorText);
+
+                errorDetail =
+                    [
+                        parsed?.code,
+                        parsed?.message,
+                        parsed?.details,
+                        parsed?.hint
+                    ]
+                        .filter(value =>
+                            typeof value === "string" &&
+                            value.trim()
+                        )
+                        .join(" | ");
+            } catch (_) {
+                // Keep the plain response body.
+            }
+
             throw new Error(
-                `Supabase source field interpretation persistence failed: ${response.status}`
+                `Supabase source field interpretation persistence failed: ${response.status}${errorDetail ? ` | ${errorDetail}` : ""}`
             );
         }
 
@@ -119,7 +150,14 @@ class SupabaseSourceFieldInterpretationPersistenceRepository
                   result.length === 1 &&
                   typeof result[0] === "string"
                     ? result[0]
-                    : null;
+                    : Array.isArray(result) &&
+                        result.length === 1 &&
+                        result[0] &&
+                        typeof result[0] === "object" &&
+                        !Array.isArray(result[0]) &&
+                        typeof result[0].status === "string"
+                      ? result[0].status
+                      : null;
 
         if (
             ![
@@ -130,6 +168,7 @@ class SupabaseSourceFieldInterpretationPersistenceRepository
                 "invalid"
             ].includes(status)
         ) {
+
             throw new Error(
                 "Supabase source field interpretation persistence returned invalid status"
             );

@@ -58,6 +58,10 @@ test("uses verified Connector context for interpretation query", async () => {
                 "credential-request",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             facilityId:
                 "facility-untrusted",
             verifiedConnectorId:
@@ -72,7 +76,11 @@ test("uses verified Connector context for interpretation query", async () => {
             verifiedConnectorId:
                 "connector-verified",
             sourceDocumentKey:
-                "source-document-1"
+                "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345
         }
     );
 

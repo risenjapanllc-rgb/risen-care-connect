@@ -181,6 +181,10 @@ class SourceFieldInterpretationIngestionService {
                             verifiedContext.connectorId,
                         sourceDocumentKey:
                             validated.sourceDocumentKey,
+                        sourceUpdatedAt:
+                            validated.sourceUpdatedAt,
+                        sourceSize:
+                            validated.sourceSize,
                         sourceFieldKey:
                             validated.sourceFieldKey,
                         interpretationStatus:
@@ -191,6 +195,14 @@ class SourceFieldInterpretationIngestionService {
                             validated.confirmedMeaning
                     });
         } catch (error) {
+            console.error({
+                event: "source_field_interpretation_persistence_failed",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "unknown persistence error"
+            });
+
             return {
                 status: "error",
                 errorCode:

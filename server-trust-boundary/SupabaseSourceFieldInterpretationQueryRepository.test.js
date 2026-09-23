@@ -68,7 +68,11 @@ test("lists source field interpretations through trusted Supabase RPC", async ()
             verifiedConnectorId:
                 "connector-verified",
             sourceDocumentKey:
-                "source-document-1"
+                "source-document-1",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345
         });
 
     assert.deepEqual(
@@ -106,7 +110,7 @@ test("lists source field interpretations through trusted Supabase RPC", async ()
 
     assert.equal(
         request.url,
-        "https://example.supabase.co/rest/v1/rpc/list_connector_source_field_interpretations"
+        "https://example.supabase.co/rest/v1/rpc/list_connector_source_field_interpretations_snapshot"
     );
 
     assert.equal(
@@ -122,7 +126,11 @@ test("lists source field interpretations through trusted Supabase RPC", async ()
             p_connector_id:
                 "connector-verified",
             p_source_document_key:
-                "source-document-1"
+                "source-document-1",
+            p_source_updated_at:
+                "2026-09-22T00:00:00.000Z",
+            p_source_size:
+                12345
         }
     );
 });
@@ -207,7 +215,11 @@ test("rejects malformed Supabase interpretation rows", async () => {
                 verifiedConnectorId:
                     "connector-verified",
                 sourceDocumentKey:
-                    "source-document-1"
+                    "source-document-1",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345
             }),
         /invalid row/
     );

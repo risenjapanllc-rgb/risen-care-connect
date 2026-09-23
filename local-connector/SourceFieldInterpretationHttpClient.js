@@ -115,13 +115,24 @@ class SourceFieldInterpretationHttpClient {
             fetchImpl;
     }
 
-    async list(sourceDocumentKey) {
+    async list({
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
+    } = {}) {
         if (
             typeof sourceDocumentKey !== "string" ||
-            !sourceDocumentKey.trim()
+            !sourceDocumentKey.trim() ||
+            typeof sourceUpdatedAt !== "string" ||
+            !sourceUpdatedAt.trim() ||
+            Number.isNaN(
+                Date.parse(sourceUpdatedAt)
+            ) ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
         ) {
             throw new TypeError(
-                "sourceDocumentKey is required"
+                "valid source snapshot is required"
             );
         }
 
@@ -141,6 +152,18 @@ class SourceFieldInterpretationHttpClient {
             url.searchParams.set(
                 "sourceDocumentKey",
                 sourceDocumentKey.trim()
+            );
+
+            url.searchParams.set(
+                "sourceUpdatedAt",
+                new Date(
+                    sourceUpdatedAt
+                ).toISOString()
+            );
+
+            url.searchParams.set(
+                "sourceSize",
+                String(sourceSize)
             );
 
             let response;
@@ -318,10 +341,23 @@ class SourceFieldInterpretationHttpClient {
         if (
             !sourceFieldInterpretation ||
             typeof sourceFieldInterpretation !== "object" ||
-            Array.isArray(sourceFieldInterpretation)
+            Array.isArray(sourceFieldInterpretation) ||
+            typeof sourceFieldInterpretation.sourceDocumentKey !== "string" ||
+            !sourceFieldInterpretation.sourceDocumentKey.trim() ||
+            typeof sourceFieldInterpretation.sourceUpdatedAt !== "string" ||
+            !sourceFieldInterpretation.sourceUpdatedAt.trim() ||
+            Number.isNaN(
+                Date.parse(
+                    sourceFieldInterpretation.sourceUpdatedAt
+                )
+            ) ||
+            !Number.isSafeInteger(
+                sourceFieldInterpretation.sourceSize
+            ) ||
+            sourceFieldInterpretation.sourceSize < 0
         ) {
             throw new TypeError(
-                "sourceFieldInterpretation is required"
+                "valid source field interpretation snapshot is required"
             );
         }
 

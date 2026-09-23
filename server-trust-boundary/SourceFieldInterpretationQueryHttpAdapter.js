@@ -55,7 +55,9 @@ class SourceFieldInterpretationQueryHttpAdapter {
         requestId,
         connectorId,
         credential,
-        sourceDocumentKey
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
     } = {}) {
         let result;
 
@@ -64,7 +66,9 @@ class SourceFieldInterpretationQueryHttpAdapter {
                 await this.queryService.list({
                     connectorId,
                     credential,
-                    sourceDocumentKey
+                    sourceDocumentKey,
+                    sourceUpdatedAt,
+                    sourceSize
                 });
         } catch {
             this.diagnoseError(

@@ -41,15 +41,32 @@ function createServerTrustBoundaryApp({
     sourceRecordIdentityMappingQueryTransport,
     sourceRecordIdentityMappingEndpointPath =
         "/connector/source-record-identity-mapping",
+    confirmedDocumentTypeTransport,
+    confirmedDocumentTypeQueryTransport,
+    confirmedDocumentTypeEndpointPath =
+        "/connector/confirmed-document-type",
+    residentAdmissionDecisionTransport,
+    residentAdmissionDecisionQueryTransport,
+    residentAdmissionDecisionEndpointPath =
+        "/connector/resident-admission-decisions",
     connectorSemanticRecordPreviewTransport,
     connectorSemanticRecordPreviewEndpointPath =
         "/connector/semantic-record-preview",
+    connectorSemanticLogicalRecordTransport,
+    connectorSemanticLogicalRecordEndpointPath =
+        "/connector/semantic-logical-record",
+    connectorSemanticLogicalRecordPersistenceTransport,
+    connectorSemanticLogicalRecordPersistenceEndpointPath =
+        "/connector/semantic-logical-record-persistence",
     connectorSupportRecordBatchWriteTransport,
     connectorSupportRecordBatchWriteEndpointPath =
         "/connector/support-record-batch-write",
     residentCreationTransport,
     residentCreationEndpointPath =
         "/connector/residents",
+    connectorResidentAdmissionTransport,
+    connectorResidentAdmissionEndpointPath =
+        "/connector/resident-admission",
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
         jsonBodyLimit
@@ -577,6 +594,153 @@ function createServerTrustBoundaryApp({
         }
     }
 
+    if (confirmedDocumentTypeTransport) {
+        if (
+            typeof confirmedDocumentTypeTransport.handle !==
+                "function" ||
+            typeof confirmedDocumentTypeTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete confirmedDocumentTypeTransport"
+            );
+        }
+
+        if (
+            confirmedDocumentTypeQueryTransport &&
+            (
+                typeof confirmedDocumentTypeQueryTransport.handle !==
+                    "function" ||
+                typeof confirmedDocumentTypeQueryTransport.createErrorResponse !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete confirmedDocumentTypeQueryTransport"
+            );
+        }
+
+        app.post(
+            confirmedDocumentTypeEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await confirmedDocumentTypeTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (confirmedDocumentTypeQueryTransport) {
+            app.get(
+                confirmedDocumentTypeEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await confirmedDocumentTypeQueryTransport.handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
+    }
+
+    if (residentAdmissionDecisionTransport) {
+        if (
+            typeof residentAdmissionDecisionTransport.handle !==
+                "function" ||
+            typeof residentAdmissionDecisionTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete residentAdmissionDecisionTransport"
+            );
+        }
+
+        if (
+            residentAdmissionDecisionQueryTransport &&
+            (
+                typeof residentAdmissionDecisionQueryTransport.handle !==
+                    "function" ||
+                typeof residentAdmissionDecisionQueryTransport.createErrorResponse !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete residentAdmissionDecisionQueryTransport"
+            );
+        }
+
+        app.post(
+            residentAdmissionDecisionEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await residentAdmissionDecisionTransport.handle({
+                            method: req.method,
+                            contentType: req.get("content-type"),
+                            headers: req.headers,
+                            body: req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+
+        if (residentAdmissionDecisionQueryTransport) {
+            app.get(
+                residentAdmissionDecisionEndpointPath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await residentAdmissionDecisionQueryTransport.handle({
+                                method: req.method,
+                                headers: req.headers,
+                                query: req.query
+                            });
+
+                        return res
+                            .status(result.httpStatus)
+                            .json(result.body);
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        }
+    }
+
     if (connectorSemanticRecordPreviewTransport) {
         if (
             typeof connectorSemanticRecordPreviewTransport.handle !==
@@ -603,6 +767,90 @@ function createServerTrustBoundaryApp({
                                 req.headers,
                             body:
                                 req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorSemanticLogicalRecordTransport) {
+        app.post(
+            connectorSemanticLogicalRecordEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorSemanticLogicalRecordTransport.handle({
+                            method: req.method,
+                            contentType: req.get("content-type"),
+                            headers: req.headers,
+                            body: req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorResidentAdmissionTransport) {
+        if (
+            typeof connectorResidentAdmissionTransport.handle !==
+                "function" ||
+            typeof connectorResidentAdmissionTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorResidentAdmissionTransport"
+            );
+        }
+
+        app.post(
+            connectorResidentAdmissionEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorResidentAdmissionTransport.handle({
+                            method:
+                                req.method,
+                            contentType:
+                                req.get("content-type"),
+                            headers:
+                                req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorSemanticLogicalRecordPersistenceTransport) {
+        app.post(
+            connectorSemanticLogicalRecordPersistenceEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorSemanticLogicalRecordPersistenceTransport.handle({
+                            method: req.method,
+                            contentType: req.get("content-type"),
+                            headers: req.headers,
+                            body: req.body
                         });
 
                     return res

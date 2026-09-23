@@ -1,11 +1,16 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { resolveResidentIdentityMapping } =
+    require("./ResidentIdentityMappingResolver");
+const { resolveHumanConfirmedFieldMappings } =
+    require("./HumanConfirmedFieldMappingResolver");
 
 class SourceResidentCandidateResolver {
     constructor({
         localConnectorService,
         sourceFieldMappingClient,
+        sourceFieldInterpretationClient,
         residentCandidateClient
     } = {}) {
         if (
@@ -29,6 +34,16 @@ class SourceResidentCandidateResolver {
         }
 
         if (
+            !sourceFieldInterpretationClient ||
+            typeof sourceFieldInterpretationClient.list !==
+                "function"
+        ) {
+            throw new Error(
+                "SourceResidentCandidateResolver requires sourceFieldInterpretationClient"
+            );
+        }
+
+        if (
             !residentCandidateClient ||
             typeof residentCandidateClient
                 .findCandidates !== "function"
@@ -42,6 +57,8 @@ class SourceResidentCandidateResolver {
             localConnectorService;
         this.sourceFieldMappingClient =
             sourceFieldMappingClient;
+        this.sourceFieldInterpretationClient =
+            sourceFieldInterpretationClient;
         this.residentCandidateClient =
             residentCandidateClient;
     }
@@ -80,53 +97,133 @@ class SourceResidentCandidateResolver {
             throw error;
         }
 
-        const findIdentifierMappings =
-            standardFieldName =>
-                mappingResult.mappings.filter(
-                    mapping =>
-                        mapping &&
-                        mapping.standardEntityName ===
-                            "user" &&
-                        mapping.standardFieldName ===
-                            standardFieldName &&
-                        typeof mapping.sourceFieldKey ===
-                            "string" &&
-                        mapping.sourceFieldKey.trim() !==
-                            ""
-                );
+        const interpretationResult =
+            await this.sourceFieldInterpretationClient
+                .list({
+                    sourceDocumentKey:
+                        snapshot.sourceDocumentKey,
+                    sourceUpdatedAt:
+                        snapshot.sourceUpdatedAt,
+                    sourceSize:
+                        snapshot.sourceSize
+                });
 
-        const userCodeMappings =
-            findIdentifierMappings("user_code");
-
-        const nameMappings =
-            findIdentifierMappings("name");
-
-        let identifierType;
-        let candidateIdentifierType;
-        let identifierMapping;
-
-        if (userCodeMappings.length === 1) {
-            identifierType = "user_code";
-            candidateIdentifierType = "userCode";
-            identifierMapping =
-                userCodeMappings[0];
-        } else if (
-            userCodeMappings.length === 0 &&
-            nameMappings.length === 1
+        if (
+            interpretationResult?.status !== "found" ||
+            !Array.isArray(
+                interpretationResult.interpretations
+            )
         ) {
-            identifierType = "name";
-            candidateIdentifierType = "name";
-            identifierMapping =
-                nameMappings[0];
-        } else {
             const error =
                 new Error(
-                    "Resident identifier mapping is unavailable"
+                    "Source field interpretations are unavailable"
                 );
             error.code =
                 "resident_identifier_mapping_unavailable";
             throw error;
         }
+
+        const {
+            humanConfirmedMeanings,
+            humanConfirmedMappings
+        } =
+            resolveHumanConfirmedFieldMappings(
+                mappingResult.mappings,
+                interpretationResult.interpretations
+            );
+
+        let resolvedIdentityMapping;
+
+        try {
+            resolvedIdentityMapping =
+                resolveResidentIdentityMapping(
+                    humanConfirmedMappings
+                );
+        } catch (error) {
+            if (
+                error?.code ===
+                "resident_identifier_mapping_unavailable"
+            ) {
+                const hasResidentMapping =
+                    mappingResult.mappings.some(
+                        mapping =>
+                            mapping &&
+                            mapping.standardEntityName ===
+                                "user" &&
+                            [
+                                "name",
+                                "user_code"
+                            ].includes(
+                                mapping.standardFieldName
+                            )
+                    );
+
+                const hasHumanConfirmedInterpretation =
+                    humanConfirmedMeanings.size > 0;
+
+                const hasMatchingHumanConfirmedMapping =
+                    humanConfirmedMappings.length > 0;
+
+                error.identityReason =
+                    !hasResidentMapping
+                        ? "resident_mapping_missing"
+                        : !hasHumanConfirmedInterpretation
+                            ? "human_confirmation_missing"
+                            : !hasMatchingHumanConfirmedMapping
+                                ? "confirmed_meaning_mismatch"
+                                : "resident_identity_mapping_ambiguous";
+            }
+
+            throw error;
+        }
+
+        const {
+            identifierType,
+            candidateIdentifierType,
+            sourceFieldKey
+        } = resolvedIdentityMapping;
+
+        const identifierMapping =
+            mappingResult.mappings.find(
+                mapping =>
+                    mapping &&
+                    typeof mapping.sourceFieldKey === "string" &&
+                    mapping.sourceFieldKey.trim() ===
+                        sourceFieldKey
+            );
+
+        const fieldDefinitions =
+            Array.isArray(
+                snapshot.analysis?.extracted
+                    ?.fieldDefinitions
+            )
+                ? snapshot.analysis.extracted
+                    .fieldDefinitions
+                : [];
+
+        const identifierFieldDefinition =
+            fieldDefinitions.find(
+                field =>
+                    field &&
+                    typeof field.sourceFieldKey === "string" &&
+                    field.sourceFieldKey.trim() ===
+                        sourceFieldKey
+            );
+
+        const persistedHeaderLabel =
+            typeof identifierMapping?.headerLabel === "string"
+                ? identifierMapping.headerLabel.trim()
+                : "";
+
+        const structuralHeaderLabel =
+            typeof identifierFieldDefinition?.headerLabel === "string"
+                ? identifierFieldDefinition.headerLabel.trim()
+                : "";
+
+        const identifierHeaderLabel =
+            persistedHeaderLabel ||
+            structuralHeaderLabel ||
+            null;
 
         const sourceEntities =
             snapshot.analysis?.extracted
@@ -141,9 +238,6 @@ class SourceResidentCandidateResolver {
                 "source_entities_unavailable";
             throw error;
         }
-
-        const sourceFieldKey =
-            identifierMapping.sourceFieldKey.trim();
 
         const grouped =
             new Map();
@@ -172,7 +266,8 @@ class SourceResidentCandidateResolver {
             if (!group) {
                 group = {
                     identifierValue,
-                    sourceEntityCount: 0
+                    sourceEntityCount: 0,
+                    sourceEntityKeys: []
                 };
                 grouped.set(
                     identifierValue,
@@ -181,6 +276,23 @@ class SourceResidentCandidateResolver {
             }
 
             group.sourceEntityCount += 1;
+
+            if (
+                typeof entity?.sourceEntityKey !== "string" ||
+                !entity.sourceEntityKey.trim()
+            ) {
+                const error =
+                    new Error(
+                        "Source entity key is unavailable"
+                    );
+                error.code =
+                    "source_entities_unavailable";
+                throw error;
+            }
+
+            group.sourceEntityKeys.push(
+                entity.sourceEntityKey.trim()
+            );
         }
 
         const groups = [];
@@ -221,6 +333,8 @@ class SourceResidentCandidateResolver {
                         : null,
                 sourceEntityCount:
                     group.sourceEntityCount,
+                sourceEntityKeys:
+                    [...group.sourceEntityKeys],
                 status:
                     candidates.length === 0
                         ? "not_found"
@@ -231,8 +345,37 @@ class SourceResidentCandidateResolver {
             });
         }
 
+        const identifierFieldDefinitionMatched =
+            Boolean(identifierFieldDefinition);
+
+        const identifierMappingHasHeaderLabel =
+            Boolean(persistedHeaderLabel);
+
+        const identifierKeyPresentInEverySourceEntity =
+            sourceEntities.every(
+                entity =>
+                    entity &&
+                    entity.valuesBySourceFieldKey &&
+                    typeof entity.valuesBySourceFieldKey === "object" &&
+                    Object.prototype.hasOwnProperty.call(
+                        entity.valuesBySourceFieldKey,
+                        sourceFieldKey
+                    )
+            );
+
         return {
             identifierType,
+            identifierHeaderLabel,
+            identityDiagnostic: {
+                fieldDefinitionMatched:
+                    identifierFieldDefinitionMatched,
+                mappingHasHeaderLabel:
+                    identifierMappingHasHeaderLabel,
+                keyPresentInEverySourceEntity:
+                    identifierKeyPresentInEverySourceEntity,
+                fieldDefinitionCount:
+                    fieldDefinitions.length
+            },
             sourceEntityCount:
                 sourceEntities.length,
             unavailableSourceEntityCount,
@@ -290,50 +433,172 @@ class SourceResidentCandidateResolver {
             throw error;
         }
 
-        const findIdentifierMappings =
-            standardFieldName =>
-                mappingResult.mappings.filter(
-                    mapping =>
-                        mapping &&
-                        mapping.standardEntityName ===
-                            "user" &&
-                        mapping.standardFieldName ===
-                            standardFieldName &&
-                        typeof mapping.sourceFieldKey ===
-                            "string" &&
-                        mapping.sourceFieldKey.trim() !==
-                            ""
-                );
+        const interpretationResult =
+            await this.sourceFieldInterpretationClient
+                .list({
+                    sourceDocumentKey:
+                        snapshot.sourceDocumentKey,
+                    sourceUpdatedAt:
+                        snapshot.sourceUpdatedAt,
+                    sourceSize:
+                        snapshot.sourceSize
+                });
 
-        const userCodeMappings =
-            findIdentifierMappings("user_code");
-
-        const nameMappings =
-            findIdentifierMappings("name");
-
-        let identifierType;
-        let identifierMapping;
-
-        if (userCodeMappings.length === 1) {
-            identifierType = "userCode";
-            identifierMapping =
-                userCodeMappings[0];
-        } else if (
-            userCodeMappings.length === 0 &&
-            nameMappings.length === 1
+        if (
+            interpretationResult?.status !== "found" ||
+            !Array.isArray(
+                interpretationResult.interpretations
+            )
         ) {
-            identifierType = "name";
-            identifierMapping =
-                nameMappings[0];
-        } else {
             const error =
                 new Error(
-                    "Resident identifier mapping is unavailable"
+                    "Source field interpretations are unavailable"
                 );
             error.code =
                 "resident_identifier_mapping_unavailable";
             throw error;
         }
+
+        const humanConfirmedMeanings =
+            new Map(
+                interpretationResult.interpretations
+                    .filter(
+                        interpretation =>
+                            interpretation &&
+                            interpretation.confirmedByHuman === true &&
+                            typeof interpretation.sourceFieldKey === "string" &&
+                            interpretation.sourceFieldKey.trim() &&
+                            typeof interpretation.confirmedMeaning === "string" &&
+                            interpretation.confirmedMeaning.trim()
+                    )
+                    .map(
+                        interpretation => [
+                            interpretation.sourceFieldKey.trim(),
+                            interpretation.confirmedMeaning.trim()
+                        ]
+                    )
+            );
+
+        const humanConfirmedMappings =
+            mappingResult.mappings.filter(
+                mapping => {
+                    if (
+                        !mapping ||
+                        typeof mapping.sourceFieldKey !== "string" ||
+                        typeof mapping.standardEntityName !== "string" ||
+                        typeof mapping.standardFieldName !== "string"
+                    ) {
+                        return false;
+                    }
+
+                    const sourceFieldKey =
+                        mapping.sourceFieldKey.trim();
+
+                    const expectedMeaning =
+                        mapping.standardEntityName.trim() +
+                        "." +
+                        mapping.standardFieldName.trim();
+
+                    return (
+                        humanConfirmedMeanings.get(
+                            sourceFieldKey
+                        ) === expectedMeaning
+                    );
+                }
+            );
+
+        let resolvedIdentityMapping;
+
+        try {
+            resolvedIdentityMapping =
+                resolveResidentIdentityMapping(
+                    humanConfirmedMappings
+                );
+        } catch (error) {
+            if (
+                error?.code ===
+                "resident_identifier_mapping_unavailable"
+            ) {
+                const hasResidentMapping =
+                    mappingResult.mappings.some(
+                        mapping =>
+                            mapping &&
+                            mapping.standardEntityName ===
+                                "user" &&
+                            [
+                                "name",
+                                "user_code"
+                            ].includes(
+                                mapping.standardFieldName
+                            )
+                    );
+
+                const hasHumanConfirmedInterpretation =
+                    humanConfirmedMeanings.size > 0;
+
+                const hasMatchingHumanConfirmedMapping =
+                    humanConfirmedMappings.length > 0;
+
+                error.identityReason =
+                    !hasResidentMapping
+                        ? "resident_mapping_missing"
+                        : !hasHumanConfirmedInterpretation
+                            ? "human_confirmation_missing"
+                            : !hasMatchingHumanConfirmedMapping
+                                ? "confirmed_meaning_mismatch"
+                                : "resident_identity_mapping_ambiguous";
+            }
+
+            throw error;
+        }
+
+        const {
+            identifierType,
+            candidateIdentifierType,
+            sourceFieldKey
+        } = resolvedIdentityMapping;
+
+        const identifierMapping =
+            mappingResult.mappings.find(
+                mapping =>
+                    mapping &&
+                    typeof mapping.sourceFieldKey === "string" &&
+                    mapping.sourceFieldKey.trim() ===
+                        sourceFieldKey
+            );
+
+        const fieldDefinitions =
+            Array.isArray(
+                snapshot.analysis?.extracted
+                    ?.fieldDefinitions
+            )
+                ? snapshot.analysis.extracted
+                    .fieldDefinitions
+                : [];
+
+        const identifierFieldDefinition =
+            fieldDefinitions.find(
+                field =>
+                    field &&
+                    typeof field.sourceFieldKey === "string" &&
+                    field.sourceFieldKey.trim() ===
+                        sourceFieldKey
+            );
+
+        const persistedHeaderLabel =
+            typeof identifierMapping?.headerLabel === "string"
+                ? identifierMapping.headerLabel.trim()
+                : "";
+
+        const structuralHeaderLabel =
+            typeof identifierFieldDefinition?.headerLabel === "string"
+                ? identifierFieldDefinition.headerLabel.trim()
+                : "";
+
+        const identifierHeaderLabel =
+            persistedHeaderLabel ||
+            structuralHeaderLabel ||
+            null;
 
         const sourceEntities =
             snapshot.analysis?.extracted
@@ -367,9 +632,6 @@ class SourceResidentCandidateResolver {
             throw error;
         }
 
-        const sourceFieldKey =
-            identifierMapping.sourceFieldKey.trim();
-
         const rawIdentifier =
             sourceEntity
                 .valuesBySourceFieldKey?.[
@@ -394,9 +656,9 @@ class SourceResidentCandidateResolver {
         const candidates =
             await this.residentCandidateClient
                 .findCandidates({
-                    [identifierType]:
-                        identifierValue
-                });
+                [candidateIdentifierType]:
+                    identifierValue
+            });
 
         if (!Array.isArray(candidates)) {
             const error =

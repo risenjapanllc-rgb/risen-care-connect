@@ -45,6 +45,12 @@ const residentLinkingBackButton =
 const residentLinkingNextButton =
     document.getElementById("residentLinkingNextButton");
 
+const residentBulkActionBar =
+    document.getElementById("residentBulkActionBar");
+
+const residentBulkActionCount =
+    document.getElementById("residentBulkActionCount");
+
 const importPreviewSummary =
     document.getElementById("importPreviewSummary");
 
@@ -74,9 +80,210 @@ const confirmedSourceFieldSelections = new Set();
 const sourceFieldReviewStates = new Map();
 const sourceResidentMappings = new Map();
 const residentCandidateGroups = new Map();
+const selectedResidentAdmissionKeys = new Set();
 
 let confirmedSourceRecordIdentity = null;
 let selectedSourceRecordIdentityFieldKey = "";
+let sourceRecordIdentityCandidates = [];
+let sourceRecordIdentityCandidateStatus = null;
+let confirmedDocumentType = null;
+let subjectContextResolution = null;
+let subjectContextResolutionLoading = false;
+
+async function refreshSubjectContextResolution() {
+    if (!latestAnalysis) {
+        subjectContextResolution = null;
+        return;
+    }
+
+    const fieldDefinitions =
+        Array.isArray(
+            latestAnalysis.extracted?.fieldDefinitions
+        )
+            ? latestAnalysis.extracted.fieldDefinitions
+            : [];
+
+    subjectContextResolutionLoading = true;
+
+    try {
+        const response = await fetch(
+            "/api/context-resolution",
+            {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    fieldDefinitions,
+                    confirmedDocumentType
+                })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || result.success !== true) {
+            throw new Error(
+                result.message ||
+                "データ文脈の解析に失敗しました"
+            );
+        }
+
+        subjectContextResolution =
+            result.context || null;
+    } catch (error) {
+        subjectContextResolution = null;
+        console.warn(
+            "データ文脈の解析に失敗しました:",
+            error.message
+        );
+    } finally {
+        subjectContextResolutionLoading = false;
+    }
+}
+
+function getConfirmedDocumentTypeSnapshot() {
+    if (
+        !latestAnalysis ||
+        typeof latestAnalysis.sourceDocumentKey !== "string" ||
+        !latestAnalysis.sourceDocumentKey.trim() ||
+        typeof latestAnalysis.sourceUpdatedAt !== "string" ||
+        !latestAnalysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(Date.parse(latestAnalysis.sourceUpdatedAt)) ||
+        !Number.isSafeInteger(latestAnalysis.sourceSize) ||
+        latestAnalysis.sourceSize < 0
+    ) {
+        throw new Error(
+            "データ種別の原本スナップショットを確認できません"
+        );
+    }
+
+    return {
+        sourceDocumentKey:
+            latestAnalysis.sourceDocumentKey.trim(),
+        sourceUpdatedAt:
+            new Date(
+                latestAnalysis.sourceUpdatedAt
+            ).toISOString(),
+        sourceSize:
+            latestAnalysis.sourceSize
+    };
+}
+
+async function loadPersistedConfirmedDocumentType() {
+    const snapshot =
+        getConfirmedDocumentTypeSnapshot();
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/confirmed-document-type?${params}`
+        );
+
+    let result = null;
+
+    try {
+        result = await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        !["found", "not_found"].includes(result.status)
+    ) {
+        throw new Error(
+            result?.message ||
+            "保存済みのデータ種別を復元できませんでした"
+        );
+    }
+
+    if (result.status === "not_found") {
+        confirmedDocumentType = null;
+        return null;
+    }
+
+    const documentType =
+        typeof result.confirmation?.documentType === "string"
+            ? result.confirmation.documentType.trim()
+            : "";
+
+    const profile =
+        window.RisenDocumentTypeProfiles
+            .getDocumentTypeProfile(documentType);
+
+    if (!profile) {
+        throw new Error(
+            "保存済みのデータ種別が現在の定義に存在しません"
+        );
+    }
+
+    confirmedDocumentType = profile.type;
+
+    return {
+        documentType:
+            confirmedDocumentType
+    };
+}
+
+async function persistConfirmedDocumentType(
+    documentType
+) {
+    const snapshot =
+        getConfirmedDocumentTypeSnapshot();
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/confirmed-document-type`,
+            {
+                method: "POST",
+                headers: {
+                    "content-type":
+                        "application/json"
+                },
+                body: JSON.stringify({
+                    ...snapshot,
+                    documentType
+                })
+            }
+        );
+
+    let result = null;
+
+    try {
+        result = await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        result.status !== "confirmed" ||
+        result.documentType !== documentType ||
+        !["created", "updated", "unchanged"]
+            .includes(result.persistenceStatus)
+    ) {
+        throw new Error(
+            result?.message ||
+            "データ種別を保存できませんでした"
+        );
+    }
+
+    return result;
+}
 
 function getSourceRecordIdentitySnapshot() {
     if (
@@ -103,6 +310,63 @@ function getSourceRecordIdentitySnapshot() {
             ).toISOString(),
         sourceSize:
             latestAnalysis.sourceSize
+    };
+}
+
+async function loadSourceRecordIdentityCandidates() {
+    const snapshot =
+        getSourceRecordIdentitySnapshot();
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize)
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-record-identity-candidates?${params}`
+        );
+
+    let result = null;
+
+    try {
+        result = await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true ||
+        ![
+            "candidates_available",
+            "no_safe_single_field_candidate",
+            "insufficient_source"
+        ].includes(result.status) ||
+        !Array.isArray(result.candidates)
+    ) {
+        throw new Error(
+            result?.message ||
+            "安全な取り込み方法の候補を確認できませんでした"
+        );
+    }
+
+    sourceRecordIdentityCandidateStatus =
+        result.status;
+    sourceRecordIdentityCandidates =
+        result.candidates;
+
+    return {
+        status:
+            sourceRecordIdentityCandidateStatus,
+        candidates:
+            sourceRecordIdentityCandidates
     };
 }
 
@@ -656,33 +920,44 @@ async function loadPersistedSourceFieldMappings(
             selectionKey,
             `${standardEntityName}.${standardFieldName}`
         );
-
-        confirmedSourceFieldSelections.add(
-            selectionKey
-        );
-
-        sourceFieldReviewStates.set(
-            selectionKey,
-            "confirmed"
-        );
     }
 }
 
 async function loadPersistedSourceFieldReviewStates(
-    sourceDocumentKey
+    analysis
 ) {
     if (
-        typeof sourceDocumentKey !== "string" ||
-        !sourceDocumentKey.trim()
+        !analysis ||
+        typeof analysis.sourceDocumentKey !== "string" ||
+        !analysis.sourceDocumentKey.trim() ||
+        typeof analysis.sourceUpdatedAt !== "string" ||
+        !analysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(
+            Date.parse(analysis.sourceUpdatedAt)
+        ) ||
+        !Number.isSafeInteger(analysis.sourceSize) ||
+        analysis.sourceSize < 0
     ) {
         return;
     }
 
+    const sourceDocumentKey =
+        analysis.sourceDocumentKey.trim();
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey,
+            sourceUpdatedAt:
+                new Date(
+                    analysis.sourceUpdatedAt
+                ).toISOString(),
+            sourceSize:
+                String(analysis.sourceSize)
+        });
+
     const response =
         await fetch(
-            `${LOCAL_CONNECTOR_BASE}/source-field-interpretations?sourceDocumentKey=${encodeURIComponent(
-                sourceDocumentKey.trim()
-            )}`
+            `${LOCAL_CONNECTOR_BASE}/source-field-interpretations?${params}`
         );
 
     const result =
@@ -716,14 +991,6 @@ async function loadPersistedSourceFieldReviewStates(
                 sourceDocumentKey,
                 interpretation.sourceFieldKey.trim()
             );
-
-        if (
-            confirmedSourceFieldSelections.has(
-                selectionKey
-            )
-        ) {
-            continue;
-        }
 
         if (
             interpretation.interpretationStatus ===
@@ -762,6 +1029,29 @@ async function loadPersistedSourceFieldReviewStates(
             sourceFieldReviewStates.set(
                 selectionKey,
                 "unmapped"
+            );
+
+            continue;
+        }
+
+        const confirmedMeaning =
+            typeof interpretation.confirmedMeaning === "string"
+                ? interpretation.confirmedMeaning.trim()
+                : "";
+
+        if (confirmedMeaning) {
+            sourceFieldMeaningSelections.set(
+                selectionKey,
+                confirmedMeaning
+            );
+
+            confirmedSourceFieldSelections.add(
+                selectionKey
+            );
+
+            sourceFieldReviewStates.set(
+                selectionKey,
+                "confirmed"
             );
         }
     }
@@ -810,8 +1100,35 @@ async function analyzeFile(filePath) {
         sourceFieldReviewStates.clear();
         confirmedSourceRecordIdentity = null;
         selectedSourceRecordIdentityFieldKey = "";
+        sourceRecordIdentityCandidates = [];
+        sourceRecordIdentityCandidateStatus = null;
+        confirmedDocumentType = null;
+        subjectContextResolution = null;
 
         latestAnalysis = result;
+
+        try {
+            await loadPersistedConfirmedDocumentType();
+        } catch (error) {
+            confirmedDocumentType = null;
+            console.warn(
+                "保存済みのデータ種別を復元できませんでした:",
+                error.message
+            );
+        }
+
+        await refreshSubjectContextResolution();
+
+        try {
+            await loadSourceRecordIdentityCandidates();
+        } catch (error) {
+            sourceRecordIdentityCandidates = [];
+            sourceRecordIdentityCandidateStatus = null;
+            console.warn(
+                "安全な取り込み方法の候補を確認できませんでした:",
+                error.message
+            );
+        }
 
         try {
             await loadPersistedSourceRecordIdentity();
@@ -835,7 +1152,7 @@ async function analyzeFile(filePath) {
 
         try {
             await loadPersistedSourceFieldReviewStates(
-                result.sourceDocumentKey
+                result
             );
         } catch (error) {
             console.warn(
@@ -1154,6 +1471,61 @@ function renderConfirmation() {
             `)
             .join("");
 
+    const identityCandidateLabels =
+        sourceRecordIdentityCandidates
+            .map(candidate =>
+                typeof candidate?.headerLabel === "string"
+                    ? candidate.headerLabel.trim()
+                    : ""
+            )
+            .filter(Boolean);
+
+    const identityCandidateDiagnostic =
+        sourceRecordIdentityCandidateStatus ===
+            "candidates_available"
+            ? `
+                <div
+                    style="
+                        margin: 12px 0;
+                        padding: 12px;
+                        border: 1px solid #b7d7c2;
+                        background: #f4fbf6;
+                        border-radius: 8px;
+                    "
+                >
+                    <strong>
+                        RISEN CAREが確認した候補
+                    </strong>
+                    <p class="form-help">
+                        候補数：${identityCandidateLabels.length}<br>
+                        候補：${identityCandidateLabels
+                            .map(escapeHtml)
+                            .join("、")}
+                    </p>
+                </div>
+            `
+            : sourceRecordIdentityCandidateStatus ===
+                "no_safe_single_field_candidate"
+                ? `
+                    <div
+                        style="
+                            margin: 12px 0;
+                            padding: 12px;
+                            border: 1px solid #e1c36a;
+                            background: #fffaf0;
+                            border-radius: 8px;
+                        "
+                    >
+                        <strong>
+                            RISEN CAREが確認した候補
+                        </strong>
+                        <p class="form-help">
+                            1項目だけで安全に見分けられる候補はありません。
+                        </p>
+                    </div>
+                `
+                : "";
+
     const identityConfirmed =
         Boolean(
             confirmedSourceRecordIdentity &&
@@ -1163,7 +1535,20 @@ function renderConfirmation() {
                 .sourceFieldKey.trim()
         );
 
-    const identitySection = `
+    const confirmedDocumentTypeProfile =
+        window.RisenDocumentTypeProfiles
+            .getDocumentTypeProfile(
+                confirmedDocumentType
+            );
+
+    const sourceRecordIdentityRequired =
+        confirmedDocumentTypeProfile
+            ?.sourceRecordIdentityRequired === true;
+
+    const identitySection =
+        !sourceRecordIdentityRequired
+            ? ""
+            : `
         <div
             style="
                 margin-top: 24px;
@@ -1177,6 +1562,8 @@ function renderConfirmation() {
             <h3 style="margin-top: 0;">
                 原本レコードID
             </h3>
+
+            ${identityCandidateDiagnostic}
 
             <p class="form-help">
                 原本側で各記録を一意に識別する項目を選択してください。
@@ -1243,6 +1630,259 @@ function renderConfirmation() {
         </div>
     `;
 
+    const documentTypeProfiles =
+        window.RisenDocumentTypeProfiles
+            .listConfirmableDocumentTypes();
+
+    const documentTypeOptions =
+        documentTypeProfiles
+            .map(profile => `
+                <option
+                    value="${escapeHtml(profile.type)}"
+                    ${
+                        confirmedDocumentType === profile.type
+                            ? "selected"
+                            : ""
+                    }
+                >
+                    ${escapeHtml(profile.label)}
+                </option>
+            `)
+            .join("");
+
+    const detectedDocumentType =
+        latestAnalysis.documentType || "unknown";
+
+    const detectedDocumentTypeProfile =
+        window.RisenDocumentTypeProfiles
+            .getDocumentTypeProfile(
+                detectedDocumentType
+            );
+
+    const documentTypeSection = `
+        <div
+            style="
+                margin-top: 20px;
+                margin-bottom: 20px;
+                padding: 16px;
+                border: 1px solid #d0d5dd;
+                border-radius: 10px;
+                background: #f9fafb;
+            "
+        >
+            <h3 style="margin-top: 0;">
+                データ種別の確認
+            </h3>
+
+            <p class="form-help">
+                自動判定は参考情報です。
+                実際のデータ種別は人が確認してください。
+            </p>
+
+            <p>
+                <strong>自動判定：</strong>
+                ${escapeHtml(
+                    detectedDocumentTypeProfile?.label ||
+                    detectedDocumentType
+                )}
+            </p>
+
+            <div
+                style="
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    flex-wrap: wrap;
+                "
+            >
+                <select id="confirmedDocumentTypeSelect">
+                    <option value="">
+                        データ種別を選択
+                    </option>
+                    ${documentTypeOptions}
+                </select>
+
+                <button
+                    id="confirmedDocumentTypeButton"
+                    type="button"
+                    class="secondary-button"
+                >
+                    このデータ種別を確認
+                </button>
+            </div>
+
+            <div
+                id="confirmedDocumentTypeStatus"
+                class="form-help"
+                style="
+                    margin-top: 10px;
+                    color: ${
+                        confirmedDocumentType
+                            ? "#176b36"
+                            : "#667085"
+                    };
+                "
+            >
+                ${
+                    confirmedDocumentType
+                        ? "確認済み：" +
+                            escapeHtml(
+                                window.RisenDocumentTypeProfiles
+                                    .getDocumentTypeProfile(
+                                        confirmedDocumentType
+                                    )?.label ||
+                                confirmedDocumentType
+                            )
+                        : "まだ確認されていません。"
+                }
+            </div>
+        </div>
+    `;
+
+    const subjectLabels = {
+        user: "利用者",
+        staff: "職員",
+        recipient_certificate: "受給者証"
+    };
+
+    const subjectContextSection = (() => {
+        if (subjectContextResolutionLoading) {
+            return `
+                <div
+                    style="
+                        margin-bottom: 20px;
+                        padding: 16px;
+                        border: 1px solid #d0d5dd;
+                        border-radius: 10px;
+                        background: #f9fafb;
+                    "
+                >
+                    <h3 style="margin-top: 0;">
+                        このデータに紐づく情報
+                    </h3>
+                    <p class="form-help">
+                        文書全体の文脈を確認しています。
+                    </p>
+                </div>
+            `;
+        }
+
+        const context = subjectContextResolution;
+
+        if (!context) {
+            return "";
+        }
+
+        const hypotheses =
+            Array.isArray(context.hypotheses)
+                ? context.hypotheses
+                : [];
+
+        const evidence =
+            Array.isArray(context.evidence)
+                ? context.evidence
+                : [];
+
+        const ambiguousFields =
+            Array.isArray(context.ambiguousFields)
+                ? context.ambiguousFields
+                : [];
+
+        const hypothesisHtml =
+            hypotheses.length > 0
+                ? hypotheses
+                    .map(item => `
+                        <li>
+                            ${escapeHtml(
+                                subjectLabels[item.subject] ||
+                                item.subject
+                            )}に紐づく情報の可能性
+                        </li>
+                    `)
+                    .join("")
+                : "<li>主体をまだ判断できません。</li>";
+
+        const evidenceHtml =
+            evidence.length > 0
+                ? evidence
+                    .map(item => {
+                        if (
+                            item.type ===
+                            "confirmed_document_type"
+                        ) {
+                            return `
+                                <li>
+                                    確認済みのデータ種別
+                                </li>
+                            `;
+                        }
+
+                        return `
+                            <li>
+                                原本項目：
+                                ${escapeHtml(
+                                    item.label || "-"
+                                )}
+                            </li>
+                        `;
+                    })
+                    .join("")
+                : "<li>明確な根拠はまだありません。</li>";
+
+        const ambiguousHtml =
+            ambiguousFields.length > 0
+                ? `
+                    <div style="margin-top: 12px;">
+                        <strong>人の確認が必要な項目</strong>
+                        <ul>
+                            ${ambiguousFields
+                                .map(item => `
+                                    <li>
+                                        ${escapeHtml(
+                                            item.headerLabel || "-"
+                                        )}
+                                    </li>
+                                `)
+                                .join("")}
+                        </ul>
+                    </div>
+                `
+                : "";
+
+        return `
+            <div
+                style="
+                    margin-bottom: 20px;
+                    padding: 16px;
+                    border: 1px solid #d0d5dd;
+                    border-radius: 10px;
+                    background: #f9fafb;
+                "
+            >
+                <h3 style="margin-top: 0;">
+                    このデータに紐づく情報
+                </h3>
+
+                <p class="form-help">
+                    原本全体から考えられる文脈です。
+                    自動確定ではありません。
+                </p>
+
+                <strong>関連情報の候補</strong>
+                <ul>
+                    ${hypothesisHtml}
+                </ul>
+
+                <strong>判断材料</strong>
+                <ul>
+                    ${evidenceHtml}
+                </ul>
+
+                ${ambiguousHtml}
+            </div>
+        `;
+    })();
+
     const standardMeaningOptions =
         standardFields.map(field => ({
             value: `${field.entity_name}.${field.field_name}`,
@@ -1283,6 +1923,29 @@ function renderConfirmation() {
                 const suggestedLabel =
                     suggestedField
                         ? `${suggestedField.display_name} (${suggestedMeaning})`
+                        : "";
+
+                const contextualCandidate =
+                    Array.isArray(
+                        subjectContextResolution
+                            ?.contextualCandidates
+                    )
+                        ? subjectContextResolution
+                            .contextualCandidates
+                            .find(candidate =>
+                                candidate.sourceFieldKey ===
+                                sourceFieldKey
+                            ) || null
+                        : null;
+
+                const contextualMeaning =
+                    contextualCandidate?.candidate
+                        ? `${contextualCandidate.candidate.entityName}.${contextualCandidate.candidate.fieldName}`
+                        : "";
+
+                const contextualLabel =
+                    contextualCandidate?.candidate
+                        ? `${contextualCandidate.candidate.displayName} (${contextualMeaning})`
                         : "";
 
                 const reviewState =
@@ -1369,7 +2032,8 @@ function renderConfirmation() {
                                 </div>
 
                                 ${
-                                    suggestedField
+                                    suggestedField &&
+                                    reviewState !== "confirmed"
                                         ? `
                                             <div style="
                                                 padding: 10px;
@@ -1420,6 +2084,61 @@ function renderConfirmation() {
                                 }
 
                                 ${
+                                    !suggestedField &&
+                                    contextualCandidate &&
+                                    reviewState !== "confirmed"
+                                        ? `
+                                            <div style="
+                                                padding: 10px;
+                                                border: 1px solid #f0c36d;
+                                                border-radius: 8px;
+                                                background: #fffaf0;
+                                            ">
+                                                <div style="
+                                                    color: #7a5b13;
+                                                    font-size: 0.8rem;
+                                                    margin-bottom: 4px;
+                                                ">
+                                                    文脈からの候補・確認が必要
+                                                </div>
+
+                                                <strong>
+                                                    ${escapeHtml(
+                                                        contextualLabel
+                                                    )}
+                                                </strong>
+
+                                                <div style="
+                                                    margin-top: 6px;
+                                                    color: #667085;
+                                                    font-size: 0.82rem;
+                                                ">
+                                                    項目名だけでは判断できません。
+                                                    文書全体の情報から考えられる候補です。
+                                                </div>
+
+                                                <div style="
+                                                    margin-top: 8px;
+                                                ">
+                                                    <button
+                                                        type="button"
+                                                        class="secondary-button source-field-confirm-contextual-candidate"
+                                                        data-source-field-key="${escapeHtml(
+                                                            sourceFieldKey
+                                                        )}"
+                                                        data-standard-meaning="${escapeHtml(
+                                                            contextualMeaning
+                                                        )}"
+                                                    >
+                                                        この意味として確認
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
+                                ${
                                     reviewState === "confirmed" &&
                                     selectedMeaning
                                         ? `
@@ -1443,56 +2162,62 @@ function renderConfirmation() {
                                         : ""
                                 }
 
-                                <details>
-                                    <summary style="
-                                        cursor: pointer;
-                                        color: #3157a4;
-                                    ">
-                                        すべてのRISEN標準項目から探す
-                                    </summary>
+                                ${
+                                    reviewState !== "confirmed"
+                                        ? `
+                                            <details>
+                                                <summary style="
+                                                    cursor: pointer;
+                                                    color: #3157a4;
+                                                ">
+                                                    すべてのRISEN標準項目から探す
+                                                </summary>
 
-                                    <div style="
-                                        margin-top: 8px;
-                                    ">
-                                        <select
-                                            class="source-field-meaning-select"
-                                            data-source-field-key="${escapeHtml(
-                                                sourceFieldKey
-                                            )}"
-                                        >
-                                            <option value="">
-                                                標準項目を選択
-                                            </option>
-                                            ${options}
-                                        </select>
-                                    </div>
-                                </details>
+                                                <div style="
+                                                    margin-top: 8px;
+                                                ">
+                                                    <select
+                                                        class="source-field-meaning-select"
+                                                        data-source-field-key="${escapeHtml(
+                                                            sourceFieldKey
+                                                        )}"
+                                                    >
+                                                        <option value="">
+                                                            標準項目を選択
+                                                        </option>
+                                                        ${options}
+                                                    </select>
+                                                </div>
+                                            </details>
 
-                                <div style="
-                                    display: flex;
-                                    gap: 8px;
-                                    flex-wrap: wrap;
-                                ">
-                                    <button
-                                        type="button"
-                                        class="secondary-button source-field-mark-unmapped"
-                                        data-source-field-key="${escapeHtml(
-                                            sourceFieldKey
-                                        )}"
-                                    >
-                                        標準項目なし
-                                    </button>
+                                            <div style="
+                                                display: flex;
+                                                gap: 8px;
+                                                flex-wrap: wrap;
+                                            ">
+                                                <button
+                                                    type="button"
+                                                    class="secondary-button source-field-mark-unmapped"
+                                                    data-source-field-key="${escapeHtml(
+                                                        sourceFieldKey
+                                                    )}"
+                                                >
+                                                    標準項目なし
+                                                </button>
 
-                                    <button
-                                        type="button"
-                                        class="secondary-button source-field-defer"
-                                        data-source-field-key="${escapeHtml(
-                                            sourceFieldKey
-                                        )}"
-                                    >
-                                        保留
-                                    </button>
-                                </div>
+                                                <button
+                                                    type="button"
+                                                    class="secondary-button source-field-defer"
+                                                    data-source-field-key="${escapeHtml(
+                                                        sourceFieldKey
+                                                    )}"
+                                                >
+                                                    保留
+                                                </button>
+                                            </div>
+                                        `
+                                        : ""
+                                }
 
                                 ${
                                     reviewState === "unmapped" ||
@@ -1576,9 +2301,86 @@ function renderConfirmation() {
             原本データ自体の業務データ登録はまだ行いません。
         </p>
 
+        ${documentTypeSection}
+        ${subjectContextSection}
         ${identitySection}
         ${sourceFieldSection}
     `;
+
+    const documentTypeSelect =
+        document.getElementById(
+            "confirmedDocumentTypeSelect"
+        );
+
+    document.getElementById(
+        "confirmedDocumentTypeButton"
+    )?.addEventListener(
+        "click",
+        async () => {
+            const selectedType =
+                typeof documentTypeSelect?.value === "string"
+                    ? documentTypeSelect.value.trim()
+                    : "";
+
+            const profile =
+                window.RisenDocumentTypeProfiles
+                    .getDocumentTypeProfile(selectedType);
+
+            if (!profile) {
+                setStatus(
+                    "データ種別を選択してください。",
+                    "error"
+                );
+                return;
+            }
+
+            const button =
+                document.getElementById(
+                    "confirmedDocumentTypeButton"
+                );
+
+            if (button) {
+                button.disabled = true;
+            }
+
+            setStatus(
+                "データ種別を保存しています...",
+                "info"
+            );
+
+            try {
+                await persistConfirmedDocumentType(
+                    profile.type
+                );
+
+                confirmedDocumentType =
+                    profile.type;
+                subjectContextResolution =
+                    null;
+
+                renderConfirmation();
+
+                await refreshSubjectContextResolution();
+                renderConfirmation();
+
+                setStatus(
+                    "データ種別を確認しました: " +
+                    profile.label,
+                    "success"
+                );
+            } catch (error) {
+                setStatus(
+                    "データ種別を確認できませんでした: " +
+                    error.message,
+                    "error"
+                );
+
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+    );
 
     const identitySelect =
         document.getElementById(
@@ -1751,6 +2553,53 @@ function renderConfirmation() {
         });
 
     importConfirmation
+        .querySelectorAll(
+            ".source-field-confirm-contextual-candidate"
+        )
+        .forEach(button => {
+            button.addEventListener("click", event => {
+                const sourceFieldKey =
+                    event.currentTarget.dataset
+                        .sourceFieldKey || "";
+
+                const standardMeaning =
+                    event.currentTarget.dataset
+                        .standardMeaning || "";
+
+                if (!sourceFieldKey || !standardMeaning) {
+                    return;
+                }
+
+                const selectionKey =
+                    createSourceFieldSelectionKey(
+                        latestAnalysis?.sourceDocumentKey,
+                        sourceFieldKey
+                    );
+
+                sourceFieldMeaningSelections.set(
+                    selectionKey,
+                    standardMeaning
+                );
+
+                confirmedSourceFieldSelections.add(
+                    selectionKey
+                );
+
+                sourceFieldReviewStates.set(
+                    selectionKey,
+                    "confirmed"
+                );
+
+                renderConfirmation();
+
+                setStatus(
+                    "文脈からの候補を人が確認しました。",
+                    "success"
+                );
+            });
+        });
+
+    importConfirmation
         .querySelectorAll(".source-field-meaning-select")
         .forEach(select => {
             select.addEventListener("change", event => {
@@ -1776,25 +2625,14 @@ function renderConfirmation() {
                     standardMeaning
                 );
 
-                if (standardMeaning) {
-                    confirmedSourceFieldSelections.add(
-                        selectionKey
-                    );
+                confirmedSourceFieldSelections.delete(
+                    selectionKey
+                );
 
-                    sourceFieldReviewStates.set(
-                        selectionKey,
-                        "confirmed"
-                    );
-                } else {
-                    confirmedSourceFieldSelections.delete(
-                        selectionKey
-                    );
-
-                    sourceFieldReviewStates.set(
-                        selectionKey,
-                        "pending"
-                    );
-                }
+                sourceFieldReviewStates.set(
+                    selectionKey,
+                    "pending"
+                );
 
                 renderConfirmation();
             });
@@ -2097,6 +2935,12 @@ function collectSourceFieldInterpretations() {
             return [{
                 sourceDocumentKey:
                     latestAnalysis.sourceDocumentKey.trim(),
+                sourceUpdatedAt:
+                    new Date(
+                        latestAnalysis.sourceUpdatedAt
+                    ).toISOString(),
+                sourceSize:
+                    latestAnalysis.sourceSize,
                 sourceFieldKey,
                 interpretationStatus:
                     "confirmed",
@@ -2111,6 +2955,12 @@ function collectSourceFieldInterpretations() {
             return [{
                 sourceDocumentKey:
                     latestAnalysis.sourceDocumentKey.trim(),
+                sourceUpdatedAt:
+                    new Date(
+                        latestAnalysis.sourceUpdatedAt
+                    ).toISOString(),
+                sourceSize:
+                    latestAnalysis.sourceSize,
                 sourceFieldKey,
                 interpretationStatus:
                     "deferred",
@@ -2118,6 +2968,43 @@ function collectSourceFieldInterpretations() {
                     "unmapped",
                 confirmedMeaning:
                     null
+            }];
+        }
+
+        if (
+            reviewState === "confirmed" &&
+            confirmedSourceFieldSelections.has(
+                selectionKey
+            )
+        ) {
+            const confirmedMeaning =
+                sourceFieldMeaningSelections.get(
+                    selectionKey
+                );
+
+            if (
+                typeof confirmedMeaning !== "string" ||
+                !confirmedMeaning.trim()
+            ) {
+                return [];
+            }
+
+            return [{
+                sourceDocumentKey:
+                    latestAnalysis.sourceDocumentKey.trim(),
+                sourceUpdatedAt:
+                    new Date(
+                        latestAnalysis.sourceUpdatedAt
+                    ).toISOString(),
+                sourceSize:
+                    latestAnalysis.sourceSize,
+                sourceFieldKey,
+                interpretationStatus:
+                    "confirmed",
+                mappingStatus:
+                    "mapped",
+                confirmedMeaning:
+                    confirmedMeaning.trim()
             }];
         }
 
@@ -2268,10 +3155,15 @@ async function persistSourceFieldInterpretations(
                 "unchanged"
             ].includes(result.status)
         ) {
+            const safeFieldKey =
+                typeof sourceFieldInterpretation?.sourceFieldKey === "string"
+                    ? sourceFieldInterpretation.sourceFieldKey.trim()
+                    : "unknown";
+
             const error =
                 new Error(
-                    result?.message ||
-                    "項目確認状態の保存に失敗しました"
+                    `${result?.message || "項目確認状態の保存に失敗しました"} ` +
+                    `(field=${safeFieldKey}, HTTP ${response.status})`
                 );
 
             error.savedCount =
@@ -2475,9 +3367,44 @@ async function loadResidentCandidateGroups(
         ) ||
         !Array.isArray(result.groups)
     ) {
-        throw new Error(
+        const error = new Error(
             result?.message ||
             "利用者候補グループを取得できませんでした"
+        );
+
+        error.code =
+            typeof result?.errorCode === "string"
+                ? result.errorCode
+                : null;
+
+        error.identityReason =
+            typeof result?.identityReason === "string"
+                ? result.identityReason
+                : null;
+
+        throw error;
+    }
+
+    if (
+        result.identityDiagnostic &&
+        typeof result.identityDiagnostic === "object"
+    ) {
+        console.log(
+            "STEP4 identity diagnostic",
+            {
+                fieldDefinitionMatched:
+                    result.identityDiagnostic.fieldDefinitionMatched === true,
+                mappingHasHeaderLabel:
+                    result.identityDiagnostic.mappingHasHeaderLabel === true,
+                keyPresentInEverySourceEntity:
+                    result.identityDiagnostic.keyPresentInEverySourceEntity === true,
+                fieldDefinitionCount:
+                    Number.isSafeInteger(
+                        result.identityDiagnostic.fieldDefinitionCount
+                    )
+                        ? result.identityDiagnostic.fieldDefinitionCount
+                        : null
+            }
         );
     }
 
@@ -2575,23 +3502,30 @@ async function persistSourceResidentLink({
     return result;
 }
 
-async function createResidentFromSourceName(
-    name
-) {
-    const normalizedName =
-        typeof name === "string"
-            ? name.trim()
-            : "";
-
-    if (!normalizedName) {
+async function persistResidentAdmissionDecision({
+    snapshot,
+    identifierType,
+    identifierDigest,
+    decision
+}) {
+    if (
+        !snapshot ||
+        !["user_code", "name"].includes(identifierType) ||
+        !/^[0-9a-f]{64}$/.test(identifierDigest) ||
+        ![
+            "approved_new",
+            "rejected",
+            "deferred"
+        ].includes(decision)
+    ) {
         throw new Error(
-            "登録する利用者名を取得できません"
+            "利用者登録判断の保存対象が不正です"
         );
     }
 
     const response =
         await fetch(
-            `${LOCAL_CONNECTOR_BASE}/residents`,
+            `${LOCAL_CONNECTOR_BASE}/resident-admission-decisions`,
             {
                 method: "POST",
                 headers: {
@@ -2600,8 +3534,15 @@ async function createResidentFromSourceName(
                 },
                 body:
                     JSON.stringify({
-                        name:
-                            normalizedName
+                        sourceDocumentKey:
+                            snapshot.sourceDocumentKey,
+                        sourceUpdatedAt:
+                            snapshot.sourceUpdatedAt,
+                        sourceSize:
+                            snapshot.sourceSize,
+                        identifierType,
+                        identifierDigest,
+                        decision
                     })
             }
         );
@@ -2612,40 +3553,105 @@ async function createResidentFromSourceName(
             .catch(() => ({}));
 
     if (
-        response.status === 409 &&
-        result?.errorCode ===
-            "resident_name_ambiguous"
+        !response.ok ||
+        result?.success !== true ||
+        result?.status !== "decided" ||
+        result?.decision !== decision ||
+        ![
+            "created",
+            "updated",
+            "unchanged"
+        ].includes(result.persistenceStatus)
     ) {
-        const error =
-            new Error(
-                "同名の利用者が複数存在します。候補を再確認してください"
-            );
-
-        error.code =
-            "resident_name_ambiguous";
-
-        throw error;
+        throw new Error(
+            result?.message ||
+            `利用者登録判断の保存に失敗しました (${response.status})`
+        );
     }
+
+    return {
+        decision:
+            result.decision,
+        persistenceStatus:
+            result.persistenceStatus
+    };
+}
+
+async function loadResidentAdmissionDecision({
+    snapshot,
+    identifierType,
+    identifierDigest
+}) {
+    if (
+        !snapshot ||
+        !["user_code", "name"].includes(identifierType) ||
+        !/^[0-9a-f]{64}$/.test(identifierDigest)
+    ) {
+        throw new Error(
+            "利用者登録判断の取得対象が不正です"
+        );
+    }
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                snapshot.sourceDocumentKey,
+            sourceUpdatedAt:
+                snapshot.sourceUpdatedAt,
+            sourceSize:
+                String(snapshot.sourceSize),
+            identifierType,
+            identifierDigest
+        });
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/resident-admission-decisions?${params}`
+        );
+
+    const result =
+        await response
+            .json()
+            .catch(() => ({}));
 
     if (
         !response.ok ||
         result?.success !== true ||
-        !["created", "existing"].includes(
+        !["found", "not_found"].includes(
             result.status
-        ) ||
-        !result.resident ||
-        typeof result.resident.residentId !==
-            "string" ||
-        !result.resident.residentId.trim()
+        )
     ) {
         throw new Error(
             result?.message ||
-            `利用者台帳への登録に失敗しました (${response.status})`
+            `利用者登録判断の取得に失敗しました (${response.status})`
         );
     }
 
-    return result;
+    if (result.status === "not_found") {
+        return null;
+    }
+
+    if (
+        !result.decision ||
+        ![
+            "approved_new",
+            "rejected",
+            "deferred"
+        ].includes(result.decision.decision)
+    ) {
+        throw new Error(
+            "保存済みの利用者登録判断が不正です"
+        );
+    }
+
+    return {
+        decision:
+            result.decision.decision,
+        reviewedAt:
+            result.decision.reviewedAt
+    };
 }
+
 
 async function persistSourceResidentMapping({
     snapshot,
@@ -2794,7 +3800,8 @@ function renderResidentMappingState(mapping) {
 
 function renderResidentCandidateDetails(
     candidateResult,
-    mapping = null
+    mapping = null,
+    admissionDecision = null
 ) {
     const candidates =
         Array.isArray(candidateResult?.candidates)
@@ -2938,12 +3945,28 @@ function renderResidentCandidateDetails(
                         sourceName
                     )}</strong>
                 </p>
-                <strong>利用者台帳に未登録です</strong>
-                <p class="form-help">
-                    自動登録はしません。
-                    原本の氏名を確認し、登録する場合だけ
-                    下のボタンを押してください。
-                </p>
+                <div
+                    style="
+                        padding: 12px;
+                        background: #fff4e5;
+                        border: 1px solid #f0b35a;
+                        border-radius: 8px;
+                    "
+                >
+                    <strong>
+                        この施設に登録されていない利用者です
+                    </strong>
+                    <p class="form-help">
+                        別施設のデータが、この施設のパソコンに
+                        混入している可能性があります。
+                        登録を進める前に、パソコン内の元データが
+                        保存されているフォルダを確認してください。
+                    </p>
+                    <p class="form-help">
+                        現在は安全のため、この画面から
+                        新規利用者を登録しません。
+                    </p>
+                </div>
                 ${
                     mapping?.mappingStatus === "no_match"
                         ? `
@@ -2961,26 +3984,64 @@ function renderResidentCandidateDetails(
                             `
                             : ""
                 }
+                ${
+                    admissionDecision?.decision === "approved_new"
+                        ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #eef8f1; border-radius: 8px;">
+                                <strong>新規利用者として登録予定</strong>
+                                <p class="form-help">まだ利用者登録は行っていません。</p>
+                            </div>
+                        `
+                        : admissionDecision?.decision === "rejected"
+                            ? `
+                                <div style="margin-top: 10px; padding: 10px; background: #fff1f0; border-radius: 8px;">
+                                    <strong>このデータは取り込まない</strong>
+                                </div>
+                            `
+                            : admissionDecision?.decision === "deferred"
+                                ? `
+                                    <div style="margin-top: 10px; padding: 10px; background: #fff8e8; border-radius: 8px;">
+                                        <strong>確認を保留中</strong>
+                                    </div>
+                                `
+                                : ""
+                }
+                <p class="form-help">
+                    この施設の利用者として扱ってよいか、
+                    元データを確認したうえで選択してください。
+                    ここではまだ利用者登録は行いません。
+                </p>
                 <div
                     class="bottom-actions csv-step-actions"
                     style="
                         justify-content: flex-start;
                         margin-top: 12px;
+                        flex-wrap: wrap;
                     "
                 >
                     <button
                         class="primary-button"
                         type="button"
-                        data-resident-mapping-action="create_resident"
+                        data-resident-admission-action="approved_new"
+                        ${admissionDecision?.decision === "approved_new" ? "disabled" : ""}
                     >
-                        利用者台帳に登録して紐付け
+                        ${admissionDecision?.decision === "approved_new" ? "✓ 新規利用者として登録予定" : "この施設の新規利用者として登録予定"}
                     </button>
                     <button
                         class="secondary-button"
                         type="button"
-                        data-resident-mapping-action="deferred"
+                        data-resident-admission-action="rejected"
+                        ${admissionDecision?.decision === "rejected" ? "disabled" : ""}
                     >
-                        保留
+                        ${admissionDecision?.decision === "rejected" ? "✓ このデータは取り込まない" : "このデータは取り込まない"}
+                    </button>
+                    <button
+                        class="secondary-button"
+                        type="button"
+                        data-resident-admission-action="deferred"
+                        ${admissionDecision?.decision === "deferred" ? "disabled" : ""}
+                    >
+                        ${admissionDecision?.decision === "deferred" ? "✓ 保留中" : "保留"}
                     </button>
                 </div>
             </div>
@@ -3027,7 +4088,7 @@ async function loadImportPreview() {
         !response.ok ||
         !result ||
         result.success !== true ||
-        !["ready", "blocked"].includes(
+        !["ready", "blocked", "preview_only"].includes(
             result.status
         )
     ) {
@@ -3102,7 +4163,25 @@ async function executeConfirmedImport() {
         Number.isSafeInteger(result.processed) &&
         Number.isSafeInteger(result.created) &&
         Number.isSafeInteger(result.updated) &&
-        Number.isSafeInteger(result.alreadyApplied)
+        (
+            (
+                confirmedDocumentType ===
+                    "support_record" &&
+                Number.isSafeInteger(
+                    result.alreadyApplied
+                )
+            ) ||
+            (
+                confirmedDocumentType ===
+                    "recipient_certificate" &&
+                Number.isSafeInteger(
+                    result.unchanged
+                ) &&
+                Number.isSafeInteger(
+                    result.residentsCreated
+                )
+            )
+        )
     ) {
         return result;
     }
@@ -3197,6 +4276,288 @@ async function refreshImportPreviewGate() {
 
 function renderImportPreviewSummary(preview) {
     if (!importPreviewSummary) {
+        return;
+    }
+
+    if (preview?.status === "preview_only") {
+        const summary =
+            preview?.summary &&
+            typeof preview.summary === "object"
+                ? preview.summary
+                : {};
+
+        const existingResidents =
+            Number.isSafeInteger(
+                summary.existingResidentCount
+            )
+                ? summary.existingResidentCount
+                : 0;
+
+        const plannedNewResidents =
+            Number.isSafeInteger(
+                summary.plannedNewResidentCount
+            )
+                ? summary.plannedNewResidentCount
+                : 0;
+
+        const excluded =
+            Number.isSafeInteger(
+                summary.excludedCount
+            )
+                ? summary.excludedCount
+                : 0;
+
+        const deferred =
+            Number.isSafeInteger(
+                summary.deferredCount
+            )
+                ? summary.deferredCount
+                : 0;
+
+        const undecided =
+            Number.isSafeInteger(
+                summary.undecidedCount
+            )
+                ? summary.undecidedCount
+                : 0;
+
+        const certificateCreates =
+            Number.isSafeInteger(
+                summary.recipientCertificateCreateCount
+            )
+                ? summary.recipientCertificateCreateCount
+                : 0;
+
+        const certificateUpdates =
+            Number.isSafeInteger(
+                summary.recipientCertificateUpdateCount
+            )
+                ? summary.recipientCertificateUpdateCount
+                : 0;
+
+        const certificateUnchanged =
+            Number.isSafeInteger(
+                summary.recipientCertificateUnchangedCount
+            )
+                ? summary.recipientCertificateUnchangedCount
+                : 0;
+
+        const sourceEntities =
+            Number.isSafeInteger(
+                preview.sourceEntityCount
+            )
+                ? preview.sourceEntityCount
+                : 0;
+
+        const residentSubjects =
+            Number.isSafeInteger(
+                preview.residentSubjectCount
+            )
+                ? preview.residentSubjectCount
+                : 0;
+
+        const unavailable =
+            Number.isSafeInteger(
+                preview.unavailableSourceEntityCount
+            )
+                ? preview.unavailableSourceEntityCount
+                : 0;
+
+        const plannedPeople =
+            Array.isArray(preview.items)
+                ? preview.items.filter(
+                    item =>
+                        item &&
+                        ["planned_new", "existing"].includes(
+                            item.resolution
+                        )
+                )
+                : [];
+
+        const semanticFieldPresentation = {
+            "recipient_certificate.certificate_number": {
+                label: "受給者証番号",
+                role: "登録予定"
+            },
+            "recipient_certificate.valid_from": {
+                label: "有効期間開始日",
+                role: "登録予定"
+            },
+            "recipient_certificate.valid_until": {
+                label: "有効期限",
+                role: "登録予定"
+            },
+            "recipient_certificate.municipality": {
+                label: "市区町村",
+                role: "登録予定"
+            },
+            "recipient_certificate.support_classification": {
+                label: "障害支援区分",
+                role: "登録予定"
+            },
+            "user.birth_date": {
+                label: "生年月日",
+                role: "本人照合に使用"
+            },
+            "user.sex": {
+                label: "性別",
+                role: "本人照合に使用"
+            }
+        };
+
+        const renderSemanticRecords =
+            item => {
+                const persistenceRole =
+                    item?.persistenceAction === "create"
+                        ? "新規登録予定"
+                        : item?.persistenceAction === "update"
+                            ? "更新予定"
+                            : item?.persistenceAction === "unchanged"
+                                ? "変更なし"
+                                : "状態未確定";
+
+                const records =
+                    Array.isArray(item.semanticRecords)
+                        ? item.semanticRecords
+                        : [];
+
+                const rows = [];
+
+                for (const record of records) {
+                    const values =
+                        record?.semanticValues &&
+                        typeof record.semanticValues === "object" &&
+                        !Array.isArray(record.semanticValues)
+                            ? record.semanticValues
+                            : {};
+
+                    for (
+                        const [meaning, rawValue]
+                        of Object.entries(values)
+                    ) {
+                        if (
+                            meaning === "user.name" ||
+                            rawValue === null ||
+                            rawValue === undefined ||
+                            String(rawValue).trim() === ""
+                        ) {
+                            continue;
+                        }
+
+                        const presentation =
+                            semanticFieldPresentation[meaning];
+
+                        if (!presentation) {
+                            continue;
+                        }
+
+                        rows.push({
+                            meaning,
+                            label: presentation.label,
+                                role:
+                                    meaning.startsWith("recipient_certificate.")
+                                        ? persistenceRole
+                                        : presentation.role,
+                            value: String(rawValue).trim()
+                        });
+                    }
+                }
+
+                if (rows.length === 0) {
+                    return `
+                        <p class="form-help">
+                            確認済みの登録項目はありません。
+                        </p>
+                    `;
+                }
+
+                return `
+                    <div class="recipient-certificate-preview-fields">
+                        ${rows.map(row => `
+                            <div class="recipient-certificate-preview-field">
+                                <span class="recipient-certificate-preview-label">
+                                    ${escapeHtml(row.label)}
+                                </span>
+                                <strong class="recipient-certificate-preview-value">
+                                    ${escapeHtml(row.value)}
+                                </strong>
+                                <span class="recipient-certificate-preview-role">
+                                    ${escapeHtml(row.role)}
+                                </span>
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+            };
+
+        const plannedPeopleHtml =
+            plannedPeople.length > 0
+                ? `
+                    <div class="import-preview-people">
+                        <strong>登録予定の利用者</strong>
+                        ${plannedPeople.map(item => {
+                            const name =
+                                typeof item.displayName === "string" &&
+                                item.displayName.trim()
+                                    ? escapeHtml(
+                                        item.displayName.trim()
+                                    )
+                                    : "氏名表示なし";
+
+                            const residentLabel =
+                                item.resolution === "planned_new"
+                                    ? "新規利用者として登録予定"
+                                    : "既存利用者";
+
+                            return `
+                                <div class="recipient-certificate-preview-person">
+                                    <div class="recipient-certificate-preview-person-head">
+                                        <strong>${name}</strong>
+                                        <span>
+                                            ${residentLabel}
+                                        </span>
+                                    </div>
+                                    ${renderSemanticRecords(item)}
+                                </div>
+                            `;
+                        }).join("")}
+                    </div>
+                `
+                : "";
+
+        importPreviewSummary.innerHTML = `
+            <strong>
+                受給者証の取り込み予定を確認できます
+            </strong>
+            <p class="form-help">
+                原本行: ${sourceEntities}件<br>
+                利用者: ${residentSubjects}件<br>
+                既存利用者に紐付け済み:
+                ${existingResidents}件<br>
+                新規利用者登録予定:
+                ${plannedNewResidents}件<br>
+                取り込み対象外:
+                ${excluded}件<br>
+                保留:
+                ${deferred}件<br>
+                未確認:
+                ${undecided}件<br>
+                識別情報なし:
+                ${unavailable}件<br>
+                受給者証新規:
+                ${certificateCreates}件<br>
+                受給者証更新:
+                ${certificateUpdates}件<br>
+                変更なし:
+                ${certificateUnchanged}件
+            </p>
+            <p class="form-help">
+                これは確認用プレビューです。
+                まだ利用者登録・受給者証登録は行いません。
+                内容を確認後、最終確定へ進めます。
+            </p>
+            ${plannedPeopleHtml}
+        `;
         return;
     }
 
@@ -3373,28 +4734,11 @@ async function openImportPreviewStep() {
         residentLinkingNextButton.dataset.ready !==
             "true"
     ) {
-        try {
-            const gatePreview =
-                await refreshImportPreviewGate();
-
-            if (
-                gatePreview?.status !== "ready" ||
-                residentLinkingNextButton.dataset.ready !==
-                    "true"
-            ) {
-                setStatus(
-                    "すべての利用者紐付けを確認してから次へ進んでください。",
-                    "error"
-                );
-                return;
-            }
-        } catch (error) {
-            setStatus(
-                `利用者紐付けの最新状態を確認できませんでした: ${error.message}`,
-                "error"
-            );
-            return;
-        }
+        setStatus(
+            "保留・未確認・識別情報なしを解消してから次へ進んでください。",
+            "error"
+        );
+        return;
     }
 
     showStep(5);
@@ -3416,7 +4760,39 @@ async function openImportPreviewStep() {
         renderImportPreviewSummary(preview);
 
         if (
-            preview.status !== "ready" ||
+            preview.status === "preview_only" &&
+            preview.executionAvailable === false
+        ) {
+            confirmedImportPreviewFingerprint = null;
+            confirmedImportPreview = preview;
+
+            if (importPreviewNextButton) {
+                importPreviewNextButton.disabled =
+                    true;
+            }
+
+            setStatus(
+                "受給者証の取り込み予定を確認できます。まだ最終確定は行いません。",
+                "success"
+            );
+            return;
+        }
+
+        const previewExecutionAuthorized =
+            (
+                confirmedDocumentType ===
+                    "support_record" &&
+                preview.status === "ready"
+            ) ||
+            (
+                confirmedDocumentType ===
+                    "recipient_certificate" &&
+                preview.status === "preview_only" &&
+                preview.executionAvailable === true
+            );
+
+        if (
+            !previewExecutionAuthorized ||
             typeof preview.previewFingerprint !==
                 "string" ||
             !/^[0-9a-f]{64}$/.test(
@@ -3521,40 +4897,175 @@ async function renderResidentLinking() {
         );
     }
 
-    const rows =
-        candidateResult.groups.map(
-            group => `
-                <div
-                    style="
-                        padding: 14px 0;
-                        border-bottom: 1px solid #e1e7f0;
-                    "
-                >
-                    <div
-                        data-resident-identifier-type="${escapeHtml(
-                            group.identifierType
-                        )}"
-                        data-resident-identifier-digest="${escapeHtml(
-                            group.identifierDigest
-                        )}"
-                    >
-                        <p class="form-help">
-                            原本 ${group.sourceEntityCount}件
-                        </p>
-                        ${renderResidentCandidateDetails(
-                            group,
-                            sourceResidentMappings.get(
-                                createSourceResidentMappingKey(
-                                    group.identifierType,
-                                    group.identifierDigest
-                                )
-                            ) || null
-                        )}
-                    </div>
-                </div>
-            `
+    const residentAdmissionDecisions =
+        new Map();
+
+    const admissionGroups =
+        candidateResult.groups.filter(
+            group =>
+                group.status === "not_found" &&
+                ["user_code", "name"].includes(
+                    group.identifierType
+                ) &&
+                /^[0-9a-f]{64}$/.test(
+                    group.identifierDigest || ""
+                )
         );
 
+    const admissionResults =
+        await Promise.all(
+            admissionGroups.map(
+                async group => ({
+                    key:
+                        createSourceResidentMappingKey(
+                            group.identifierType,
+                            group.identifierDigest
+                        ),
+                    decision:
+                        await loadResidentAdmissionDecision({
+                            snapshot,
+                            identifierType:
+                                group.identifierType,
+                            identifierDigest:
+                                group.identifierDigest
+                        })
+                })
+            )
+        );
+
+    for (const result of admissionResults) {
+        residentAdmissionDecisions.set(
+            result.key,
+            result.decision
+        );
+    }
+
+    const admissionSummary = {
+        approvedNew: 0,
+        rejected: 0,
+        deferred: 0,
+        undecided: 0
+    };
+
+    for (const group of admissionGroups) {
+        const key =
+            createSourceResidentMappingKey(
+                group.identifierType,
+                group.identifierDigest
+            );
+
+        const decision =
+            residentAdmissionDecisions.get(key)
+                ?.decision || null;
+
+        if (decision === "approved_new") {
+            admissionSummary.approvedNew += 1;
+        } else if (decision === "rejected") {
+            admissionSummary.rejected += 1;
+        } else if (decision === "deferred") {
+            admissionSummary.deferred += 1;
+        } else {
+            admissionSummary.undecided += 1;
+        }
+    }
+
+    const validAdmissionKeys =
+        new Set(
+            admissionGroups.map(group =>
+                createSourceResidentMappingKey(
+                    group.identifierType,
+                    group.identifierDigest
+                )
+            )
+        );
+
+    for (const selectedKey of [
+        ...selectedResidentAdmissionKeys
+    ]) {
+        if (!validAdmissionKeys.has(selectedKey)) {
+            selectedResidentAdmissionKeys.delete(
+                selectedKey
+            );
+        }
+    }
+
+    const rows =
+        candidateResult.groups.map(
+            group => {
+                const key =
+                    createSourceResidentMappingKey(
+                        group.identifierType,
+                        group.identifierDigest
+                    );
+
+                const admissionDecision =
+                    residentAdmissionDecisions.get(
+                        key
+                    ) || null;
+
+                const isSelectableAdmission =
+                    group.status === "not_found" &&
+                    validAdmissionKeys.has(key);
+
+                const selectionHtml =
+                    isSelectableAdmission
+                        ? `
+                            <label
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    margin-bottom: 10px;
+                                    font-weight: 600;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    data-resident-admission-select
+                                    ${
+                                        selectedResidentAdmissionKeys.has(
+                                            key
+                                        )
+                                            ? "checked"
+                                            : ""
+                                    }
+                                >
+                                この利用者を一括変更の対象にする
+                            </label>
+                        `
+                        : "";
+
+                return `
+                    <div
+                        style="
+                            padding: 14px 0;
+                            border-bottom: 1px solid #e1e7f0;
+                        "
+                    >
+                        <div
+                            data-resident-identifier-type="${escapeHtml(
+                                group.identifierType
+                            )}"
+                            data-resident-identifier-digest="${escapeHtml(
+                                group.identifierDigest
+                            )}"
+                        >
+                            ${selectionHtml}
+                            <p class="form-help">
+                                原本 ${group.sourceEntityCount}件
+                            </p>
+                            ${renderResidentCandidateDetails(
+                                group,
+                                sourceResidentMappings.get(
+                                    key
+                                ) || null,
+                                admissionDecision
+                            )}
+                        </div>
+                    </div>
+                `;
+            }
+        );
     const unavailableMessage =
         candidateResult
             .unavailableSourceEntityCount > 0
@@ -3576,7 +5087,7 @@ async function renderResidentLinking() {
                         <p class="form-help">
                             ${candidateResult.unavailableSourceEntityCount}件の
                             原本行で利用者名を取得できません。
-                            日次記録の利用者を確定できないため、
+                            原本データの利用者を確定できないため、
                             この状態では次の取り込み工程へ進めません。
                         </p>
                     </div>
@@ -3590,14 +5101,140 @@ async function renderResidentLinking() {
                 `
             : "";
 
+    const residentIdentifierLabel =
+        candidateResult.identifierType === "user_code"
+            ? "利用者コード"
+            : "利用者名";
+
+    const residentIdentifierSourceLabel =
+        typeof candidateResult.identifierHeaderLabel === "string" &&
+        candidateResult.identifierHeaderLabel.trim()
+            ? candidateResult.identifierHeaderLabel.trim()
+            : "確認できません";
+
+
     residentLinkingSummary.innerHTML = `
         <strong>利用者紐付け</strong>
         <p class="form-help">
-            ${candidateResult.sourceEntityCount}件の原本行を
-            ${candidateResult.groups.length}件の
-            利用者識別グループとして確認します。
+            識別方法：${residentIdentifierLabel}<br>
+            元データの項目：${escapeHtml(
+                residentIdentifierSourceLabel
+            )}<br>
+            原本：${candidateResult.sourceEntityCount}件 /
+            利用者識別グループ：${candidateResult.groups.length}件 /
+            識別情報なし：${candidateResult.unavailableSourceEntityCount}件
+        </p>
+        <p class="form-help">
+            同じ識別情報を持つ原本行をまとめて確認します。
             候補はまだ確定ではありません。
         </p>
+        ${
+            admissionGroups.length > 0
+                ? `
+                    <div style="
+                        margin-top: 12px;
+                        padding: 12px;
+                        border: 1px solid #d0d5dd;
+                        border-radius: 8px;
+                        background: #f8fafc;
+                    ">
+                        <strong>施設未登録利用者の確認状況</strong>
+                        <p class="form-help" style="margin-bottom: 0;">
+                            新規登録予定：${admissionSummary.approvedNew}件 /
+                            取り込まない：${admissionSummary.rejected}件 /
+                            保留：${admissionSummary.deferred}件 /
+                            未確認：${admissionSummary.undecided}件
+                        </p>
+                    </div>
+                `
+                : ""
+        }
+        ${
+            admissionGroups.length > 0
+                ? `
+                    <div style="
+                        margin-top: 12px;
+                        padding: 12px;
+                        border: 1px solid #98a2b3;
+                        border-radius: 8px;
+                        background: #ffffff;
+                    ">
+                        <strong>
+                            施設未登録利用者をまとめて変更
+                        </strong>
+                        <p
+                            class="form-help"
+                            data-resident-admission-selection-count
+                        >
+                            選択中：
+                            ${selectedResidentAdmissionKeys.size}件
+                        </p>
+                        <div style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 8px;
+                            margin-bottom: 10px;
+                        ">
+                            <button
+                                type="button"
+                                data-resident-admission-select-all
+                            >
+                                施設未登録利用者を全選択
+                            </button>
+                            <button
+                                type="button"
+                                data-resident-admission-clear-selection
+                            >
+                                選択解除
+                            </button>
+                        </div>
+                        <div style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 8px;
+                        ">
+                            <button
+                                type="button"
+                                data-resident-admission-bulk-action="approved_new"
+                                ${
+                                    selectedResidentAdmissionKeys.size === 0
+                                        ? "disabled"
+                                        : ""
+                                }
+                            >
+                                選択した人を新規登録予定
+                            </button>
+                            <button
+                                type="button"
+                                data-resident-admission-bulk-action="rejected"
+                                ${
+                                    selectedResidentAdmissionKeys.size === 0
+                                        ? "disabled"
+                                        : ""
+                                }
+                            >
+                                選択した人を取り込まない
+                            </button>
+                            <button
+                                type="button"
+                                data-resident-admission-bulk-action="deferred"
+                                ${
+                                    selectedResidentAdmissionKeys.size === 0
+                                        ? "disabled"
+                                        : ""
+                                }
+                            >
+                                選択した人を保留
+                            </button>
+                        </div>
+                        <p class="form-help" style="margin-bottom: 0;">
+                            全選択しただけでは保存されません。
+                            判断ボタンを押した時だけ保存します。
+                        </p>
+                    </div>
+                `
+                : ""
+        }
         ${unavailableMessage}
     `;
 
@@ -3606,35 +5243,105 @@ async function renderResidentLinking() {
             ? rows.join("")
             : "<p>確認対象がありません。</p>";
 
-    const preview =
-        await refreshImportPreviewGate();
+    const linkingSummary = {
+        existingLinked: 0,
+        approvedNew: 0,
+        rejected: 0,
+        deferred: 0,
+        undecided: 0,
+        unavailable:
+            candidateResult.unavailableSourceEntityCount
+    };
 
-    const confirmedRows =
-        Number.isSafeInteger(
-            preview.readySourceEntityCount
-        )
-            ? preview.readySourceEntityCount
-            : 0;
+    for (const group of candidateResult.groups) {
+        const key =
+            createSourceResidentMappingKey(
+                group.identifierType,
+                group.identifierDigest
+            );
 
-    const unresolvedRows =
-        Number.isSafeInteger(
-            preview.unresolvedResidentCount
-        )
-            ? preview.unresolvedResidentCount
-            : 0;
+        const mapping =
+            sourceResidentMappings.get(key) || null;
+
+        if (
+            mapping &&
+            mapping.mappingStatus === "confirmed" &&
+            typeof mapping.residentId === "string" &&
+            mapping.residentId.trim()
+        ) {
+            linkingSummary.existingLinked += 1;
+            continue;
+        }
+
+        if (group.status === "not_found") {
+            const decision =
+                residentAdmissionDecisions.get(key)
+                    ?.decision || null;
+
+            if (decision === "approved_new") {
+                linkingSummary.approvedNew += 1;
+            } else if (decision === "rejected") {
+                linkingSummary.rejected += 1;
+            } else if (decision === "deferred") {
+                linkingSummary.deferred += 1;
+            } else {
+                linkingSummary.undecided += 1;
+            }
+
+            continue;
+        }
+
+        linkingSummary.undecided += 1;
+    }
+
+    const residentLinkingReady =
+        linkingSummary.deferred === 0 &&
+        linkingSummary.undecided === 0 &&
+        linkingSummary.unavailable === 0;
+
+    if (residentLinkingNextButton) {
+        residentLinkingNextButton.disabled =
+            !residentLinkingReady;
+        residentLinkingNextButton.dataset.ready =
+            residentLinkingReady
+                ? "true"
+                : "false";
+    }
 
     residentLinkingSummary.innerHTML += `
+        <div style="
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            background: #f8fafc;
+        ">
+            <strong>利用者確認の結果</strong>
+            <p class="form-help" style="margin-bottom: 0;">
+                既存利用者に紐付け済み：
+                ${linkingSummary.existingLinked}件<br>
+                新規登録予定：
+                ${linkingSummary.approvedNew}件<br>
+                取り込み対象外：
+                ${linkingSummary.rejected}件<br>
+                保留：
+                ${linkingSummary.deferred}件<br>
+                未確認：
+                ${linkingSummary.undecided}件<br>
+                識別情報なし：
+                ${linkingSummary.unavailable}件
+            </p>
+        </div>
         <p class="form-help">
-            利用者確定済み ${confirmedRows}件 /
-            ${preview.sourceEntityCount}件、
-            未確定 ${unresolvedRows}件です。
             ${
-                preview.status === "ready"
-                    ? "すべて確認済みです。取り込みプレビューへ進めます。"
-                    : "すべての利用者を確認すると次へ進めます。"
+                residentLinkingReady
+                    ? "利用者の確認が完了しました。次の取り込みプレビューへ進めます。"
+                    : "保留・未確認・識別情報なしを解消すると次へ進めます。"
             }
         </p>
     `;
+
+    updateResidentBulkActionBar();
 }
 
 async function openResidentLinkingStep() {
@@ -3672,8 +5379,37 @@ async function openResidentLinkingStep() {
             "success"
         );
     } catch (error) {
+        const identityReasonLabels = {
+            resident_mapping_missing:
+                "利用者識別項目の保存済みマッピングが見つかりません。",
+            human_confirmation_missing:
+                "利用者識別項目の人による確認結果が見つかりません。",
+            confirmed_meaning_mismatch:
+                "保存済みマッピングと人による確認結果が一致していません。",
+            resident_identity_mapping_ambiguous:
+                "利用者識別項目を1つに確定できません。"
+        };
+
+        const identityReason =
+            identityReasonLabels[
+                error?.identityReason
+            ] || null;
+
+        const reason =
+            error?.code ===
+            "resident_identifier_mapping_unavailable"
+                ? identityReason ||
+                    "STEP 3で利用者名または利用者番号の意味を確認してください。"
+                : error?.code ===
+                  "source_entities_unavailable"
+                    ? "確認対象の原本行を取得できませんでした。"
+                    : error?.code ===
+                      "resident_candidate_response_invalid"
+                        ? "利用者候補の応答内容を安全に確認できませんでした。"
+                        : "利用者候補の取得処理を確認できませんでした.";
+
         setStatus(
-            `利用者候補の確認に失敗しました: ${error.message}`,
+            `利用者候補の確認に失敗しました: ${reason}`,
             "error"
         );
 
@@ -3682,6 +5418,9 @@ async function openResidentLinkingStep() {
                 <strong>
                     利用者候補を確認できませんでした
                 </strong>
+                <p class="form-help">
+                    ${escapeHtml(reason)}
+                </p>
                 <p class="form-help">
                     STEP 3の確認内容は保存済みです。
                     原本データの登録や利用者紐付けの確定は
@@ -3779,7 +5518,22 @@ importPreviewNextButton?.addEventListener(
             !/^[0-9a-f]{64}$/.test(
                 confirmedImportPreviewFingerprint
             ) ||
-            confirmedImportPreview.status !== "ready"
+            !(
+                (
+                    confirmedDocumentType ===
+                        "support_record" &&
+                    confirmedImportPreview.status ===
+                        "ready"
+                ) ||
+                (
+                    confirmedDocumentType ===
+                        "recipient_certificate" &&
+                    confirmedImportPreview.status ===
+                        "preview_only" &&
+                    confirmedImportPreview
+                        .executionAvailable === true
+                )
+            )
         ) {
             setStatus(
                 "取り込みプレビューをもう一度確認してください。",
@@ -3788,34 +5542,94 @@ importPreviewNextButton?.addEventListener(
             return;
         }
 
-        const total =
-            confirmedImportPreview.sourceEntityCount;
-        const newRecords =
-            confirmedImportPreview.newRecordCount;
-        const updates =
-            confirmedImportPreview.updateCandidateCount;
-        const unchanged =
-            confirmedImportPreview.unchangedRecordCount;
+        let executionSummaryHtml = "";
 
         if (
-            !Number.isSafeInteger(total) ||
-            total < 1 ||
-            !Number.isSafeInteger(newRecords) ||
-            newRecords < 0 ||
-            !Number.isSafeInteger(updates) ||
-            updates < 0 ||
-            !Number.isSafeInteger(unchanged) ||
-            unchanged < 0
+            confirmedDocumentType ===
+                "recipient_certificate"
         ) {
-            setStatus(
-                "最終確定する件数を確認できません。",
-                "error"
-            );
-            return;
-        }
+            const summary =
+                confirmedImportPreview.summary;
 
-        if (importExecutionSummary) {
-            importExecutionSummary.innerHTML = `
+            const plannedNewResidents =
+                summary?.plannedNewResidentCount;
+            const creates =
+                summary?.recipientCertificateCreateCount;
+            const updates =
+                summary?.recipientCertificateUpdateCount;
+            const unchanged =
+                summary?.recipientCertificateUnchangedCount;
+
+            if (
+                !Number.isSafeInteger(plannedNewResidents) ||
+                plannedNewResidents < 0 ||
+                !Number.isSafeInteger(creates) ||
+                creates < 0 ||
+                !Number.isSafeInteger(updates) ||
+                updates < 0 ||
+                !Number.isSafeInteger(unchanged) ||
+                unchanged < 0
+            ) {
+                setStatus(
+                    "最終確定する件数を確認できません。",
+                    "error"
+                );
+                return;
+            }
+
+            const total =
+                creates + updates + unchanged;
+
+            if (total < 1) {
+                setStatus(
+                    "最終確定する件数を確認できません。",
+                    "error"
+                );
+                return;
+            }
+
+            executionSummaryHtml = `
+                <strong>この内容を記録データへ取り込みます</strong>
+                <p class="form-help">
+                    受給者証対象: ${total}件<br>
+                    新規利用者: ${plannedNewResidents}件<br>
+                    受給者証新規: ${creates}件<br>
+                    受給者証更新: ${updates}件<br>
+                    変更なし: ${unchanged}件
+                </p>
+                <p class="form-help">
+                    「この内容で取り込む」を押すまでは、
+                    記録データへの書き込みは行いません。
+                </p>
+            `;
+        } else {
+            const total =
+                confirmedImportPreview.sourceEntityCount;
+            const newRecords =
+                confirmedImportPreview.newRecordCount;
+            const updates =
+                confirmedImportPreview.updateCandidateCount;
+            const unchanged =
+                confirmedImportPreview.unchangedRecordCount;
+
+            if (
+                !Number.isSafeInteger(total) ||
+                total < 1 ||
+                !Number.isSafeInteger(newRecords) ||
+                newRecords < 0 ||
+                !Number.isSafeInteger(updates) ||
+                updates < 0 ||
+                !Number.isSafeInteger(unchanged) ||
+                unchanged < 0
+            ) {
+                setStatus(
+                    "最終確定する件数を確認できません。",
+                    "error"
+                );
+                return;
+            }
+
+            executionSummaryHtml = `
                 <strong>この内容を記録データへ取り込みます</strong>
                 <p class="form-help">
                     対象: ${total}件<br>
@@ -3828,6 +5642,11 @@ importPreviewNextButton?.addEventListener(
                     記録データへの書き込みは行いません。
                 </p>
             `;
+        }
+
+        if (importExecutionSummary) {
+            importExecutionSummary.innerHTML =
+                executionSummaryHtml;
         }
 
         if (importExecutionConfirmButton) {
@@ -3870,7 +5689,22 @@ importExecutionConfirmButton?.addEventListener(
     async () => {
         if (
             !confirmedImportPreview ||
-            confirmedImportPreview.status !== "ready" ||
+            !(
+                (
+                    confirmedDocumentType ===
+                        "support_record" &&
+                    confirmedImportPreview.status ===
+                        "ready"
+                ) ||
+                (
+                    confirmedDocumentType ===
+                        "recipient_certificate" &&
+                    confirmedImportPreview.status ===
+                        "preview_only" &&
+                    confirmedImportPreview
+                        .executionAvailable === true
+                )
+            ) ||
             typeof confirmedImportPreviewFingerprint !==
                 "string" ||
             !/^[0-9a-f]{64}$/.test(
@@ -3915,22 +5749,36 @@ importExecutionConfirmButton?.addEventListener(
             }
 
             if (importExecutionSummary) {
+                const completionDetails =
+                    confirmedDocumentType ===
+                        "recipient_certificate"
+                        ? `
+                            処理済み: ${result.processed}件<br>
+                            新規登録: ${result.created}件<br>
+                            更新: ${result.updated}件<br>
+                            変更なし: ${result.unchanged}件<br>
+                            新規利用者: ${result.residentsCreated}件
+                        `
+                        : `
+                            処理済み: ${result.processed}件<br>
+                            新規登録: ${result.created}件<br>
+                            更新: ${result.updated}件<br>
+                            既に反映済み: ${result.alreadyApplied}件
+                        `;
+
                 importExecutionSummary.innerHTML = `
                     <strong>取り込みが完了しました</strong>
                     <p class="form-help">
-                        処理済み: ${result.processed}件<br>
-                        新規登録: ${result.created}件<br>
-                        更新: ${result.updated}件<br>
-                        既に反映済み: ${result.alreadyApplied}件
+                        ${completionDetails}
                     </p>
                 `;
             }
 
-            importExecutionConfirmButton.textContent =
-                "取り込み完了";
+            importExecutionConfirmButton.hidden =
+                true;
 
-            importExecutionBackButton.disabled =
-                false;
+            importExecutionBackButton.hidden =
+                true;
 
             setStatus(
                 "記録データへの取り込みが完了しました。",
@@ -4003,6 +5851,368 @@ importExecutionConfirmButton?.addEventListener(
     }
 );
 
+residentLinkingSummary?.addEventListener(
+    "click",
+    async event => {
+        const selectAllButton =
+            event.target.closest(
+                "[data-resident-admission-select-all]"
+            );
+
+        if (selectAllButton) {
+            const checkboxes =
+                residentLinkingList.querySelectorAll(
+                    "[data-resident-admission-select]"
+                );
+
+            selectedResidentAdmissionKeys.clear();
+
+            for (const checkbox of checkboxes) {
+                const groupElement =
+                    checkbox.closest(
+                        "[data-resident-identifier-type][data-resident-identifier-digest]"
+                    );
+
+                const identifierType =
+                    groupElement?.dataset
+                        ?.residentIdentifierType?.trim() ||
+                    "";
+
+                const identifierDigest =
+                    groupElement?.dataset
+                        ?.residentIdentifierDigest?.trim() ||
+                    "";
+
+                if (
+                    ["user_code", "name"].includes(
+                        identifierType
+                    ) &&
+                    /^[0-9a-f]{64}$/.test(
+                        identifierDigest
+                    )
+                ) {
+                    selectedResidentAdmissionKeys.add(
+                        createSourceResidentMappingKey(
+                            identifierType,
+                            identifierDigest
+                        )
+                    );
+                }
+            }
+
+            await renderResidentLinking();
+            return;
+        }
+
+        const clearButton =
+            event.target.closest(
+                "[data-resident-admission-clear-selection]"
+            );
+
+        if (clearButton) {
+            selectedResidentAdmissionKeys.clear();
+            await renderResidentLinking();
+            return;
+        }
+
+        const bulkButton =
+            event.target.closest(
+                "[data-resident-admission-bulk-action]"
+            );
+
+        if (!bulkButton) {
+            return;
+        }
+
+        const decision =
+            bulkButton.dataset
+                .residentAdmissionBulkAction?.trim() ||
+            "";
+
+        if (
+            ![
+                "approved_new",
+                "rejected",
+                "deferred"
+            ].includes(decision) ||
+            selectedResidentAdmissionKeys.size === 0
+        ) {
+            return;
+        }
+
+        const snapshot =
+            getResidentLinkingSnapshot();
+
+        const targets =
+            [...selectedResidentAdmissionKeys]
+                .map(key => ({
+                    key,
+                    group:
+                        residentCandidateGroups.get(key)
+                }))
+                .filter(
+                    item =>
+                        item.group &&
+                        item.group.status === "not_found"
+                );
+
+        if (targets.length === 0) {
+            selectedResidentAdmissionKeys.clear();
+            await renderResidentLinking();
+            return;
+        }
+
+        bulkButton.disabled = true;
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+
+        setStatus(
+            `${targets.length}件の利用者判断を保存しています...`
+        );
+
+        let savedCount = 0;
+
+        try {
+            for (const target of targets) {
+                await persistResidentAdmissionDecision({
+                    snapshot,
+                    identifierType:
+                        target.group.identifierType,
+                    identifierDigest:
+                        target.group.identifierDigest,
+                    decision
+                });
+
+                savedCount += 1;
+                selectedResidentAdmissionKeys.delete(
+                    target.key
+                );
+            }
+
+            await renderResidentLinking();
+
+            const decisionLabel =
+                decision === "approved_new"
+                    ? "新規登録予定"
+                    : decision === "rejected"
+                        ? "取り込まない"
+                        : "保留";
+
+            setStatus(
+                `${savedCount}名を「${decisionLabel}」として保存しました。内容を確認し、画面下の「取り込みプレビューへ」を押してください。`,
+                "success"
+            );
+        } catch (error) {
+            await renderResidentLinking();
+
+            setStatus(
+                `${savedCount}件を保存した後に処理を停止しました: ${error.message}`,
+                "error"
+            );
+        }
+    }
+);
+
+residentLinkingList?.addEventListener(
+    "change",
+    async event => {
+        const checkbox =
+            event.target.closest(
+                "[data-resident-admission-select]"
+            );
+
+        if (!checkbox) {
+            return;
+        }
+
+        const groupElement =
+            checkbox.closest(
+                "[data-resident-identifier-type][data-resident-identifier-digest]"
+            );
+
+        const identifierType =
+            groupElement?.dataset
+                ?.residentIdentifierType?.trim() ||
+            "";
+
+        const identifierDigest =
+            groupElement?.dataset
+                ?.residentIdentifierDigest?.trim() ||
+            "";
+
+        if (
+            !["user_code", "name"].includes(
+                identifierType
+            ) ||
+            !/^[0-9a-f]{64}$/.test(
+                identifierDigest
+            )
+        ) {
+            checkbox.checked = false;
+            return;
+        }
+
+        const key =
+            createSourceResidentMappingKey(
+                identifierType,
+                identifierDigest
+            );
+
+        const group =
+            residentCandidateGroups.get(key);
+
+        if (!group || group.status !== "not_found") {
+            checkbox.checked = false;
+            return;
+        }
+
+        if (checkbox.checked) {
+            selectedResidentAdmissionKeys.add(key);
+        } else {
+            selectedResidentAdmissionKeys.delete(key);
+        }
+
+        const selectionCount =
+            residentLinkingSummary.querySelector(
+                "[data-resident-admission-selection-count]"
+            );
+
+        if (selectionCount) {
+            selectionCount.textContent =
+                `選択中：${selectedResidentAdmissionKeys.size}件`;
+        }
+
+        const bulkButtons =
+            residentLinkingSummary.querySelectorAll(
+                "[data-resident-admission-bulk-action]"
+            );
+
+        bulkButtons.forEach(item => {
+            item.disabled =
+                selectedResidentAdmissionKeys.size === 0;
+        });
+
+        updateResidentBulkActionBar();
+    }
+);
+
+residentLinkingList?.addEventListener(
+    "click",
+    async event => {
+        const button =
+            event.target.closest(
+                "[data-resident-admission-action]"
+            );
+
+        if (!button) {
+            return;
+        }
+
+        const groupElement =
+            button.closest(
+                "[data-resident-identifier-type][data-resident-identifier-digest]"
+            );
+
+        const identifierType =
+            groupElement?.dataset
+                ?.residentIdentifierType?.trim() ||
+            "";
+
+        const identifierDigest =
+            groupElement?.dataset
+                ?.residentIdentifierDigest?.trim() ||
+            "";
+
+        const decision =
+            button.dataset
+                .residentAdmissionAction?.trim() ||
+            "";
+
+        const key =
+            createSourceResidentMappingKey(
+                identifierType,
+                identifierDigest
+            );
+
+        const group =
+            residentCandidateGroups.get(key);
+
+        if (
+            !group ||
+            group.status !== "not_found" ||
+            !["user_code", "name"].includes(
+                identifierType
+            ) ||
+            !/^[0-9a-f]{64}$/.test(
+                identifierDigest
+            ) ||
+            ![
+                "approved_new",
+                "rejected",
+                "deferred"
+            ].includes(decision)
+        ) {
+            setStatus(
+                "利用者登録判断の対象を確認できません。",
+                "error"
+            );
+            return;
+        }
+
+        const snapshot =
+            getResidentLinkingSnapshot();
+
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+
+        const buttons =
+            groupElement.querySelectorAll(
+                "[data-resident-admission-action]"
+            );
+
+        buttons.forEach(item => {
+            item.disabled = true;
+        });
+
+        setStatus(
+            decision === "approved_new"
+                ? "新規利用者としての登録予定を保存しています..."
+                : decision === "rejected"
+                    ? "取り込まない判断を保存しています..."
+                    : "保留として保存しています..."
+        );
+
+        try {
+            await persistResidentAdmissionDecision({
+                snapshot,
+                identifierType,
+                identifierDigest,
+                decision
+            });
+
+            setStatus(
+                decision === "approved_new"
+                    ? "この施設の新規利用者として登録予定にしました。まだ利用者登録は行っていません。"
+                    : decision === "rejected"
+                        ? "このデータは取り込まない判断を保存しました。"
+                        : "この利用者の確認を保留しました。",
+                "success"
+            );
+
+            await renderResidentLinking();
+        } catch (error) {
+            buttons.forEach(item => {
+                item.disabled = false;
+            });
+
+            setStatus(
+                `利用者登録判断の保存に失敗しました: ${error.message}`,
+                "error"
+            );
+        }
+    }
+);
+
 residentLinkingList?.addEventListener(
     "click",
     async event => {
@@ -4060,20 +6270,11 @@ residentLinkingList?.addEventListener(
             ) ||
             ![
                 "confirmed",
-                "deferred",
-                "create_resident"
+                "deferred"
             ].includes(mappingAction) ||
             (
                 mappingAction === "confirmed" &&
                 !residentId
-            ) ||
-            (
-                mappingAction === "create_resident" &&
-                (
-                    identifierType !== "name" ||
-                    typeof group.identifierValue !== "string" ||
-                    !group.identifierValue.trim()
-                )
             )
         ) {
             setStatus(
@@ -4093,28 +6294,10 @@ residentLinkingList?.addEventListener(
         setStatus(
             mappingAction === "confirmed"
                 ? "利用者紐付けを保存しています..."
-                : mappingAction === "create_resident"
-                    ? "利用者台帳へ登録して紐付けています..."
-                    : "保留として保存しています..."
+                : "保留として保存しています..."
         );
 
         try {
-            if (
-                mappingAction === "create_resident"
-            ) {
-                const creationResult =
-                    await createResidentFromSourceName(
-                        group.identifierValue
-                    );
-
-                residentId =
-                    creationResult.resident
-                        .residentId;
-
-                mappingStatus =
-                    "confirmed";
-            }
-
             await persistSourceResidentMapping({
                 snapshot,
                 identifierType,
@@ -4138,27 +6321,12 @@ residentLinkingList?.addEventListener(
                 mapping
             );
 
-            groupElement.innerHTML = `
-                <p class="form-help">
-                    原本 ${group.sourceEntityCount}件
-                </p>
-                ${renderResidentCandidateDetails(
-                    group,
-                    mapping
-                )}
-            `;
-
-            const preview =
-                await refreshImportPreviewGate();
+            await renderResidentLinking();
 
             setStatus(
-                preview.status === "ready"
-                    ? "すべての利用者紐付けを確認しました。取り込みプレビューへ進めます。"
-                    : mappingAction === "create_resident"
-                        ? "利用者台帳への登録と紐付けを確認しました。"
-                        : mappingStatus === "confirmed"
-                            ? "利用者紐付けを確認しました。"
-                            : "利用者紐付けを保留しました。",
+                mappingStatus === "confirmed"
+                    ? "利用者紐付けを確認しました。"
+                    : "利用者紐付けを保留しました。",
                 "success"
             );
         } catch (error) {
@@ -4183,38 +6351,46 @@ importReadyButton?.addEventListener(
             collectSourceFieldInterpretations();
 
 
-const requiredStep3Meanings = [
-            {
-                entityName: "user",
-                fieldName: "name",
-                label: "利用者名"
-            },
-            {
-                entityName: "support_record",
-                fieldName: "record_date",
-                label: "記録日時"
-            },
-            {
-                entityName: "support_record",
-                fieldName: "record_content",
-                label: "支援記録本文"
-            }
-        ];
+const step3RequirementState =
+            window.RisenDocumentTypeProfiles
+                .getStep3RequirementState(
+                    confirmedDocumentType,
+                    mappings
+                );
 
-        const missingRequiredStep3Meanings =
-            requiredStep3Meanings.filter(required =>
-                !mappings.some(mapping =>
-                    mapping.standardEntityName ===
-                        required.entityName &&
-                    mapping.standardFieldName ===
-                        required.fieldName
-                )
+        if (
+            step3RequirementState.status ===
+            "document_type_unresolved"
+        ) {
+            setStatus(
+                "STEP 3を確定する前に、データ種別の確認が必要です。",
+                "error"
             );
 
-        if (missingRequiredStep3Meanings.length > 0) {
+            return;
+        }
+
+        if (
+            step3RequirementState.status ===
+            "document_type_not_supported"
+        ) {
+            setStatus(
+                "このデータ種別は、まだ取り込み確定に対応していません: " +
+                step3RequirementState.profile.label,
+                "error"
+            );
+
+            return;
+        }
+
+        if (
+            step3RequirementState.status ===
+            "required_mapping_missing"
+        ) {
             setStatus(
                 "STEP 3の必須項目が未確認です: " +
-                missingRequiredStep3Meanings
+                step3RequirementState
+                    .missingRequiredMeanings
                     .map(required => required.label)
                     .join("、"),
                 "error"
@@ -4224,11 +6400,15 @@ const requiredStep3Meanings = [
         }
 
         if (
-            !confirmedSourceRecordIdentity ||
-            typeof confirmedSourceRecordIdentity
-                .sourceFieldKey !== "string" ||
-            !confirmedSourceRecordIdentity
-                .sourceFieldKey.trim()
+            step3RequirementState.profile
+                .sourceRecordIdentityRequired === true &&
+            (
+                !confirmedSourceRecordIdentity ||
+                typeof confirmedSourceRecordIdentity
+                    .sourceFieldKey !== "string" ||
+                !confirmedSourceRecordIdentity
+                    .sourceFieldKey.trim()
+            )
         ) {
             setStatus(
                 "STEP 3の原本レコードIDが未確認です。原本側で各記録を一意に識別する項目を選択して確認してください。",
@@ -4238,29 +6418,34 @@ const requiredStep3Meanings = [
             return;
         }
 
-        const identityFieldDefinitions =
-            Array.isArray(
-                latestAnalysis?.extracted?.fieldDefinitions
-            )
-                ? latestAnalysis.extracted.fieldDefinitions
-                : [];
+        if (
+            step3RequirementState.profile
+                .sourceRecordIdentityRequired === true
+        ) {
+            const identityFieldDefinitions =
+                Array.isArray(
+                    latestAnalysis?.extracted?.fieldDefinitions
+                )
+                    ? latestAnalysis.extracted.fieldDefinitions
+                    : [];
 
-        const confirmedIdentityFieldExists =
-            identityFieldDefinitions.some(
-                field =>
-                    typeof field?.sourceFieldKey === "string" &&
-                    field.sourceFieldKey.trim() ===
-                        confirmedSourceRecordIdentity
-                            .sourceFieldKey.trim()
-            );
+            const confirmedIdentityFieldExists =
+                identityFieldDefinitions.some(
+                    field =>
+                        typeof field?.sourceFieldKey === "string" &&
+                        field.sourceFieldKey.trim() ===
+                            confirmedSourceRecordIdentity
+                                .sourceFieldKey.trim()
+                );
 
-        if (!confirmedIdentityFieldExists) {
-            setStatus(
-                "確認済みの原本レコードIDが現在の原本構造と一致しません。もう一度確認してください。",
-                "error"
-            );
+            if (!confirmedIdentityFieldExists) {
+                setStatus(
+                    "確認済みの原本レコードIDが現在の原本構造と一致しません。もう一度確認してください。",
+                    "error"
+                );
 
-            return;
+                return;
+            }
         }
 
         importReadyButton.disabled = true;
@@ -4357,7 +6542,7 @@ const requiredStep3Meanings = [
 
             setStatus(
                 completedCount > 0
-                    ? `${completedCount}件まで保存しましたが、途中で失敗しました。再実行できます。`
+                    ? `${completedCount}件まで保存しましたが、途中で失敗しました。再実行できます。詳細: ${error.message}`
                     : `確認内容の保存に失敗しました: ${error.message}`,
                 "error"
             );
@@ -4394,3 +6579,96 @@ function escapeHtml(value) {
 }
 
 loadFiles();
+
+function updateResidentBulkActionBar() {
+    if (
+        !residentBulkActionBar ||
+        !residentBulkActionCount
+    ) {
+        return;
+    }
+
+    const selectedCount =
+        selectedResidentAdmissionKeys.size;
+
+    residentBulkActionCount.textContent =
+        `${selectedCount}人選択中`;
+
+    residentBulkActionBar.hidden =
+        selectedCount === 0;
+}
+
+residentBulkActionBar?.addEventListener(
+    "click",
+    event => {
+        const clearButton =
+            event.target.closest(
+                "[data-resident-bulk-fixed-clear]"
+            );
+
+        if (clearButton) {
+            selectedResidentAdmissionKeys.clear();
+
+            residentLinkingList
+                ?.querySelectorAll(
+                    "[data-resident-admission-select]"
+                )
+                .forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+
+            const selectionCount =
+                residentLinkingSummary
+                    ?.querySelector(
+                        "[data-resident-admission-selection-count]"
+                    );
+
+            if (selectionCount) {
+                selectionCount.textContent =
+                    "選択中：0件";
+            }
+
+            const bulkButtons =
+                residentLinkingSummary
+                    ?.querySelectorAll(
+                        "[data-resident-admission-bulk-action]"
+                    );
+
+            bulkButtons?.forEach(button => {
+                button.disabled = true;
+            });
+
+            updateResidentBulkActionBar();
+            return;
+        }
+
+        const actionButton =
+            event.target.closest(
+                "[data-resident-bulk-fixed-action]"
+            );
+
+        if (!actionButton) {
+            return;
+        }
+
+        const decision =
+            actionButton.dataset
+                .residentBulkFixedAction;
+
+        const existingBulkButton =
+            residentLinkingSummary
+                ?.querySelector(
+                    `[data-resident-admission-bulk-action="${decision}"]`
+                );
+
+        if (!existingBulkButton) {
+            setStatus(
+                "一括変更処理を確認できません。",
+                "error"
+            );
+            return;
+        }
+
+        existingBulkButton.click();
+    }
+);

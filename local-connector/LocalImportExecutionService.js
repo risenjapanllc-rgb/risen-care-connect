@@ -60,6 +60,8 @@ class LocalImportExecutionService {
 
         return await this.executionService.execute({
             sourceDocumentKey,
+            sourceUpdatedAt,
+            sourceSize,
             executionPlan:
                 verification.executionPlan
         });

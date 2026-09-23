@@ -9,7 +9,8 @@ const SourceResidentCandidateResolver =
 function createResolver({
     mappings,
     sourceEntities,
-    candidates = []
+    candidates = [],
+    interpretations = null
 } = {}) {
     const calls = {
         mappingList: [],
@@ -50,7 +51,37 @@ function createResolver({
                     };
                 }
             },
-            residentCandidateClient: {
+
+        sourceFieldInterpretationClient: {
+            async list() {
+                const safeMappings =
+                    Array.isArray(mappings)
+                        ? mappings
+                        : [];
+
+                return {
+                    status: "found",
+                    interpretations:
+                        Array.isArray(interpretations)
+                            ? interpretations
+                            : safeMappings.map(mapping => ({
+                            sourceFieldKey:
+                                mapping.sourceFieldKey,
+                            interpretationStatus:
+                                "confirmed",
+                            mappingStatus:
+                                "confirmed",
+                            confirmedMeaning:
+                                mapping.standardEntityName +
+                                "." +
+                                mapping.standardFieldName,
+                            confirmedByHuman:
+                                true
+                            }))
+                };
+            }
+        },
+        residentCandidateClient: {
                 async findCandidates(identifier) {
                     calls.candidateLookup.push(
                         identifier
@@ -665,5 +696,180 @@ test("skips blank identifiers in bulk lookup and reports their physical row coun
     assert.equal(
         result.groups.length,
         1
+    );
+});
+
+
+test(
+    "rejects resident identity mapping without human confirmation",
+    async () => {
+        const { resolver, calls } =
+            createResolver({
+                mappings: [{
+                    sourceFieldKey: "field:test",
+                    standardEntityName: "user",
+                    standardFieldName: "user_code"
+                }],
+                interpretations: [{
+                    sourceFieldKey: "field:test",
+                    interpretationStatus: "candidate",
+                    mappingStatus: "candidate",
+                    confirmedMeaning: "user.user_code",
+                    confirmedByHuman: false
+                }],
+                sourceEntities: [{
+                    sourceEntityKey: "row:1",
+                    valuesBySourceFieldKey: {
+                        "field:test": "VALUE"
+                    }
+                }]
+            });
+
+        await assert.rejects(
+            () =>
+                resolver.findCandidateGroups({
+                    sourceDocumentKey: "document:test",
+                    sourceUpdatedAt:
+                        "2026-09-21T00:00:00.000Z",
+                    sourceSize: 100
+                }),
+            error =>
+                error?.code ===
+                "resident_identifier_mapping_unavailable"
+        );
+
+        assert.equal(calls.candidateLookup.length, 0);
+    }
+);
+
+test(
+    "rejects resident identity mapping when confirmed meaning differs",
+    async () => {
+        const { resolver, calls } =
+            createResolver({
+                mappings: [{
+                    sourceFieldKey: "field:test",
+                    standardEntityName: "user",
+                    standardFieldName: "user_code"
+                }],
+                interpretations: [{
+                    sourceFieldKey: "field:test",
+                    interpretationStatus: "confirmed",
+                    mappingStatus: "confirmed",
+                    confirmedMeaning: "user.name",
+                    confirmedByHuman: true
+                }],
+                sourceEntities: [{
+                    sourceEntityKey: "row:1",
+                    valuesBySourceFieldKey: {
+                        "field:test": "VALUE"
+                    }
+                }]
+            });
+
+        await assert.rejects(
+            () =>
+                resolver.findCandidateGroups({
+                    sourceDocumentKey: "document:test",
+                    sourceUpdatedAt:
+                        "2026-09-21T00:00:00.000Z",
+                    sourceSize: 100
+                }),
+            error =>
+                error?.code ===
+                "resident_identifier_mapping_unavailable"
+        );
+
+        assert.equal(calls.candidateLookup.length, 0);
+    }
+);
+
+test("candidate groups preserve source entity keys for trusted semantic linkage", async () => {
+    const resolver =
+        new SourceResidentCandidateResolver({
+            localConnectorService: {
+                async resolveSourceSnapshot() {
+                    return {
+                        sourceDocumentKey: "doc-linkage",
+                        sourceUpdatedAt:
+                            "2026-09-22T00:00:00.000Z",
+                        sourceSize: 10,
+                        analysis: {
+                            extracted: {
+                                fieldDefinitions: [{
+                                    sourceFieldKey: "name",
+                                    headerLabel: "氏名"
+                                }],
+                                sourceEntities: [
+                                    {
+                                        sourceEntityKey: "row:1",
+                                        valuesBySourceFieldKey: {
+                                            name: "利用者A"
+                                        }
+                                    },
+                                    {
+                                        sourceEntityKey: "row:2",
+                                        valuesBySourceFieldKey: {
+                                            name: "利用者A"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    };
+                }
+            },
+            sourceFieldMappingClient: {
+                async list() {
+                    return {
+                        status: "found",
+                        mappings: [{
+                            sourceFieldKey: "name",
+                            standardEntityName: "user",
+                            standardFieldName: "name"
+                        }]
+                    };
+                }
+            },
+            sourceFieldInterpretationClient: {
+                async list() {
+                    return {
+                        status: "found",
+                        interpretations: [{
+                            sourceFieldKey: "name",
+                            confirmedMeaning: "user.name",
+                            confirmedByHuman: true
+                        }]
+                    };
+                }
+            },
+            residentCandidateClient: {
+                async findCandidates() {
+                    return [];
+                }
+            }
+        });
+
+    const result =
+        await resolver.findCandidateGroups({
+            sourceDocumentKey: "doc-linkage",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize: 10
+        });
+
+    assert.strictEqual(
+        result.groups.length,
+        1
+    );
+
+    assert.deepStrictEqual(
+        result.groups[0].sourceEntityKeys,
+        ["row:1", "row:2"]
+    );
+
+    assert.strictEqual(
+        result.groups[0].sourceEntityCount,
+        2
     );
 });

@@ -18,6 +18,10 @@ test("confirm requires implementation for valid deferred input", async () => {
                 "22222222-2222-2222-2222-222222222222",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:1",
             interpretationStatus:
@@ -43,6 +47,10 @@ test("confirm requires implementation for valid no-standard-match input", async 
                 "22222222-2222-2222-2222-222222222222",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:2",
             interpretationStatus:
@@ -68,6 +76,10 @@ test("confirm rejects invalid interpretation status", async () => {
                 "22222222-2222-2222-2222-222222222222",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:1",
             interpretationStatus:
@@ -98,6 +110,10 @@ test("confirm rejects invalid mapping status", async () => {
                 "22222222-2222-2222-2222-222222222222",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:1",
             interpretationStatus:
@@ -128,6 +144,10 @@ test("confirm rejects missing source field identity", async () => {
                 "22222222-2222-2222-2222-222222222222",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "",
             interpretationStatus:

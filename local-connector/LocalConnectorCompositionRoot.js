@@ -58,24 +58,54 @@ const SourceRecordIdentityConfirmationService =
     require("./SourceRecordIdentityConfirmationService");
 const SourceRecordIdentityPersistenceService =
     require("./SourceRecordIdentityPersistenceService");
+const SourceRecordIdentityCandidateService =
+    require("./SourceRecordIdentityCandidateService");
+const SourceRecordIdentityCandidateResolver =
+    require("./SourceRecordIdentityCandidateResolver");
+const ConfirmedDocumentTypeHttpClient =
+    require("./ConfirmedDocumentTypeHttpClient");
+const ConfirmedDocumentTypeService =
+    require("./ConfirmedDocumentTypeService");
+const ResidentAdmissionDecisionHttpClient =
+    require("./ResidentAdmissionDecisionHttpClient");
+const ResidentAdmissionDecisionService =
+    require("./ResidentAdmissionDecisionService");
 const ResidentCreationHttpClient =
     require("./ResidentCreationHttpClient");
 const SourceResidentCandidateResolver =
     require("./SourceResidentCandidateResolver");
 const LocalImportPreviewService =
     require("./LocalImportPreviewService");
+const RecipientCertificateImportPreviewService =
+    require("./RecipientCertificateImportPreviewService");
+const RecipientCertificateImportPreviewStrategy =
+    require("./RecipientCertificateImportPreviewStrategy");
+const RecipientCertificatePreviewFingerprint =
+    require("./RecipientCertificatePreviewFingerprint");
+const RecipientCertificateSemanticPlanner =
+    require("./RecipientCertificateSemanticPlanner");
 const ConnectorSupportRecordRowBuilder =
     require("./ConnectorSupportRecordRowBuilder");
 const ConnectorSupportRecordCanonicalizer =
     require("../server-domain/semantic/ConnectorSupportRecordCanonicalizer");
 const ConnectorSemanticRecordPreviewHttpClient =
     require("./ConnectorSemanticRecordPreviewHttpClient");
+const ConnectorSemanticLogicalRecordHttpClient =
+    require("./ConnectorSemanticLogicalRecordHttpClient");
 const ConnectorSupportRecordBatchWriteHttpClient =
     require("./ConnectorSupportRecordBatchWriteHttpClient");
 const ConnectorSupportRecordExecutionGate =
     require("./ConnectorSupportRecordExecutionGate");
 const ConnectorSupportRecordExecutionService =
     require("./ConnectorSupportRecordExecutionService");
+const ConnectorResidentAdmissionHttpClient =
+    require("./ConnectorResidentAdmissionHttpClient");
+const ConnectorSemanticLogicalRecordPersistenceHttpClient =
+    require("./ConnectorSemanticLogicalRecordPersistenceHttpClient");
+const RecipientCertificateExecutionGate =
+    require("./RecipientCertificateExecutionGate");
+const RecipientCertificateExecutionService =
+    require("./RecipientCertificateExecutionService");
 const LocalImportExecutionService =
     require("./LocalImportExecutionService");
 
@@ -340,6 +370,7 @@ async function createSourceResidentCandidateResolver({
     databasePath,
     configPath,
     mappingEndpoint,
+    interpretationEndpoint,
     candidateEndpoint,
     credential,
     authorizationScheme,
@@ -368,6 +399,17 @@ async function createSourceResidentCandidateResolver({
             fetchImpl
         });
 
+    const sourceFieldInterpretationClient =
+        new SourceFieldInterpretationHttpClient({
+            endpoint:
+                interpretationEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
     const residentCandidateClient =
         new ConnectorResidentCandidateHttpClient({
             endpoint:
@@ -382,6 +424,7 @@ async function createSourceResidentCandidateResolver({
     return new SourceResidentCandidateResolver({
         localConnectorService,
         sourceFieldMappingClient,
+        sourceFieldInterpretationClient,
         residentCandidateClient
     });
 }
@@ -470,6 +513,122 @@ async function createImportPreviewService({
     });
 }
 
+async function createRecipientCertificateImportPreviewService({
+    databasePath,
+    configPath,
+    fieldMappingEndpoint,
+    interpretationEndpoint,
+    candidateEndpoint,
+    residentMappingEndpoint,
+    admissionDecisionEndpoint,
+    semanticLogicalRecordEndpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const candidateResolver =
+        await createSourceResidentCandidateResolver({
+            databasePath,
+            configPath,
+            mappingEndpoint:
+                fieldMappingEndpoint,
+            interpretationEndpoint,
+            candidateEndpoint,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    const sourceResidentMappingClient =
+        await createSourceResidentMappingClient({
+            databasePath,
+            configPath,
+            endpoint:
+                residentMappingEndpoint,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    const admissionDecisionService =
+        await createResidentAdmissionDecisionService({
+            databasePath,
+            configPath,
+            endpoint:
+                admissionDecisionEndpoint,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const sourceFieldMappingClient =
+        new SourceFieldMappingHttpClient({
+            endpoint:
+                fieldMappingEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const sourceFieldInterpretationClient =
+        new SourceFieldInterpretationHttpClient({
+            endpoint:
+                interpretationEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const semanticLogicalRecordClient =
+        new ConnectorSemanticLogicalRecordHttpClient({
+            endpoint:
+                semanticLogicalRecordEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    return new RecipientCertificateImportPreviewService({
+        candidateResolver,
+        sourceResidentMappingClient,
+        admissionDecisionService,
+        localConnectorService,
+        sourceFieldMappingClient,
+        sourceFieldInterpretationClient,
+        semanticLogicalRecordClient,
+        semanticPlanner:
+            new RecipientCertificateSemanticPlanner(),
+        previewFingerprint:
+            new RecipientCertificatePreviewFingerprint(),
+        strategy:
+            new RecipientCertificateImportPreviewStrategy()
+    });
+}
+
 async function createImportExecutionService({
     databasePath,
     configPath,
@@ -543,6 +702,102 @@ async function createImportExecutionService({
             semanticRecordPreviewClient,
             batchWriteClient,
             writeBatchSize: 100
+        });
+
+    return new LocalImportExecutionService({
+        executionGate,
+        executionService
+    });
+}
+
+async function createRecipientCertificateImportExecutionService({
+    databasePath,
+    configPath,
+    fieldMappingEndpoint,
+    interpretationEndpoint,
+    candidateEndpoint,
+    residentMappingEndpoint,
+    admissionDecisionEndpoint,
+    semanticLogicalRecordEndpoint,
+    residentAdmissionEndpoint,
+    semanticLogicalRecordPersistenceEndpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const importPreviewService =
+        await createRecipientCertificateImportPreviewService({
+            databasePath,
+            configPath,
+            fieldMappingEndpoint,
+            interpretationEndpoint,
+            candidateEndpoint,
+            residentMappingEndpoint,
+            admissionDecisionEndpoint,
+            semanticLogicalRecordEndpoint,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const sourceResidentMappingClient =
+        new SourceResidentMappingHttpClient({
+            endpoint:
+                residentMappingEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            fetchImpl
+        });
+
+    const residentAdmissionClient =
+        new ConnectorResidentAdmissionHttpClient({
+            endpoint:
+                residentAdmissionEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const semanticPersistenceClient =
+        new ConnectorSemanticLogicalRecordPersistenceHttpClient({
+            endpoint:
+                semanticLogicalRecordPersistenceEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const executionGate =
+        new RecipientCertificateExecutionGate({
+            importPreviewService
+        });
+
+    const executionService =
+        new RecipientCertificateExecutionService({
+            sourceResidentMappingClient,
+            residentAdmissionClient,
+            semanticPersistenceClient
         });
 
     return new LocalImportExecutionService({
@@ -662,6 +917,109 @@ async function createSourceRecordIdentityMappingService({
         get:
             input =>
                 sourceRecordIdentityMappingClient.get(input)
+    };
+}
+
+function createSourceRecordIdentityCandidateService({
+    databasePath,
+    configPath
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    return new SourceRecordIdentityCandidateService({
+        localConnectorService,
+        resolver:
+            new SourceRecordIdentityCandidateResolver()
+    });
+}
+
+async function createResidentAdmissionDecisionService({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const persistenceClient =
+        new ResidentAdmissionDecisionHttpClient({
+            endpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    return new ResidentAdmissionDecisionService({
+        localConnectorService,
+        persistenceClient
+    });
+}
+
+async function createConfirmedDocumentTypeService({
+    databasePath,
+    configPath,
+    endpoint,
+    credential,
+    authorizationScheme,
+    allowedDocumentTypes,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const persistenceClient =
+        new ConfirmedDocumentTypeHttpClient({
+            endpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const confirmationService =
+        new ConfirmedDocumentTypeService({
+            localConnectorService,
+            persistenceClient,
+            allowedDocumentTypes
+        });
+
+    return {
+        confirm:
+            input =>
+                confirmationService.confirm(input),
+        get:
+            input =>
+                persistenceClient.get(input)
     };
 }
 
@@ -856,10 +1214,15 @@ module.exports = {
     createResidentCandidateService,
     createSourceResidentCandidateResolver,
     createImportPreviewService,
+    createRecipientCertificateImportPreviewService,
     createImportExecutionService,
+    createRecipientCertificateImportExecutionService,
     createSourceResidentLinkClient,
     createSourceResidentMappingClient,
     createSourceRecordIdentityMappingService,
+    createSourceRecordIdentityCandidateService,
+    createConfirmedDocumentTypeService,
+    createResidentAdmissionDecisionService,
     createResidentCreationClient,
     createSourceDocumentSyncEngine,
     createSyncEngine

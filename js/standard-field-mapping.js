@@ -12,8 +12,10 @@
 function normalizeStandardFieldSourceName(value) {
     return String(value || "")
         .trim()
-        .toLowerCase()
         .normalize("NFKC")
+        .replace(/^\((.*)\)$/, "$1")
+        .trim()
+        .toLowerCase()
         .replace(/[\s\-]+/g, "_");
 }
 
@@ -35,146 +37,56 @@ function findStandardFieldSuggestion(
     sourceName,
     standardFields = []
 ) {
-    if (
-        !Array.isArray(standardFields) ||
-        isAmbiguousIdentifierSourceName(sourceName)
-    ) {
+    if (!Array.isArray(standardFields)) {
         return null;
     }
 
     const normalized =
         normalizeStandardFieldSourceName(sourceName);
 
-    const aliases = {
-        record_date: [
-            "record_date",
-            "record_datetime",
-            "記録日時",
-            "日時"
-        ],
+    if (!normalized) {
+        return null;
+    }
 
-        record_content: [
-            "record_content",
-            "support_content",
-            "支援記録本文",
-            "支援内容",
-            "処遇内容"
-        ],
+    const ambiguousSourceNames = new Set([
+        "氏名",
+        "name",
+        "full_name",
+        "社員番号",
+        "社員コード",
+        "職員番号",
+        "職員コード",
+        "担当者",
+        "コード"
+    ].map(normalizeStandardFieldSourceName));
 
-        staff_name: [
-            "staff_name",
-            "記録者",
-            "記録者名",
-            "記入者"
-        ],
+    if (
+        isAmbiguousIdentifierSourceName(sourceName) ||
+        ambiguousSourceNames.has(normalized)
+    ) {
+        return null;
+    }
 
-        record_category: [
-            "record_category",
-            "記録区分",
-            "種類"
-        ],
+    const matches = standardFields.filter(field => {
+        const candidates = [
+            field?.field_name,
+            field?.display_name,
+            ...(Array.isArray(field?.synonyms)
+                ? field.synonyms
+                : [])
+        ];
 
-        created_at: [
-            "created_at",
-            "登録日時",
-            "作成日時"
-        ],
+        return candidates.some(candidate =>
+            normalizeStandardFieldSourceName(candidate) ===
+            normalized
+        );
+    });
 
-        name: [
-            "name",
-            "user_name",
-            "client_name",
-            "full_name",
-            "利用者名",
-            "氏名"
-        ],
+    if (matches.length !== 1) {
+        return null;
+    }
 
-        birthday: [
-            "birthday",
-            "birth_date",
-            "date_of_birth",
-            "dob",
-            "生年月日"
-        ],
-
-        gender: [
-            "gender",
-            "sex",
-            "性別"
-        ],
-
-        blood_type: [
-            "blood_type",
-            "bloodtype",
-            "blood type",
-            "血液型"
-        ],
-
-        postal_code: [
-            "postal_code",
-            "postcode",
-            "zip",
-            "zip_code",
-            "郵便番号"
-        ],
-
-        address: [
-            "address",
-            "user_address",
-            "住所"
-        ],
-
-        phone: [
-            "phone",
-            "telephone",
-            "tel",
-            "phone_number",
-            "固定電話",
-            "固定電話番号",
-            "電話番号"
-        ],
-
-        mobile: [
-            "mobile",
-            "mobile_phone",
-            "cell_phone",
-            "mobile_number",
-            "携帯",
-            "携帯番号",
-            "携帯電話",
-            "携帯電話番号"
-        ],
-
-        email: [
-            "email",
-            "e_mail",
-            "mail",
-            "email_address",
-            "メール",
-            "メールアドレス"
-        ]
-    };
-
-    const normalizedAliases =
-        Object.entries(aliases)
-            .find(([, aliasList]) =>
-                aliasList.some(alias =>
-                    normalizeStandardFieldSourceName(alias) ===
-                    normalized
-                )
-            );
-
-    const targetFieldName =
-        normalizedAliases?.[0] || normalized;
-
-    return (
-        standardFields.find(field =>
-            normalizeStandardFieldSourceName(
-                field?.field_name
-            ) === targetFieldName
-        ) ||
-        null
-    );
+    return matches[0];
 }
 
 window.RisenStandardFieldMapping = {

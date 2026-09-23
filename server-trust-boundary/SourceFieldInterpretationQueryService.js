@@ -33,7 +33,9 @@ class SourceFieldInterpretationQueryService {
     async list({
         connectorId,
         credential,
-        sourceDocumentKey
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
     } = {}) {
         let trustResult;
 
@@ -88,7 +90,11 @@ class SourceFieldInterpretationQueryService {
 
         if (
             typeof sourceDocumentKey !== "string" ||
-            !sourceDocumentKey.trim()
+            !sourceDocumentKey.trim() ||
+            typeof sourceUpdatedAt !== "string" ||
+            !sourceUpdatedAt.trim() ||
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
         ) {
             return {
                 status: "invalid",
@@ -106,7 +112,10 @@ class SourceFieldInterpretationQueryService {
                     verifiedConnectorId:
                         trustResult.verifiedContext.connectorId,
                     sourceDocumentKey:
-                        sourceDocumentKey.trim()
+                        sourceDocumentKey.trim(),
+                    sourceUpdatedAt:
+                        sourceUpdatedAt.trim(),
+                    sourceSize
                 });
         } catch {
             return {

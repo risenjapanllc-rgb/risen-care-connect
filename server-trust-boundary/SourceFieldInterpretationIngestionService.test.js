@@ -68,6 +68,10 @@ test("persists using verified facility and connector context", async () => {
             sourceFieldInterpretation: {
                 sourceDocumentKey:
                     "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
                 sourceFieldKey:
                     "sheet:0:column:5",
                 interpretationStatus:
@@ -104,6 +108,10 @@ test("persists using verified facility and connector context", async () => {
                 "verified-connector",
             sourceDocumentKey:
                 "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
             sourceFieldKey:
                 "sheet:0:column:5",
             interpretationStatus:
@@ -166,6 +174,10 @@ test("maps invalid persistence result to invalid", async () => {
             sourceFieldInterpretation: {
                 sourceDocumentKey:
                     "source-document-1",
+            sourceUpdatedAt:
+                "2026-09-22T00:00:00.000Z",
+            sourceSize:
+                12345,
                 sourceFieldKey:
                     "sheet:0:column:5",
                 interpretationStatus:

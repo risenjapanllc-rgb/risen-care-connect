@@ -12,6 +12,8 @@ class SourceFieldInterpretationPayloadValidator {
 
         const {
             sourceDocumentKey,
+            sourceUpdatedAt,
+            sourceSize,
             sourceFieldKey,
             interpretationStatus,
             mappingStatus,
@@ -23,6 +25,28 @@ class SourceFieldInterpretationPayloadValidator {
                 status: "invalid",
                 errorCode:
                     "source_document_key_invalid"
+            };
+        }
+
+        if (
+            !this.isNonEmptyString(sourceUpdatedAt) ||
+            Number.isNaN(Date.parse(sourceUpdatedAt))
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_updated_at_invalid"
+            };
+        }
+
+        if (
+            !Number.isSafeInteger(sourceSize) ||
+            sourceSize < 0
+        ) {
+            return {
+                status: "invalid",
+                errorCode:
+                    "source_size_invalid"
             };
         }
 
@@ -75,6 +99,9 @@ class SourceFieldInterpretationPayloadValidator {
             validatedSourceFieldInterpretation: {
                 sourceDocumentKey:
                     sourceDocumentKey.trim(),
+                sourceUpdatedAt:
+                    new Date(sourceUpdatedAt).toISOString(),
+                sourceSize,
                 sourceFieldKey:
                     sourceFieldKey.trim(),
                 interpretationStatus,

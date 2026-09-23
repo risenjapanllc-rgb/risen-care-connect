@@ -68,6 +68,10 @@ test("confirm calls Supabase confirmation RPC with verified context", async () =
                     "22222222-2222-2222-2222-222222222222",
                 sourceDocumentKey:
                     "source-document-1",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345,
                 sourceFieldKey:
                     "sheet:0:column:3",
                 interpretationStatus:
@@ -92,7 +96,7 @@ test("confirm calls Supabase confirmation RPC with verified context", async () =
 
         assert.equal(
             calls[0].url,
-            "https://example.supabase.co/rest/v1/rpc/confirm_connector_source_field_interpretation"
+            "https://example.supabase.co/rest/v1/rpc/confirm_connector_source_field_interpretation_snapshot"
         );
 
         assert.equal(
@@ -128,7 +132,11 @@ test("confirm calls Supabase confirmation RPC with verified context", async () =
                 p_mapping_status:
                     "unmapped",
                 p_confirmed_meaning:
-                    null
+                    null,
+                p_source_updated_at:
+                    "2026-09-22T00:00:00.000Z",
+                p_source_size:
+                    12345
             }
         );
     } finally {
@@ -218,6 +226,57 @@ test("confirm rejects invalid input before calling Supabase", async () => {
         assert.equal(
             calls.length,
             0
+        );
+    } finally {
+        restore();
+    }
+});
+
+test("confirm accepts snapshot RPC table-row status result", async () => {
+    const {
+        repository,
+        restore
+    } =
+        createRepository({
+            fetchResponse: {
+                ok: true,
+                status: 200,
+                json: async () => [
+                    {
+                        status: "unchanged"
+                    }
+                ]
+            }
+        });
+
+    try {
+        const result =
+            await repository.confirm({
+                verifiedFacilityId:
+                    "11111111-1111-1111-1111-111111111111",
+                verifiedConnectorId:
+                    "22222222-2222-2222-2222-222222222222",
+                sourceDocumentKey:
+                    "source-document-1",
+                sourceUpdatedAt:
+                    "2026-09-22T00:00:00.000Z",
+                sourceSize:
+                    12345,
+                sourceFieldKey:
+                    "sheet:0:column:0",
+                interpretationStatus:
+                    "confirmed",
+                mappingStatus:
+                    "mapped",
+                confirmedMeaning:
+                    "recipient_certificate.recipient_name"
+            });
+
+        assert.deepEqual(
+            result,
+            {
+                status: "unchanged"
+            }
         );
     } finally {
         restore();

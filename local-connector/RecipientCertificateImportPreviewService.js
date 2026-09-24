@@ -479,6 +479,48 @@ class RecipientCertificateImportPreviewService {
 
                 if (executionPlan.length > 0) {
                     executionPlan = enrichedPlan;
+
+                    const comparisonByIdentity =
+                        new Map(
+                            enrichedPlan
+                                .filter(
+                                    item =>
+                                        item.resolution ===
+                                            "existing" &&
+                                        item.residentProfileComparison
+                                )
+                                .map(
+                                    item => [
+                                        `${item.identifierType}:${item.identifierDigest}`,
+                                        item.residentProfileComparison
+                                    ]
+                                )
+                        );
+
+                    if (Array.isArray(result.items)) {
+                        result.items =
+                            result.items.map(item => {
+                                if (
+                                    item?.resolution !==
+                                        "existing"
+                                ) {
+                                    return item;
+                                }
+
+                                const comparison =
+                                    comparisonByIdentity.get(
+                                        `${item.identifierType}:${item.identifierDigest}`
+                                    );
+
+                                return comparison
+                                    ? {
+                                        ...item,
+                                        residentProfileComparison:
+                                            comparison
+                                    }
+                                    : item;
+                            });
+                    }
                 }
             }
         }

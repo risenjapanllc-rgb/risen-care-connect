@@ -1,6 +1,43 @@
 "use strict";
 
+const JapaneseBusinessDateNormalizer =
+    require("./JapaneseBusinessDateNormalizer");
+
 class RecipientCertificateSemanticPlanner {
+    constructor() {
+        this.dateNormalizer =
+            new JapaneseBusinessDateNormalizer();
+    }
+
+    normalizeSemanticValue(
+        semanticKey,
+        value
+    ) {
+        const text =
+            value === null ||
+            value === undefined
+                ? ""
+                : String(value).trim();
+
+        const dateMeanings =
+            new Set([
+                "user.birth_date",
+                "recipient_certificate.valid_until"
+            ]);
+
+        if (!dateMeanings.has(semanticKey)) {
+            return text;
+        }
+
+        return this.dateNormalizer.normalize(
+            text,
+            {
+                order: "mdy",
+                twoDigitYearPivot: 30
+            }
+        );
+    }
+
     build({ sourceEntities, fieldMappings } = {}) {
         if (!Array.isArray(sourceEntities)) {
             throw new TypeError("sourceEntities are required");
@@ -59,7 +96,10 @@ class RecipientCertificateSemanticPlanner {
                 }
 
                 semanticValues[meaning] =
-                    String(rawValue).trim();
+                    this.normalizeSemanticValue(
+                        meaning,
+                        rawValue
+                    );
             }
 
             return {

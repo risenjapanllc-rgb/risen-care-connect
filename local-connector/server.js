@@ -942,6 +942,7 @@ app.post(
                     "Server Trust Boundaryから不正な応答を受信しました"
             });
         } catch (error) {
+
             if (
                 error?.code ===
                 "connector_trust_denied"
@@ -3418,6 +3419,7 @@ app.post(
                 ...result
             });
         } catch (error) {
+
             if (
                 error?.code ===
                 "connector_trust_denied"
@@ -3574,6 +3576,12 @@ app.post(
                     sourceSize,
                     expectedFingerprint
                 });
+
+            if (
+                trustedDocumentType ===
+                "recipient_certificate"
+            ) {
+            }
 
             if (
                 result &&

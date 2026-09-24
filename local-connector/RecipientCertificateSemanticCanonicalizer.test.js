@@ -53,7 +53,7 @@ test("canonicalization version is explicit", () => {
 
     assert.equal(
         result.canonicalizationVersion,
-        "risen-recipient-certificate-canonicalization-1"
+        "risen-recipient-certificate-canonicalization-2"
     );
     assert.match(result.contentHash, /^[0-9a-f]{64}$/);
 });

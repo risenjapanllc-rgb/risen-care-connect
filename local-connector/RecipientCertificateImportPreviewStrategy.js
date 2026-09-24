@@ -101,9 +101,16 @@ class RecipientCertificateImportPreviewStrategy {
                             );
                         }
 
+                        const isCanonicalizationV1ToV2Migration =
+                            existing.canonicalizationVersion ===
+                                "risen-recipient-certificate-canonicalization-1" &&
+                            canonical.canonicalizationVersion ===
+                                "risen-recipient-certificate-canonicalization-2";
+
                         if (
                             existing.canonicalizationVersion !==
-                            canonical.canonicalizationVersion
+                                canonical.canonicalizationVersion &&
+                            !isCanonicalizationV1ToV2Migration
                         ) {
                             throw new TypeError(
                                 "Recipient certificate canonicalization version is incompatible"

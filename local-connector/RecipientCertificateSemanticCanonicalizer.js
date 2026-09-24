@@ -3,7 +3,7 @@
 const { createHash } = require("node:crypto");
 
 const CANONICALIZATION_VERSION =
-    "risen-recipient-certificate-canonicalization-1";
+    "risen-recipient-certificate-canonicalization-2";
 
 class RecipientCertificateSemanticCanonicalizer {
     canonicalize(semanticValues) {

@@ -4407,6 +4407,93 @@ function renderImportPreviewSummary(preview) {
 
         const renderSemanticRecords =
             item => {
+                const profileLabels = {
+                    name: "氏名",
+                    birth_date: "生年月日",
+                    gender: "性別",
+                    user_code: "利用者コード"
+                };
+
+                const profileRows = [];
+
+                if (
+                    item?.resolution === "existing" &&
+                    item?.residentProfileComparison
+                ) {
+                    const comparison =
+                        item.residentProfileComparison;
+
+                    for (
+                        const field of [
+                            "name",
+                            "birth_date",
+                            "gender",
+                            "user_code"
+                        ]
+                    ) {
+                        if (
+                            Object.hasOwn(
+                                comparison.fill || {},
+                                field
+                            )
+                        ) {
+                            profileRows.push({
+                                label: profileLabels[field],
+                                value:
+                                    `未登録 → ${
+                                        comparison.fill[field]
+                                    }`,
+                                role: "補完予定"
+                            });
+                            continue;
+                        }
+
+                        if (
+                            Object.hasOwn(
+                                comparison.unchanged || {},
+                                field
+                            )
+                        ) {
+                            profileRows.push({
+                                label: profileLabels[field],
+                                value: String(
+                                    comparison.unchanged[field]
+                                ),
+                                role: "変更なし"
+                            });
+                            continue;
+                        }
+
+                        if (
+                            Object.hasOwn(
+                                comparison.conflicts || {},
+                                field
+                            )
+                        ) {
+                            const conflict =
+                                comparison.conflicts[field];
+
+                            const currentValue =
+                                conflict?.current ??
+                                conflict?.currentValue ??
+                                "未登録";
+
+                            const incomingValue =
+                                conflict?.incoming ??
+                                conflict?.incomingValue ??
+                                conflict?.source ??
+                                "不明";
+
+                            profileRows.push({
+                                label: profileLabels[field],
+                                value:
+                                    `現在 ${currentValue} / 取込 ${incomingValue}`,
+                                role: "競合"
+                            });
+                        }
+                    }
+                }
+
                 const persistenceRole =
                     item?.persistenceAction === "create"
                         ? "新規登録予定"
@@ -4421,7 +4508,7 @@ function renderImportPreviewSummary(preview) {
                         ? item.semanticRecords
                         : [];
 
-                const rows = [];
+                const rows = [...profileRows];
 
                 for (const record of records) {
                     const values =
@@ -5666,21 +5753,19 @@ importPreviewNextButton?.addEventListener(
 
 importExecutionBackButton?.addEventListener(
     "click",
-    async () => {
+    () => {
         if (importExecutionConfirmButton) {
             importExecutionConfirmButton.disabled =
-                true;
+                false;
         }
 
         importExecutionBackButton.disabled =
-            true;
+            false;
 
-        try {
-            await openImportPreviewStep();
-        } finally {
-            importExecutionBackButton.disabled =
-                false;
-        }
+        showStep(5);
+        setStatus(
+            "取り込みプレビューを確認してください。"
+        );
     }
 );
 
@@ -5817,6 +5902,18 @@ importExecutionConfirmButton?.addEventListener(
 
             try {
                 await openImportPreviewStep();
+
+                if (importExecutionConfirmButton) {
+                    importExecutionConfirmButton.disabled =
+                        false;
+                }
+
+                if (importExecutionBackButton) {
+                    importExecutionBackButton.disabled =
+                        false;
+                }
+
+                showStep(5);
 
                 const failureLabel =
                     {

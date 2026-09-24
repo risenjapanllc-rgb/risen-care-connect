@@ -389,7 +389,7 @@ test("existing resident profile preview identifies safe fill without ambiguous b
                                 "user.gender":
                                     "男性",
                                 "user.birth_date":
-                                    "2/22/77",
+                                    "1977-02-22",
                                 "recipient_certificate.certificate_number":
                                     "ABC123"
                             },
@@ -430,6 +430,7 @@ test("existing resident profile preview identifies safe fill without ambiguous b
     assert.deepStrictEqual(
         comparison.fill,
         {
+            birth_date: "1977-02-22",
             gender: "男性"
         }
     );
@@ -437,13 +438,7 @@ test("existing resident profile preview identifies safe fill without ambiguous b
         comparison.conflicts,
         {}
     );
-    assert.strictEqual(
-        Object.hasOwn(
-            comparison.fill,
-            "birth_date"
-        ),
-        false
-    );
+
 });
 
 test("existing resident profile unavailable fails closed", async () => {

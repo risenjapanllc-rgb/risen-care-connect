@@ -2,8 +2,10 @@
 
 const { createHash } = require("node:crypto");
 
-const VERSION =
-    "risen-recipient-certificate-canonicalization-1";
+const SUPPORTED_VERSIONS = new Set([
+    "risen-recipient-certificate-canonicalization-1",
+    "risen-recipient-certificate-canonicalization-2"
+]);
 
 class RecipientCertificateSemanticIntegrityVerifier {
     verify({
@@ -12,7 +14,7 @@ class RecipientCertificateSemanticIntegrityVerifier {
         canonicalizationVersion
     } = {}) {
         if (
-            canonicalizationVersion !== VERSION ||
+            !SUPPORTED_VERSIONS.has(canonicalizationVersion) ||
             typeof contentHash !== "string" ||
             !/^[0-9a-f]{64}$/.test(contentHash) ||
             !this.isPlainObject(semanticContent)

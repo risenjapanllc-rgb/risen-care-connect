@@ -99,8 +99,10 @@ class ConnectorSemanticLogicalRecordPersistenceService {
                     !/^[0-9a-f]{64}$/.test(expectedContentHash)
                 )
             ) ||
-            canonicalizationVersion !==
-                "risen-recipient-certificate-canonicalization-1" ||
+            ![
+                "risen-recipient-certificate-canonicalization-1",
+                "risen-recipient-certificate-canonicalization-2"
+            ].includes(canonicalizationVersion) ||
             !semanticContent ||
             typeof semanticContent !== "object" ||
             Array.isArray(semanticContent)

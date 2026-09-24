@@ -350,6 +350,12 @@ app.locals.getRecipientCertificateImportExecutionService =
                             endpointFor(
                                 "/connector/resident-admission"
                             ),
+                        recipientCertificateAtomicPersistenceEndpoint:
+                            process.env
+                                .RISEN_RECIPIENT_CERTIFICATE_ATOMIC_PERSISTENCE_ENDPOINT ||
+                            endpointFor(
+                                "/connector/recipient-certificate-atomic-persistence"
+                            ),
                         semanticLogicalRecordPersistenceEndpoint:
                             process.env
                                 .RISEN_SEMANTIC_LOGICAL_RECORD_PERSISTENCE_ENDPOINT ||

@@ -1,13 +1,9 @@
 "use strict";
 
-const { ResidentProfileProjection } = require("../server-domain/resident/ResidentProfileProjection");
-
 class RecipientCertificateExecutionService {
     constructor({
         sourceResidentMappingClient,
-        residentAdmissionClient,
-        residentProfileClient,
-        semanticPersistenceClient
+        atomicPersistenceClient
     } = {}) {
         if (
             !sourceResidentMappingClient ||
@@ -16,26 +12,16 @@ class RecipientCertificateExecutionService {
             throw new Error("RecipientCertificateExecutionService requires sourceResidentMappingClient");
         }
         if (
-            !residentAdmissionClient ||
-            typeof residentAdmissionClient.admit !== "function"
+            !atomicPersistenceClient ||
+            typeof atomicPersistenceClient.persist !== "function"
         ) {
-            throw new Error("RecipientCertificateExecutionService requires residentAdmissionClient");
-        }
-        if (
-            !semanticPersistenceClient ||
-            typeof semanticPersistenceClient.persist !== "function"
-        ) {
-            throw new Error("RecipientCertificateExecutionService requires semanticPersistenceClient");
+            throw new Error("RecipientCertificateExecutionService requires atomicPersistenceClient");
         }
 
         this.sourceResidentMappingClient =
             sourceResidentMappingClient;
-        this.residentAdmissionClient =
-            residentAdmissionClient;
-        this.residentProfileClient =
-            residentProfileClient || null;
-        this.semanticPersistenceClient =
-            semanticPersistenceClient;
+        this.atomicPersistenceClient =
+            atomicPersistenceClient;
     }
 
     async execute({
@@ -179,74 +165,11 @@ class RecipientCertificateExecutionService {
                     identifierDigest: entry.identifierDigest,
                     ...counts
                 };
-            } else {
-                let admission;
-
-                try {
-                    admission =
-                        await this.residentAdmissionClient.admit({
-                            sourceDocumentKey:
-                                snapshot.sourceDocumentKey,
-                            identifierType:
-                                entry.identifierType,
-                            identifierDigest:
-                                entry.identifierDigest,
-                            name:
-                                entry.displayName.trim(),
-                            residentProfile:
-                                new ResidentProfileProjection().project({
-                                    semanticContent:
-                                        entry.persistenceContract.semanticContent,
-                                    currentResident: {}
-                                }).fill,
-                            sourceUpdatedAt:
-                                snapshot.sourceUpdatedAt,
-                            sourceSize:
-                                snapshot.sourceSize
-                        });
-                } catch {
-                    return { status: "error", ...counts };
-                }
-
-                if (
-                    admission?.status === "created" ||
-                    admission?.status === "existing"
-                ) {
-                    if (
-                        typeof admission.residentId !== "string" ||
-                        !admission.residentId.trim()
-                    ) {
-                        return { status: "error", ...counts };
-                    }
-
-                    residentId = admission.residentId.trim();
-
-                    if (admission.residentCreated === true) {
-                        counts.residentsCreated += 1;
-                    }
-                } else if (
-                    ["stale", "not_approved", "conflict", "name_conflict"]
-                        .includes(admission?.status)
-                ) {
-                    return {
-                        status: admission.status,
-                        identifierType: entry.identifierType,
-                        identifierDigest: entry.identifierDigest,
-                        ...counts
-                    };
-                } else {
-                    return { status: "error", ...counts };
-                }
             }
 
-            if (entry.resolution === "existing") {
-                if (
-                    !this.residentProfileClient ||
-                    typeof this.residentProfileClient.fill !== "function"
-                ) {
-                    return { status: "error", ...counts };
-                }
+            let residentProfile;
 
+            if (entry.resolution === "existing") {
                 const comparison =
                     entry.residentProfileComparison;
 
@@ -289,99 +212,82 @@ class RecipientCertificateExecutionService {
                     return { status: "invalid", ...counts };
                 }
 
-                let profileResult;
+                residentProfile = {
+                    name: name.trim(),
+                    ...comparison.fill
+                };
+            } else {
+                residentProfile = {};
 
-                try {
-                    profileResult =
-                        await this.residentProfileClient.fill({
-                            sourceDocumentKey:
-                                snapshot.sourceDocumentKey,
-                            identifierType:
-                                entry.identifierType,
-                            identifierDigest:
-                                entry.identifierDigest,
-                            name: name.trim(),
-                            residentProfile: {
-                                name: name.trim(),
-                                ...comparison.fill
-                            },
-                            sourceUpdatedAt:
-                                snapshot.sourceUpdatedAt,
-                            sourceSize:
-                                snapshot.sourceSize
-                        });
-                } catch {
-                    return { status: "error", ...counts };
-                }
+                for (const key of [
+                    "name",
+                    "birth_date",
+                    "gender",
+                    "user_code"
+                ]) {
+                    const semanticKey =
+                        "user." + key;
 
-                if (
-                    profileResult?.status !== "filled" &&
-                    profileResult?.status !== "unchanged"
-                ) {
                     if (
-                        [
-                            "stale",
-                            "not_confirmed",
-                            "conflict",
-                            "user_code_conflict"
-                        ].includes(profileResult?.status)
+                        Object.prototype.hasOwnProperty.call(
+                            entry.persistenceContract.semanticContent,
+                            semanticKey
+                        )
                     ) {
-                        return {
-                            status: profileResult.status,
-                            identifierType:
-                                entry.identifierType,
-                            identifierDigest:
-                                entry.identifierDigest,
-                            ...counts
-                        };
+                        residentProfile[key] =
+                            entry.persistenceContract.semanticContent[
+                                semanticKey
+                            ];
                     }
-
-                    return { status: "error", ...counts };
-                }
-
-                if (
-                    typeof profileResult.residentId === "string" &&
-                    profileResult.residentId.trim() &&
-                    profileResult.residentId.trim() !== residentId
-                ) {
-                    return {
-                        status: "conflict",
-                        identifierType: entry.identifierType,
-                        identifierDigest: entry.identifierDigest,
-                        ...counts
-                    };
                 }
             }
 
             const contract = {
-                residentId,
-                semanticType:
-                    entry.persistenceContract.semanticType,
-                logicalSlot:
-                    entry.persistenceContract.logicalSlot,
+                resolution:
+                    entry.resolution,
+                identifierType:
+                    entry.identifierType,
+                identifierDigest:
+                    entry.identifierDigest,
+                residentId:
+                    entry.resolution === "existing"
+                        ? residentId
+                        : null,
+                displayName:
+                    typeof entry.displayName === "string"
+                        ? entry.displayName.trim()
+                        : null,
+                residentProfile,
+                semantic: {
+                    semanticType:
+                        entry.persistenceContract.semanticType,
+                    logicalSlot:
+                        entry.persistenceContract.logicalSlot,
+                    semanticContent:
+                        entry.persistenceContract.semanticContent,
+                    contentHash:
+                        entry.persistenceContract.contentHash,
+                    canonicalizationVersion:
+                        entry.persistenceContract.canonicalizationVersion,
+                    expectedContentHash:
+                        entry.persistenceContract.expectedContentHash
+                },
                 sourceDocumentKey:
                     snapshot.sourceDocumentKey,
                 sourceUpdatedAt:
                     snapshot.sourceUpdatedAt,
                 sourceSize:
-                    snapshot.sourceSize,
-                expectedContentHash:
-                    entry.persistenceContract.expectedContentHash,
-                contentHash:
-                    entry.persistenceContract.contentHash,
-                canonicalizationVersion:
-                    entry.persistenceContract.canonicalizationVersion,
-                semanticContent:
-                    entry.persistenceContract.semanticContent
+                    snapshot.sourceSize
             };
 
             let persisted;
 
             try {
                 persisted =
-                    await this.semanticPersistenceClient.persist(
+                    await this.atomicPersistenceClient.persist(
                         contract
                     );
+
             } catch {
                 return { status: "error", ...counts };
             }
@@ -393,12 +299,22 @@ class RecipientCertificateExecutionService {
             ) {
                 counts.processed += 1;
                 counts[persisted.status] += 1;
+
+                if (persisted.residentCreated === true) {
+                    counts.residentsCreated += 1;
+                }
+
                 continue;
             }
 
             if (
-                persisted?.status === "stale" ||
-                persisted?.status === "conflict"
+                [
+                    "stale",
+                    "not_approved",
+                    "conflict",
+                    "name_conflict",
+                    "user_code_conflict"
+                ].includes(persisted?.status)
             ) {
                 return {
                     status: persisted.status,

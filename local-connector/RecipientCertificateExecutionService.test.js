@@ -2,340 +2,504 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Service = require("./RecipientCertificateExecutionService");
 
-const digest = "a".repeat(64);
-const residentId = "33333333-3333-4333-8333-333333333333";
+const RecipientCertificateExecutionService =
+    require("./RecipientCertificateExecutionService");
 
-function plan(overrides = {}) {
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+const HASH_C = "c".repeat(64);
+
+function createEntry(overrides = {}) {
+    const resolution =
+        overrides.resolution || "existing";
+
     return {
-        resolution: "planned_new",
         identifierType: "name",
-        identifierDigest: digest,
-        residentId: null,
-        displayName: "Test Resident",
+        identifierDigest: HASH_A,
+        resolution,
+        residentId:
+            resolution === "existing"
+                ? "resident-1"
+                : null,
+        displayName: "山田 太郎",
         persistenceAction: "create",
+        residentProfileComparison:
+            resolution === "existing"
+                ? {
+                    fill: {},
+                    conflicts: {}
+                }
+                : null,
         persistenceContract: {
             semanticType: "recipient_certificate",
             logicalSlot: "primary",
             semanticContent: {
-                "recipient_certificate.number": "ABC123"
+                "user.name": "山田 太郎"
             },
-            contentHash: "b".repeat(64),
+            contentHash: HASH_B,
             canonicalizationVersion:
-                "risen-recipient-certificate-canonicalization-1",
+                "risen-recipient-certificate-canonicalization-2",
             expectedContentHash: null
         },
         ...overrides
     };
 }
 
-function request(executionPlan = [plan()]) {
+function createPlan(entries, overrides = {}) {
     return {
         sourceDocumentKey: "source.xlsx",
-        sourceUpdatedAt: "2026-09-22T01:00:00.000Z",
+        sourceUpdatedAt:
+            "2026-09-22T01:00:00.000Z",
         sourceSize: 123,
-        executionPlan
+        executionPlan: entries,
+        ...overrides
     };
 }
 
-function service({
+function createService({
     mappings = [],
-    admissionResult = {
+    atomicResult = {
         status: "created",
-        residentId,
-        residentCreated: true
+        residentId: "resident-1",
+        recordId: "record-1",
+        residentCreated: false
     },
-    persistenceResult = {
-        status: "created",
-        recordId: "record-1"
-    }
+    atomicImpl = null
 } = {}) {
-    const calls = { mapping: [], admission: [], persistence: [] };
+    const mappingCalls = [];
+    const atomicCalls = [];
 
-    return {
-        calls,
-        instance: new Service({
+    const service =
+        new RecipientCertificateExecutionService({
             sourceResidentMappingClient: {
                 async list(snapshot) {
-                    calls.mapping.push(snapshot);
-                    return { status: "found", mappings };
+                    mappingCalls.push(snapshot);
+                    return {
+                        status: "found",
+                        mappings
+                    };
                 }
             },
-            residentAdmissionClient: {
-                async admit(contract) {
-                    calls.admission.push(contract);
-                    return admissionResult;
-                }
-            },
-            semanticPersistenceClient: {
+            atomicPersistenceClient: {
                 async persist(contract) {
-                    calls.persistence.push(contract);
-                    return persistenceResult;
+                    atomicCalls.push(contract);
+
+                    if (atomicImpl) {
+                        return atomicImpl(
+                            contract,
+                            atomicCalls.length
+                        );
+                    }
+
+                    return atomicResult;
                 }
             }
-        })
+        });
+
+    return {
+        service,
+        mappingCalls,
+        atomicCalls
     };
 }
 
-test("invalid later entry blocks the entire plan before any side effect", async () => {
-    const { instance, calls } = service();
+test("invalid later entry blocks the entire plan before any write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-1",
+                    mappingStatus: "confirmed"
+                }
+            ]
+        });
 
-    const result =
-        await instance.execute(
-            request([
-                plan(),
-                plan({
-                    identifierDigest:
-                        "d".repeat(64),
-                    persistenceContract: null
-                })
-            ])
-        );
+    const invalidEntry = createEntry({
+        identifierDigest: HASH_C,
+        persistenceContract: {
+            semanticType: "recipient_certificate",
+            logicalSlot: "primary",
+            semanticContent: {
+                "user.name": "佐藤 花子"
+            },
+            contentHash: "not-a-hash",
+            canonicalizationVersion:
+                "risen-recipient-certificate-canonicalization-2",
+            expectedContentHash: null
+        }
+    });
 
-    assert.strictEqual(
-        result.status,
-        "invalid"
+    const result = await service.execute(
+        createPlan([
+            createEntry(),
+            invalidEntry
+        ])
     );
-    assert.strictEqual(
-        result.processed,
-        0
-    );
-    assert.strictEqual(
-        calls.mapping.length,
-        0
-    );
-    assert.strictEqual(
-        calls.admission.length,
-        0
-    );
-    assert.strictEqual(
-        calls.persistence.length,
-        0
-    );
+
+    assert.strictEqual(result.status, "invalid");
+    assert.strictEqual(atomicCalls.length, 0);
 });
 
-test("duplicate plan identity blocks the entire plan before any side effect", async () => {
-    const { instance, calls } = service();
+test("duplicate identity blocks the entire plan as conflict before any write", async () => {
+    const { service, atomicCalls } =
+        createService();
 
-    const result =
-        await instance.execute(
-            request([
-                plan(),
-                plan({
-                    displayName:
-                        "Same Identity Second Entry",
-                    persistenceContract: {
-                        semanticType:
-                            "recipient_certificate",
-                        logicalSlot:
-                            "primary",
-                        semanticContent: {
-                            "recipient_certificate.number":
-                                "XYZ999"
-                        },
-                        contentHash:
-                            "e".repeat(64),
-                        canonicalizationVersion:
-                            "risen-recipient-certificate-canonicalization-1",
-                        expectedContentHash:
-                            null
-                    }
-                })
-            ])
-        );
+    const result = await service.execute(
+        createPlan([
+            createEntry(),
+            createEntry()
+        ])
+    );
 
-    assert.strictEqual(
-        result.status,
-        "conflict"
-    );
-    assert.strictEqual(
-        result.processed,
-        0
-    );
-    assert.strictEqual(
-        calls.mapping.length,
-        0
-    );
-    assert.strictEqual(
-        calls.admission.length,
-        0
-    );
-    assert.strictEqual(
-        calls.persistence.length,
-        0
-    );
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(atomicCalls.length, 0);
 });
 
-test("planned new atomically admits then persists semantic record", async () => {
-    const { instance, calls } = service();
-    const result = await instance.execute(request());
+test("planned new resident is persisted with exactly one atomic write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [],
+            atomicResult: {
+                status: "created",
+                residentId: "resident-new",
+                recordId: "record-new",
+                residentCreated: true
+            }
+        });
+
+    const entry = createEntry({
+        resolution: "planned_new",
+        residentId: null,
+        residentProfileComparison: null
+    });
+
+    const result = await service.execute(
+        createPlan([entry])
+    );
 
     assert.strictEqual(result.status, "completed");
     assert.strictEqual(result.processed, 1);
     assert.strictEqual(result.created, 1);
     assert.strictEqual(result.residentsCreated, 1);
-    assert.strictEqual(calls.admission.length, 1);
-    assert.strictEqual(calls.persistence.length, 1);
-    assert.strictEqual(calls.persistence[0].residentId, residentId);
-    assert.strictEqual(calls.persistence[0].sourceDocumentKey, "source.xlsx");
+    assert.strictEqual(atomicCalls.length, 1);
+
+    assert.strictEqual(
+        atomicCalls[0].resolution,
+        "planned_new"
+    );
+    assert.strictEqual(
+        atomicCalls[0].residentId,
+        null
+    );
+    assert.strictEqual(
+        atomicCalls[0].residentProfile.name,
+        "山田 太郎"
+    );
 });
 
-test("confirmed mapping converges planned-new retry without second admission", async () => {
-    const { instance, calls } = service({
-        mappings: [{
-            identifierType: "name",
-            identifierDigest: digest,
-            mappingStatus: "confirmed",
-            residentId
-        }],
-        persistenceResult: {
-            status: "unchanged",
-            recordId: "record-1"
-        }
-    });
+test("retry after planned new mapping is confirmed fails closed before write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-new",
+                    mappingStatus: "confirmed"
+                }
+            ]
+        });
 
-    const result = await instance.execute(request());
-
-    assert.strictEqual(result.status, "completed");
-    assert.strictEqual(result.unchanged, 1);
-    assert.strictEqual(calls.admission.length, 0);
-    assert.strictEqual(calls.persistence[0].residentId, residentId);
-});
-
-test("existing resident requires exact confirmed mapping", async () => {
-    const entry = plan({
-        resolution: "existing",
-        residentId
-    });
-    const { instance, calls } = service();
-
-    const result = await instance.execute(request([entry]));
-
-    assert.strictEqual(result.status, "conflict");
-    assert.strictEqual(calls.admission.length, 0);
-    assert.strictEqual(calls.persistence.length, 0);
-});
-
-test("existing resident mapping mismatch stops before persistence", async () => {
-    const entry = plan({
-        resolution: "existing",
-        residentId
-    });
-    const { instance, calls } = service({
-        mappings: [{
-            identifierType: "name",
-            identifierDigest: digest,
-            mappingStatus: "confirmed",
-            residentId: "other-resident"
-        }]
-    });
-
-    const result = await instance.execute(request([entry]));
-
-    assert.strictEqual(result.status, "conflict");
-    assert.strictEqual(calls.persistence.length, 0);
-});
-
-test("admission non-writing statuses stop semantic persistence", async () => {
-    for (const status of [
-        "stale",
-        "not_approved",
-        "conflict",
-        "name_conflict"
-    ]) {
-        const { instance, calls } = service({
-            admissionResult: {
-                status,
+    const result = await service.execute(
+        createPlan([
+            createEntry({
+                resolution: "planned_new",
                 residentId: null,
+                residentProfileComparison: null
+            })
+        ])
+    );
+
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(atomicCalls.length, 0);
+});
+
+test("existing mapping mismatch fails closed before write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-other"
+                }
+            ]
+        });
+
+    const result = await service.execute(
+        createPlan([createEntry()])
+    );
+
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(atomicCalls.length, 0);
+});
+
+test("existing mapping absence fails closed before write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: []
+        });
+
+    const result = await service.execute(
+        createPlan([createEntry()])
+    );
+
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(atomicCalls.length, 0);
+});
+
+test("existing resident profile conflict fails before atomic write", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-1",
+                    mappingStatus: "confirmed"
+                }
+            ]
+        });
+
+    const result = await service.execute(
+        createPlan([
+            createEntry({
+                residentProfileComparison: {
+                    fill: {},
+                    conflicts: {
+                        birth_date: {
+                            current: "1980-01-01",
+                            incoming: "1984-03-27"
+                        }
+                    }
+                }
+            })
+        ])
+    );
+
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(atomicCalls.length, 0);
+});
+
+test("semantic stale result fails closed without counting processed", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-1",
+                    mappingStatus: "confirmed"
+                }
+            ],
+            atomicResult: {
+                status: "stale",
+                residentId: null,
+                recordId: null,
                 residentCreated: false
             }
         });
 
-        const result = await instance.execute(request());
-        assert.strictEqual(result.status, status);
-        assert.strictEqual(calls.persistence.length, 0);
-    }
+    const result = await service.execute(
+        createPlan([createEntry()])
+    );
+
+    assert.strictEqual(result.status, "stale");
+    assert.strictEqual(result.processed, 0);
+    assert.strictEqual(atomicCalls.length, 1);
 });
 
-test("semantic stale and conflict stop safely", async () => {
-    for (const status of ["stale", "conflict"]) {
-        const { instance } = service({
-            persistenceResult: {
-                status,
-                recordId: null
+test("semantic conflict result fails closed without counting processed", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-1",
+                    mappingStatus: "confirmed"
+                }
+            ],
+            atomicResult: {
+                status: "conflict",
+                residentId: null,
+                recordId: null,
+                residentCreated: false
             }
         });
 
-        const result = await instance.execute(request());
-        assert.strictEqual(result.status, status);
-        assert.strictEqual(result.processed, 0);
-    }
+    const result = await service.execute(
+        createPlan([createEntry()])
+    );
+
+    assert.strictEqual(result.status, "conflict");
+    assert.strictEqual(result.processed, 0);
+    assert.strictEqual(atomicCalls.length, 1);
 });
 
-test("planned new user_code fails closed before admission", async () => {
-    const { instance, calls } = service();
-    const result = await instance.execute(request([
-        plan({
-            identifierType: "user_code",
-            displayName: null
-        })
-    ]));
+test("planned new user_code fails closed before atomic write", async () => {
+    const { service, atomicCalls } =
+        createService();
+
+    const result = await service.execute(
+        createPlan([
+            createEntry({
+                resolution: "planned_new",
+                residentId: null,
+                identifierType: "user_code",
+                displayName: null,
+                residentProfileComparison: null
+            })
+        ])
+    );
 
     assert.strictEqual(result.status, "invalid");
-    assert.strictEqual(calls.admission.length, 0);
-    assert.strictEqual(calls.persistence.length, 0);
+    assert.strictEqual(atomicCalls.length, 0);
 });
 
-test("exact snapshot is used for mapping and persistence", async () => {
-    const { instance, calls } = service();
-    await instance.execute(request());
+test("atomic write receives exact source snapshot and semantic contract", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [
+                {
+                    identifierType: "name",
+                    identifierDigest: HASH_A,
+                    residentId: "resident-1",
+                    mappingStatus: "confirmed"
+                }
+            ],
+            atomicResult: {
+                status: "unchanged",
+                residentId: "resident-1",
+                recordId: "record-1",
+                residentCreated: false
+            }
+        });
 
-    assert.deepStrictEqual(calls.mapping, [{
-        sourceDocumentKey: "source.xlsx",
-        sourceUpdatedAt: "2026-09-22T01:00:00.000Z",
-        sourceSize: 123
-    }]);
-    assert.strictEqual(
-        calls.persistence[0].sourceUpdatedAt,
-        "2026-09-22T01:00:00.000Z"
-    );
-    assert.strictEqual(calls.persistence[0].sourceSize, 123);
-});
-
-test("planned new passes writable user semantic fields as resident profile to admission", async () => {
-    const entry = plan({
-        displayName: "鈴木 大輔",
+    const entry = createEntry({
         persistenceContract: {
             semanticType: "recipient_certificate",
             logicalSlot: "primary",
             semanticContent: {
-                "user.name": "鈴木 大輔",
-                "user.birth_date": "2/22/77",
-                "user.gender": "男性",
-                "recipient_certificate.certificate_number": "1234567893",
-                "user.active": "false"
+                "user.name": "山田 太郎",
+                "user.birth_date": "1984-03-27"
             },
-            contentHash: "b".repeat(64),
+            contentHash: HASH_B,
             canonicalizationVersion:
-                "risen-recipient-certificate-canonicalization-1",
+                "risen-recipient-certificate-canonicalization-2",
+            expectedContentHash: HASH_C
+        }
+    });
+
+    const plan = createPlan([entry]);
+
+    const result = await service.execute(plan);
+
+    assert.strictEqual(result.status, "completed");
+    assert.strictEqual(result.unchanged, 1);
+    assert.strictEqual(atomicCalls.length, 1);
+
+    assert.deepStrictEqual(
+        atomicCalls[0].semantic,
+        {
+            semanticType:
+                entry.persistenceContract.semanticType,
+            logicalSlot:
+                entry.persistenceContract.logicalSlot,
+            semanticContent:
+                entry.persistenceContract.semanticContent,
+            contentHash:
+                entry.persistenceContract.contentHash,
+            canonicalizationVersion:
+                entry.persistenceContract.canonicalizationVersion,
+            expectedContentHash:
+                entry.persistenceContract.expectedContentHash
+        }
+    );
+
+    assert.strictEqual(
+        atomicCalls[0].sourceDocumentKey,
+        plan.sourceDocumentKey
+    );
+    assert.strictEqual(
+        atomicCalls[0].sourceUpdatedAt,
+        plan.sourceUpdatedAt
+    );
+    assert.strictEqual(
+        atomicCalls[0].sourceSize,
+        plan.sourceSize
+    );
+});
+
+test("planned new passes writable user semantic fields in atomic resident profile", async () => {
+    const { service, atomicCalls } =
+        createService({
+            mappings: [],
+            atomicResult: {
+                status: "created",
+                residentId: "resident-new",
+                recordId: "record-new",
+                residentCreated: true
+            }
+        });
+
+    const entry = createEntry({
+        resolution: "planned_new",
+        residentId: null,
+        residentProfileComparison: null,
+        persistenceContract: {
+            semanticType: "recipient_certificate",
+            logicalSlot: "primary",
+            semanticContent: {
+                "user.name": "山田 太郎",
+                "user.birth_date": "1984-03-27",
+                "user.gender": "男性",
+                "user.user_code": "U001",
+                "recipient_certificate.certificate_number":
+                    "1234567891"
+            },
+            contentHash: HASH_B,
+            canonicalizationVersion:
+                "risen-recipient-certificate-canonicalization-2",
             expectedContentHash: null
         }
     });
 
-    const { instance, calls } = service();
-
-    const result = await instance.execute(request([entry]));
+    const result = await service.execute(
+        createPlan([entry])
+    );
 
     assert.strictEqual(result.status, "completed");
-    assert.strictEqual(calls.admission.length, 1);
+    assert.strictEqual(atomicCalls.length, 1);
 
     assert.deepStrictEqual(
-        calls.admission[0].residentProfile,
+        atomicCalls[0].residentProfile,
         {
-            name: "鈴木 大輔",
-
-            gender: "男性"
+            name: "山田 太郎",
+            birth_date: "1984-03-27",
+            gender: "男性",
+            user_code: "U001"
         }
+    );
+
+    assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(
+            atomicCalls[0].residentProfile,
+            "certificate_number"
+        ),
+        false
     );
 });

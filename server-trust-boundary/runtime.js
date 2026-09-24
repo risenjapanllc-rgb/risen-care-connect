@@ -227,6 +227,10 @@ const SupabaseConnectorSemanticLogicalRecordPersistenceRepository =
     require("./SupabaseConnectorSemanticLogicalRecordPersistenceRepository");
 const ConnectorSemanticLogicalRecordPersistenceService =
     require("./ConnectorSemanticLogicalRecordPersistenceService");
+const SupabaseRecipientCertificateAtomicPersistenceRepository =
+    require("./SupabaseRecipientCertificateAtomicPersistenceRepository");
+const RecipientCertificateAtomicPersistenceService =
+    require("./RecipientCertificateAtomicPersistenceService");
 
 const ConnectorSupportRecordPersistenceService =
     require("./ConnectorSupportRecordPersistenceService");
@@ -393,6 +397,20 @@ function createServerTrustBoundaryRuntime({
             connectorTrustService,
             repository:
                 semanticLogicalRecordPersistenceRepository
+        });
+
+    const recipientCertificateAtomicPersistenceRepository =
+        new SupabaseRecipientCertificateAtomicPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const recipientCertificateAtomicPersistenceService =
+        new RecipientCertificateAtomicPersistenceService({
+            connectorTrustService,
+            repository:
+                recipientCertificateAtomicPersistenceRepository
         });
 
     const canonicalizationCompatibilityPolicy =
@@ -762,6 +780,7 @@ function createServerTrustBoundaryRuntime({
         connectorSemanticRecordPreviewService,
         connectorSemanticLogicalRecordService,
         connectorSemanticLogicalRecordPersistenceService,
+        recipientCertificateAtomicPersistenceService,
         connectorSupportRecordBatchWriteService,
         residentCreationService,
         connectorResidentAdmissionService,

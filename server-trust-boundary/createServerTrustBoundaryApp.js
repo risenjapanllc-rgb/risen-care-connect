@@ -58,6 +58,9 @@ function createServerTrustBoundaryApp({
     connectorSemanticLogicalRecordPersistenceTransport,
     connectorSemanticLogicalRecordPersistenceEndpointPath =
         "/connector/semantic-logical-record-persistence",
+    recipientCertificateAtomicPersistenceTransport,
+    recipientCertificateAtomicPersistenceEndpointPath =
+        "/connector/recipient-certificate-atomic-persistence",
     connectorSupportRecordBatchWriteTransport,
     connectorSupportRecordBatchWriteEndpointPath =
         "/connector/support-record-batch-write",
@@ -1100,6 +1103,29 @@ function createServerTrustBoundaryApp({
                 try {
                     const result =
                         await connectorSemanticLogicalRecordPersistenceTransport.handle({
+                            method: req.method,
+                            contentType: req.get("content-type"),
+                            headers: req.headers,
+                            body: req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (recipientCertificateAtomicPersistenceTransport) {
+        app.post(
+            recipientCertificateAtomicPersistenceEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await recipientCertificateAtomicPersistenceTransport.handle({
                             method: req.method,
                             contentType: req.get("content-type"),
                             headers: req.headers,

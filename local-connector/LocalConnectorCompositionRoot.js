@@ -106,6 +106,8 @@ const ConnectorResidentProfileQueryHttpClient =
     require("./ConnectorResidentProfileQueryHttpClient");
 const ConnectorSemanticLogicalRecordPersistenceHttpClient =
     require("./ConnectorSemanticLogicalRecordPersistenceHttpClient");
+const RecipientCertificateAtomicPersistenceHttpClient =
+    require("./RecipientCertificateAtomicPersistenceHttpClient");
 const RecipientCertificateExecutionGate =
     require("./RecipientCertificateExecutionGate");
 const RecipientCertificateExecutionService =
@@ -741,6 +743,7 @@ async function createRecipientCertificateImportExecutionService({
     residentProfileEndpoint,
     residentAdmissionEndpoint,
     semanticLogicalRecordPersistenceEndpoint,
+    recipientCertificateAtomicPersistenceEndpoint,
     credential,
     authorizationScheme,
     connectorIdHeader =
@@ -821,6 +824,20 @@ async function createRecipientCertificateImportExecutionService({
             fetchImpl
         });
 
+    const atomicPersistenceClient =
+        new RecipientCertificateAtomicPersistenceHttpClient({
+            endpoint:
+                recipientCertificateAtomicPersistenceEndpoint,
+            connectorId,
+            credentialProvider: {
+                async getCredential() {
+                    return credential;
+                }
+            },
+            authorizationScheme,
+            fetchImpl
+        });
+
     const executionGate =
         new RecipientCertificateExecutionGate({
             importPreviewService
@@ -829,9 +846,7 @@ async function createRecipientCertificateImportExecutionService({
     const executionService =
         new RecipientCertificateExecutionService({
             sourceResidentMappingClient,
-            residentAdmissionClient,
-            residentProfileClient,
-            semanticPersistenceClient
+            atomicPersistenceClient
         });
 
     return new LocalImportExecutionService({

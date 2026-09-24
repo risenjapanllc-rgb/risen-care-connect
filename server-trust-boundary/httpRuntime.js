@@ -1,5 +1,11 @@
 "use strict";
 
+    const RecipientCertificateAtomicPersistenceHttpAdapter =
+        require("./RecipientCertificateAtomicPersistenceHttpAdapter");
+    const RecipientCertificateAtomicPersistenceTransport =
+        require("./RecipientCertificateAtomicPersistenceTransport");
+
+
 const {
     createServerTrustBoundaryRuntime
 } = require("./runtime");
@@ -525,6 +531,22 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const recipientCertificateAtomicPersistenceHttpAdapter =
+        new RecipientCertificateAtomicPersistenceHttpAdapter({
+            service:
+                coreRuntime
+                    .recipientCertificateAtomicPersistenceService,
+            diagnosticLogger
+        });
+
+    const recipientCertificateAtomicPersistenceTransport =
+        new RecipientCertificateAtomicPersistenceTransport({
+            httpAdapter:
+                recipientCertificateAtomicPersistenceHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
     const connectorSupportRecordBatchWriteHttpAdapter =
         new ConnectorSupportRecordBatchWriteHttpAdapter({
             batchWriteService:
@@ -655,6 +677,9 @@ function createServerTrustBoundaryHttpRuntime({
             connectorSemanticLogicalRecordPersistenceTransport,
             connectorSemanticLogicalRecordPersistenceEndpointPath:
                 "/connector/semantic-logical-record-persistence",
+            recipientCertificateAtomicPersistenceTransport,
+            recipientCertificateAtomicPersistenceEndpointPath:
+                "/connector/recipient-certificate-atomic-persistence",
             connectorSupportRecordBatchWriteTransport,
             connectorSupportRecordBatchWriteEndpointPath:
                 "/connector/support-record-batch-write",

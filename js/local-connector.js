@@ -603,7 +603,7 @@ async function loadStandardFields() {
 
 async function loadRecipientCertificateSemanticTargets() {
     const response = await fetch(
-        "/semantic-contracts/recipient-certificate"
+        `${LOCAL_CONNECTOR_BASE}/semantic-contracts/recipient-certificate`
     );
 
     const result = await response.json();

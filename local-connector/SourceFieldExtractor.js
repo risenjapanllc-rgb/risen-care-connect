@@ -1,7 +1,10 @@
 'use strict';
 
 class SourceFieldExtractor {
-    extractExcelRows(document = {}) {
+    extractExcelRows(
+        document = {},
+        options = {}
+    ) {
         if (
             !document ||
             typeof document !== 'object' ||
@@ -25,7 +28,10 @@ class SourceFieldExtractor {
             const rows = sheet.rows;
 
             const headerIndex =
-                this.findHeaderRowIndex(rows);
+                this.resolveHeaderRowIndex(
+                    rows,
+                    options
+                );
 
             if (headerIndex === -1) {
                 continue;
@@ -161,7 +167,10 @@ class SourceFieldExtractor {
         return results;
     }
 
-    extractSourceEntities(document = {}) {
+    extractSourceEntities(
+        document = {},
+        options = {}
+    ) {
         if (
             !document ||
             typeof document !== 'object' ||
@@ -184,7 +193,10 @@ class SourceFieldExtractor {
 
                 const rows = sheet.rows;
                 const headerIndex =
-                    this.findHeaderRowIndex(rows);
+                    this.resolveHeaderRowIndex(
+                        rows,
+                        options
+                    );
 
                 if (headerIndex === -1) {
                     return;
@@ -281,7 +293,10 @@ class SourceFieldExtractor {
         return results;
     }
 
-    extractFieldDefinitions(document = {}) {
+    extractFieldDefinitions(
+        document = {},
+        options = {}
+    ) {
         if (
             !document ||
             typeof document !== 'object' ||
@@ -303,8 +318,9 @@ class SourceFieldExtractor {
                 }
 
                 const headerIndex =
-                    this.findHeaderRowIndex(
-                        sheet.rows
+                    this.resolveHeaderRowIndex(
+                        sheet.rows,
+                        options
                     );
 
                 if (headerIndex === -1) {
@@ -346,6 +362,38 @@ class SourceFieldExtractor {
         );
 
         return results;
+    }
+
+    resolveHeaderRowIndex(
+        rows,
+        options = {}
+    ) {
+        if (!Array.isArray(rows)) {
+            return -1;
+        }
+
+        const hasExplicitHeaderRowIndex =
+            Object.prototype.hasOwnProperty.call(
+                options,
+                'headerRowIndex'
+            );
+
+        if (hasExplicitHeaderRowIndex) {
+            if (
+                !Number.isInteger(
+                    options.headerRowIndex
+                ) ||
+                options.headerRowIndex < 0
+            ) {
+                return -1;
+            }
+
+            return options.headerRowIndex < rows.length
+                ? options.headerRowIndex
+                : -1;
+        }
+
+        return this.findHeaderRowIndex(rows);
     }
 
     findHeaderRowIndex(rows) {

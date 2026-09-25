@@ -471,3 +471,301 @@ test('extractSourceEntities preserves duplicate header columns by sourceFieldKey
         }
     );
 });
+
+test(
+    'extractFieldDefinitions uses an explicitly confirmed header row when provided',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        [
+                            '施設名',
+                            'たんぽぽ会'
+                        ],
+                        [
+                            '利用者番号',
+                            '氏名',
+                            '利用日',
+                            'サービス'
+                        ],
+                        [
+                            'A001',
+                            '山田太郎',
+                            '2026-09-01',
+                            '生活介護'
+                        ]
+                    ]
+                }
+            ]
+        };
+
+        const result =
+            extractor.extractFieldDefinitions(
+                document,
+                {
+                    headerRowIndex: 1
+                }
+            );
+
+        assert.deepStrictEqual(
+            result,
+            [
+                {
+                    sourceFieldKey:
+                        'sheet:0:column:0',
+                    sheetIndex: 0,
+                    sheetName: 'CSV',
+                    columnIndex: 0,
+                    headerLabel:
+                        '利用者番号'
+                },
+                {
+                    sourceFieldKey:
+                        'sheet:0:column:1',
+                    sheetIndex: 0,
+                    sheetName: 'CSV',
+                    columnIndex: 1,
+                    headerLabel:
+                        '氏名'
+                },
+                {
+                    sourceFieldKey:
+                        'sheet:0:column:2',
+                    sheetIndex: 0,
+                    sheetName: 'CSV',
+                    columnIndex: 2,
+                    headerLabel:
+                        '利用日'
+                },
+                {
+                    sourceFieldKey:
+                        'sheet:0:column:3',
+                    sheetIndex: 0,
+                    sheetName: 'CSV',
+                    columnIndex: 3,
+                    headerLabel:
+                        'サービス'
+                }
+            ]
+        );
+    }
+);
+
+test(
+    'extractSourceEntities uses an explicitly confirmed header row when provided',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        ['施設名', 'たんぽぽ会'],
+                        ['利用者番号', '氏名', '利用日'],
+                        ['A001', '山田太郎', '2026-09-01']
+                    ]
+                }
+            ]
+        };
+
+        const result =
+            extractor.extractSourceEntities(
+                document,
+                {
+                    headerRowIndex: 1
+                }
+            );
+
+        assert.deepStrictEqual(
+            result,
+            [
+                {
+                    sourceEntityKey:
+                        'sheet:0:row:3',
+                    sheetIndex: 0,
+                    sheetName: 'CSV',
+                    rowIndex: 3,
+                    fields: {
+                        利用者番号: 'A001',
+                        氏名: '山田太郎',
+                        利用日: '2026-09-01'
+                    },
+                    valuesBySourceFieldKey: {
+                        'sheet:0:column:0':
+                            'A001',
+                        'sheet:0:column:1':
+                            '山田太郎',
+                        'sheet:0:column:2':
+                            '2026-09-01'
+                    }
+                }
+            ]
+        );
+    }
+);
+
+test(
+    'extractExcelRows uses an explicitly confirmed header row when provided',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        ['施設名', 'たんぽぽ会'],
+                        ['利用者番号', '氏名', '利用日'],
+                        ['A001', '山田太郎', '2026-09-01']
+                    ]
+                }
+            ]
+        };
+
+        const result =
+            extractor.extractExcelRows(
+                document,
+                {
+                    headerRowIndex: 1
+                }
+            );
+
+        assert.deepStrictEqual(
+            result,
+            [
+                {
+                    sheetName: 'CSV',
+                    rowIndex: 3,
+                    fields: {
+                        利用者番号: 'A001',
+                        氏名: '山田太郎',
+                        利用日: '2026-09-01'
+                    }
+                }
+            ]
+        );
+    }
+);
+
+test(
+    'explicit out-of-range header row does not fall back to heuristic detection',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        ['利用者番号', '氏名'],
+                        ['A001', '山田太郎']
+                    ]
+                }
+            ]
+        };
+
+        assert.deepStrictEqual(
+            extractor.extractFieldDefinitions(
+                document,
+                {
+                    headerRowIndex: 99
+                }
+            ),
+            []
+        );
+
+        assert.deepStrictEqual(
+            extractor.extractSourceEntities(
+                document,
+                {
+                    headerRowIndex: 99
+                }
+            ),
+            []
+        );
+
+        assert.deepStrictEqual(
+            extractor.extractExcelRows(
+                document,
+                {
+                    headerRowIndex: 99
+                }
+            ),
+            []
+        );
+    }
+);
+
+test(
+    'omitted header row preserves heuristic detection',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        ['利用者番号', '氏名'],
+                        ['A001', '山田太郎']
+                    ]
+                }
+            ]
+        };
+
+        assert.deepStrictEqual(
+            extractor.extractFieldDefinitions(
+                document
+            ).map(field => field.headerLabel),
+            [
+                '利用者番号',
+                '氏名'
+            ]
+        );
+    }
+);
+
+test(
+    'invalid explicit header row does not fall back to heuristic detection',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const rows = [
+            ['利用者番号', '氏名'],
+            ['A001', '山田太郎']
+        ];
+
+        for (
+            const headerRowIndex of [
+                -1,
+                1.5,
+                '1',
+                null
+            ]
+        ) {
+            assert.strictEqual(
+                extractor.resolveHeaderRowIndex(
+                    rows,
+                    {
+                        headerRowIndex
+                    }
+                ),
+                -1,
+                `headerRowIndex=${String(
+                    headerRowIndex
+                )}`
+            );
+        }
+    }
+);

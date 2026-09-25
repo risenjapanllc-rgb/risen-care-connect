@@ -617,3 +617,245 @@ test(
         }
     }
 );
+
+test(
+    "observes the first structurally matching non-blank row as a header candidate",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["name", "code", "date"],
+            ["Alice", "A001", "2026-09-01"],
+            ["Bob", "B002", "2026-09-02"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.deepStrictEqual(
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            ),
+            {
+                rowIndex: 0,
+                columnCount: 3,
+                confidence: "candidate"
+            }
+        );
+    }
+);
+
+test(
+    "preserves physical row index when blank rows precede the header candidate",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            [""],
+            ["", ""],
+            ["name", "code"],
+            ["Alice", "A001"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.deepStrictEqual(
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            ),
+            {
+                rowIndex: 2,
+                columnCount: 2,
+                confidence: "candidate"
+            }
+        );
+    }
+);
+
+test(
+    "does not produce a header candidate when row shape is ambiguous",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["A", "B", "C"],
+            ["1", "2", "3"],
+            ["X", "Y"],
+            ["4", "5"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.strictEqual(
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            ),
+            null
+        );
+    }
+);
+
+test(
+    "does not produce a header candidate when every row is blank",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            [""],
+            ["", ""]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.strictEqual(
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            ),
+            null
+        );
+    }
+);
+
+test(
+    "does not skip an irregular first non-blank row to search for a header-like row",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["Report generated 2026-09-25"],
+            ["name", "code", "date"],
+            ["Alice", "A001", "2026-09-01"],
+            ["Bob", "B002", "2026-09-02"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.strictEqual(
+            rowShape.modeColumnCount,
+            3
+        );
+
+        assert.strictEqual(
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            ),
+            null
+        );
+    }
+);
+
+test(
+    "includes a header candidate when delimiter and row shape are structurally resolved",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "header-candidate.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "name,code\nAlice,A001\nBob,B002\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.deepStrictEqual(
+                result.headerCandidate,
+                {
+                    rowIndex: 0,
+                    columnCount: 2,
+                    confidence: "candidate"
+                }
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "does not infer a header candidate when delimiter is unresolved",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "header-unresolved.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "alpha\nbeta\ngamma\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.strictEqual(
+                result.delimiter,
+                null
+            );
+
+            assert.strictEqual(
+                result.rowShape,
+                null
+            );
+
+            assert.strictEqual(
+                result.headerCandidate,
+                null
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

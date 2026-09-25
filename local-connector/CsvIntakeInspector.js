@@ -42,17 +42,31 @@ class CsvIntakeInspector {
         const delimiterObservation =
             this.inspectDelimiter(text);
 
-        const rowShape =
+        const rows =
             delimiterObservation.selected === null
                 ? null
+                : this.csvReader.parse(
+                    text,
+                    {
+                        delimiter:
+                            delimiterObservation.selected
+                    }
+                );
+
+        const rowShape =
+            rows === null
+                ? null
                 : this.inspectRowShape(
-                    this.csvReader.parse(
-                        text,
-                        {
-                            delimiter:
-                                delimiterObservation.selected
-                        }
-                    )
+                    rows
+                );
+
+        const headerCandidate =
+            rows === null ||
+            rowShape === null
+                ? null
+                : this.inspectHeaderCandidate(
+                    rows,
+                    rowShape
                 );
 
         return {
@@ -71,7 +85,8 @@ class CsvIntakeInspector {
                 delimiterObservation.confidence,
             delimiterCandidates:
                 delimiterObservation.candidates,
-            rowShape
+            rowShape,
+            headerCandidate
         };
     }
 
@@ -205,6 +220,68 @@ class CsvIntakeInspector {
                     ? "structural"
                     : "ambiguous",
             candidates
+        };
+    }
+
+    inspectHeaderCandidate(
+        rows,
+        rowShape
+    ) {
+        if (
+            !Array.isArray(rows) ||
+            rows.some(
+                row => !Array.isArray(row)
+            ) ||
+            rowShape === null ||
+            typeof rowShape !== "object"
+        ) {
+            throw new TypeError(
+                "CSV row-shape evidence is required"
+            );
+        }
+
+        if (
+            rowShape.shapeConfidence !==
+                "structural" ||
+            !Number.isInteger(
+                rowShape.modeColumnCount
+            ) ||
+            rowShape.modeColumnCount <= 0
+        ) {
+            return null;
+        }
+
+        const firstNonBlankRowIndex =
+            rows.findIndex(
+                row =>
+                    !row.every(
+                        value =>
+                            value === ""
+                    )
+            );
+
+        if (
+            firstNonBlankRowIndex === -1
+        ) {
+            return null;
+        }
+
+        const firstNonBlankRow =
+            rows[firstNonBlankRowIndex];
+
+        if (
+            firstNonBlankRow.length !==
+                rowShape.modeColumnCount
+        ) {
+            return null;
+        }
+
+        return {
+            rowIndex:
+                firstNonBlankRowIndex,
+            columnCount:
+                firstNonBlankRow.length,
+            confidence: "candidate"
         };
     }
 

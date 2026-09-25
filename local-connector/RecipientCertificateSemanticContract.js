@@ -11,6 +11,12 @@ const SUPPORTED_SEMANTIC_TARGETS =
     ]);
 
 class RecipientCertificateSemanticContract {
+    listSupportedSemanticTargets() {
+        return Array.from(
+            SUPPORTED_SEMANTIC_TARGETS
+        );
+    }
+
     assertSupported(semanticKey) {
         if (!SUPPORTED_SEMANTIC_TARGETS.has(semanticKey)) {
             const error = new Error(

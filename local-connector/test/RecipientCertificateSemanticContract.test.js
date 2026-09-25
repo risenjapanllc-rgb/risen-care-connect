@@ -68,3 +68,47 @@ test("recipient certificate semantic contract does not normalize target names", 
                 "recipient_certificate_semantic_target_unsupported"
     );
 });
+
+test("recipient certificate semantic contract lists governed targets", () => {
+    const contract =
+        new RecipientCertificateSemanticContract();
+
+    assert.deepEqual(
+        contract.listSupportedSemanticTargets(),
+        [
+            "user.user_code",
+            "user.name",
+            "user.birth_date",
+            "user.gender",
+            "recipient_certificate.certificate_number",
+            "recipient_certificate.valid_until"
+        ]
+    );
+});
+
+test("recipient certificate semantic target list cannot mutate contract authority", () => {
+    const contract =
+        new RecipientCertificateSemanticContract();
+
+    const targets =
+        contract.listSupportedSemanticTargets();
+
+    targets.push("recipient_certificate.not_a_real_field");
+
+    assert.throws(
+        () =>
+            contract.assertSupported(
+                "recipient_certificate.not_a_real_field"
+            ),
+        error =>
+            error?.code ===
+            "recipient_certificate_semantic_target_unsupported"
+    );
+
+    assert.equal(
+        contract.listSupportedSemanticTargets().includes(
+            "recipient_certificate.not_a_real_field"
+        ),
+        false
+    );
+});

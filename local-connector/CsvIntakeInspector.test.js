@@ -1321,3 +1321,189 @@ test(
         }
     }
 );
+
+test(
+    "reuses inspected Shift_JIS tab-delimited rows for source representation",
+    async () => {
+        const SourceFieldExtractor =
+            require("./SourceFieldExtractor");
+
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "source.csv"
+                );
+
+            /*
+             * Shift_JIS:
+             * 氏名\t利用日\r\n
+             * 山田\t2026-09-01\r\n
+             */
+            const buffer =
+                Buffer.from([
+                    0x8e, 0x81,
+                    0x96, 0xbc,
+                    0x09,
+                    0x97, 0x98,
+                    0x97, 0x70,
+                    0x93, 0xfa,
+                    0x0d, 0x0a,
+
+                    0x8e, 0x52,
+                    0x93, 0x63,
+                    0x09,
+                    0x32, 0x30,
+                    0x32, 0x36,
+                    0x2d, 0x30,
+                    0x39, 0x2d,
+                    0x30, 0x31,
+                    0x0d, 0x0a
+                ]);
+
+            await fs.writeFile(
+                filePath,
+                buffer
+            );
+
+            const inspection =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.strictEqual(
+                inspection.encoding,
+                "shift_jis"
+            );
+
+            assert.strictEqual(
+                inspection.delimiter,
+                "\t"
+            );
+
+            assert.deepStrictEqual(
+                inspection.rows,
+                [
+                    [
+                        "氏名",
+                        "利用日"
+                    ],
+                    [
+                        "山田",
+                        "2026-09-01"
+                    ]
+                ]
+            );
+
+            assert.deepStrictEqual(
+                inspection.headerCandidate,
+                {
+                    rowIndex: 0,
+                    columnCount: 2,
+                    confidence: "candidate"
+                }
+            );
+
+            const document = {
+                sheets: [
+                    {
+                        sheetName: "csv",
+                        rows: inspection.rows
+                    }
+                ]
+            };
+
+            const options = {
+                headerRowIndex:
+                    inspection.headerCandidate
+                        .rowIndex
+            };
+
+            const extractor =
+                new SourceFieldExtractor();
+
+            assert.deepStrictEqual(
+                extractor.extractFieldDefinitions(
+                    document,
+                    options
+                ),
+                [
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:0",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 0,
+                        headerLabel: "氏名"
+                    },
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:1",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        columnIndex: 1,
+                        headerLabel: "利用日"
+                    }
+                ]
+            );
+
+            assert.deepStrictEqual(
+                extractor.extractSourceEntities(
+                    document,
+                    options
+                ),
+                [
+                    {
+                        sourceEntityKey:
+                            "sheet:0:row:2",
+                        sheetIndex: 0,
+                        sheetName: "csv",
+                        rowIndex: 2,
+                        fields: {
+                            氏名: "山田",
+                            利用日: "2026-09-01"
+                        },
+                        valuesBySourceFieldKey: {
+                            "sheet:0:column:0":
+                                "山田",
+                            "sheet:0:column:1":
+                                "2026-09-01"
+                        }
+                    }
+                ]
+            );
+
+            assert.deepStrictEqual(
+                extractor.extractExcelRows(
+                    document,
+                    options
+                ),
+                [
+                    {
+                        sheetName: "csv",
+                        rowIndex: 2,
+                        fields: {
+                            氏名: "山田",
+                            利用日: "2026-09-01"
+                        }
+                    }
+                ]
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

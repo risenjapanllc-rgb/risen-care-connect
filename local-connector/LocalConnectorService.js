@@ -3,6 +3,8 @@ const LocalFolderScanner = require('./LocalFolderScanner');
 const LocalConnectorConfig = require('./LocalConnectorConfig');
 const ExcelReader = require('./ExcelReader');
 const CsvReader = require('./CsvReader');
+const CsvIntakeInspector =
+    require('./CsvIntakeInspector');
 const WordReader = require('./WordReader');
 const DocumentTypeDetector = require('./DocumentTypeDetector');
 const DocumentNormalizer = require('./DocumentNormalizer');
@@ -27,6 +29,13 @@ class LocalConnectorService {
         this.csvReader =
             options.csvReader ||
             new CsvReader();
+
+        this.csvIntakeInspector =
+            options.csvIntakeInspector ||
+            new CsvIntakeInspector({
+                csvReader:
+                    this.csvReader
+            });
 
         this.wordReader =
             options.wordReader ||
@@ -422,10 +431,43 @@ class LocalConnectorService {
                 fileName
             );
 
-        const document =
-            await this.csvReader.read(
+        const inspection =
+            await this.csvIntakeInspector.inspect(
                 details.filePath
             );
+
+        if (
+            !Array.isArray(
+                inspection.rows
+            ) ||
+            !inspection.headerCandidate ||
+            !Number.isInteger(
+                inspection.headerCandidate.rowIndex
+            ) ||
+            inspection.headerCandidate.rowIndex < 0 ||
+            inspection.headerCandidate.rowIndex >=
+                inspection.rows.length
+        ) {
+            throw new Error(
+                'csv_header_unresolved'
+            );
+        }
+
+        const document = {
+            sheetNames: ['csv'],
+            sheets: [
+                {
+                    sheetName: 'csv',
+                    rows: inspection.rows
+                }
+            ]
+        };
+
+        const sourceFieldOptions = {
+            headerRowIndex:
+                inspection.headerCandidate
+                    .rowIndex
+        };
 
         const documentType =
             this.documentTypeDetector.detect(
@@ -450,17 +492,20 @@ class LocalConnectorService {
 
         const sourceFields =
             this.sourceFieldExtractor.extractExcelRows(
-                standardDocument.content
+                standardDocument.content,
+                sourceFieldOptions
             );
 
         const fieldDefinitions =
             this.sourceFieldExtractor.extractFieldDefinitions(
-                standardDocument.content
+                standardDocument.content,
+                sourceFieldOptions
             );
 
         const sourceEntities =
             this.sourceFieldExtractor.extractSourceEntities(
-                standardDocument.content
+                standardDocument.content,
+                sourceFieldOptions
             );
 
         const interpretedSourceFields =

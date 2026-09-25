@@ -409,19 +409,18 @@ test("normalizeRegisteredCsv uses SourceFieldExtractor for facility fields", asy
   let receivedDocument = null;
 
   const service = new LocalConnectorService({
-    csvReader: {
-      async read() {
+    csvIntakeInspector: {
+      async inspect() {
         return {
-          sheetNames: ["CSV"],
-          sheets: [
-            {
-              sheetName: "CSV",
-              rows: [
-                ["項目A", "項目B", "項目C"],
-                ["値1", "値2", "値3"]
-              ]
-            }
-          ]
+          rows: [
+            ["項目A", "項目B", "項目C"],
+            ["値1", "値2", "値3"]
+          ],
+          headerCandidate: {
+            rowIndex: 0,
+            columnCount: 3,
+            confidence: "candidate"
+          }
         };
       }
     },
@@ -792,3 +791,309 @@ test("resolveSourceSnapshot does not resolve a file for an unknown opaque source
     false
   );
 });
+
+test(
+  "normalizeRegisteredCsv reuses inspected rows and confirmed header without rereading CSV",
+  async () => {
+    const rows = [
+      ["施設名", "たんぽぽ会"],
+      [
+        "利用者番号",
+        "氏名",
+        "利用日"
+      ],
+      [
+        "A001",
+        "山田太郎",
+        "2026-09-01"
+      ]
+    ];
+
+    let inspectedFilePath = null;
+    let csvReaderCalled = false;
+    const extractorCalls = [];
+
+    const service =
+      new LocalConnectorService({
+        csvIntakeInspector: {
+          async inspect(filePath) {
+            inspectedFilePath = filePath;
+
+            return {
+              rows,
+              headerCandidate: {
+                rowIndex: 1,
+                columnCount: 3,
+                confidence: "candidate"
+              }
+            };
+          }
+        },
+
+        csvReader: {
+          async read() {
+            csvReaderCalled = true;
+
+            throw new Error(
+              "normalizeRegisteredCsv must not reread CSV"
+            );
+          }
+        },
+
+        sourceFieldExtractor: {
+          extractExcelRows(
+            document,
+            options
+          ) {
+            extractorCalls.push({
+              method:
+                "extractExcelRows",
+              document,
+              options
+            });
+
+            return [];
+          },
+
+          extractFieldDefinitions(
+            document,
+            options
+          ) {
+            extractorCalls.push({
+              method:
+                "extractFieldDefinitions",
+              document,
+              options
+            });
+
+            return [];
+          },
+
+          extractSourceEntities(
+            document,
+            options
+          ) {
+            extractorCalls.push({
+              method:
+                "extractSourceEntities",
+              document,
+              options
+            });
+
+            return [];
+          }
+        }
+      });
+
+    service._resolveRegisteredFileDetails =
+      async () => ({
+        filePath:
+          "/test/facility.csv",
+        fileName:
+          "facility.csv",
+        relativePath:
+          "facility.csv",
+        extension:
+          ".csv",
+        size: 123,
+        updatedAt:
+          "2026-09-11T00:00:00.000Z"
+      });
+
+    await service.normalizeRegisteredCsv(
+      "facility.csv"
+    );
+
+    assert.strictEqual(
+      inspectedFilePath,
+      "/test/facility.csv"
+    );
+
+    assert.strictEqual(
+      csvReaderCalled,
+      false
+    );
+
+    assert.strictEqual(
+      extractorCalls.length,
+      3
+    );
+
+    for (
+      const call of extractorCalls
+    ) {
+      assert.deepStrictEqual(
+        call.document,
+        {
+          sheetNames: ["csv"],
+          sheets: [
+            {
+              sheetName: "csv",
+              rows
+            }
+          ]
+        }
+      );
+
+      assert.deepStrictEqual(
+        call.options,
+        {
+          headerRowIndex: 1
+        }
+      );
+    }
+  }
+);
+
+test(
+  "normalizeRegisteredCsv fails closed when inspected header is unresolved",
+  async () => {
+    let extractorCalled = false;
+
+    const service =
+      new LocalConnectorService({
+        csvIntakeInspector: {
+          async inspect() {
+            return {
+              rows: [
+                ["施設名", "たんぽぽ会"],
+                [
+                  "利用者番号",
+                  "氏名",
+                  "利用日"
+                ],
+                [
+                  "A001",
+                  "山田太郎",
+                  "2026-09-01"
+                ]
+              ],
+              headerCandidate: null
+            };
+          }
+        },
+
+        sourceFieldExtractor: {
+          extractExcelRows() {
+            extractorCalled = true;
+            return [];
+          },
+
+          extractFieldDefinitions() {
+            extractorCalled = true;
+            return [];
+          },
+
+          extractSourceEntities() {
+            extractorCalled = true;
+            return [];
+          }
+        }
+      });
+
+    service._resolveRegisteredFileDetails =
+      async () => ({
+        filePath:
+          "/test/facility.csv",
+        fileName:
+          "facility.csv",
+        relativePath:
+          "facility.csv",
+        extension:
+          ".csv",
+        size: 123,
+        updatedAt:
+          "2026-09-11T00:00:00.000Z"
+      });
+
+    await assert.rejects(
+      () =>
+        service.normalizeRegisteredCsv(
+          "facility.csv"
+        ),
+      error =>
+        error instanceof Error &&
+        error.message ===
+          "csv_header_unresolved"
+    );
+
+    assert.strictEqual(
+      extractorCalled,
+      false
+    );
+  }
+);
+
+test(
+  "normalizeRegisteredCsv fails closed when inspected header is outside parsed rows",
+  async () => {
+    let extractorCalled = false;
+
+    const service =
+      new LocalConnectorService({
+        csvIntakeInspector: {
+          async inspect() {
+            return {
+              rows: [
+                ["項目A", "項目B"],
+                ["値1", "値2"]
+              ],
+              headerCandidate: {
+                rowIndex: 2,
+                columnCount: 2,
+                confidence: "candidate"
+              }
+            };
+          }
+        },
+
+        sourceFieldExtractor: {
+          extractExcelRows() {
+            extractorCalled = true;
+            return [];
+          },
+
+          extractFieldDefinitions() {
+            extractorCalled = true;
+            return [];
+          },
+
+          extractSourceEntities() {
+            extractorCalled = true;
+            return [];
+          }
+        }
+      });
+
+    service._resolveRegisteredFileDetails =
+      async () => ({
+        filePath:
+          "/test/facility.csv",
+        fileName:
+          "facility.csv",
+        relativePath:
+          "facility.csv",
+        extension:
+          ".csv",
+        size: 123,
+        updatedAt:
+          "2026-09-11T00:00:00.000Z"
+      });
+
+    await assert.rejects(
+      () =>
+        service.normalizeRegisteredCsv(
+          "facility.csv"
+        ),
+      error =>
+        error instanceof Error &&
+        error.message ===
+          "csv_header_unresolved"
+    );
+
+    assert.strictEqual(
+      extractorCalled,
+      false
+    );
+  }
+);

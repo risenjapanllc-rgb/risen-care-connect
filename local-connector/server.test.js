@@ -3848,6 +3848,284 @@ test("POST /import-preview dispatches recipient certificate to dedicated preview
     }
 });
 
+
+test("POST /import-preview dispatches requested recipient certificate semantic projection independently of source classification", async () => {
+    const originalPreview =
+        app.locals.getImportPreviewService;
+    const originalRecipientCertificatePreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportPreviewCalled = false;
+    let certificatePreviewInput = null;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                assert.deepStrictEqual(
+                    input,
+                    {
+                        sourceDocumentKey:
+                            "doc-resident-master-1",
+                        sourceUpdatedAt:
+                            "2026-09-25T00:00:00.000Z",
+                        sourceSize:
+                            9520
+                    }
+                );
+
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "resident_master",
+                        confirmedAt:
+                            "2026-09-25T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview() {
+                supportPreviewCalled = true;
+                throw new Error(
+                    "support preview must not be called"
+                );
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview(input) {
+                certificatePreviewInput = input;
+
+                return {
+                    status: "preview_only",
+                    executionAvailable: false,
+                    sourceEntityCount: 21,
+                    residentSubjectCount: 21,
+                    unavailableSourceEntityCount: 0,
+                    summary: {
+                        existingResidentCount: 0,
+                        plannedNewResidentCount: 0,
+                        excludedCount: 21,
+                        deferredCount: 0,
+                        undecidedCount: 0,
+                        recipientCertificateCreateCount: 0
+                    },
+                    items: []
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-resident-master-1",
+                            sourceUpdatedAt:
+                                "2026-09-25T00:00:00.000Z",
+                            sourceSize:
+                                9520,
+                            semanticType:
+                                "recipient_certificate"
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.strictEqual(
+            supportPreviewCalled,
+            false
+        );
+
+        assert.deepStrictEqual(
+            certificatePreviewInput,
+            {
+                sourceDocumentKey:
+                    "doc-resident-master-1",
+                sourceUpdatedAt:
+                    "2026-09-25T00:00:00.000Z",
+                sourceSize:
+                    9520
+            }
+        );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            body.success,
+            true
+        );
+        assert.strictEqual(
+            body.semanticType,
+            "recipient_certificate"
+        );
+        assert.strictEqual(
+            body.status,
+            "preview_only"
+        );
+        assert.strictEqual(
+            body.executionAvailable,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            originalPreview;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientCertificatePreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+
+test("POST /import-preview rejects unsupported explicit semantic projection before preview", async () => {
+    const originalSupportPreview =
+        app.locals.getImportPreviewService;
+    const originalRecipientPreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportPreviewCalled = false;
+    let recipientPreviewCalled = false;
+    let documentTypeLookupCalled = false;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                documentTypeLookupCalled = true;
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "resident_master",
+                        confirmedAt:
+                            "2026-09-25T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportPreviewService =
+        async () => ({
+            async preview() {
+                supportPreviewCalled = true;
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview() {
+                recipientPreviewCalled = true;
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-resident-master-1",
+                            sourceUpdatedAt:
+                                "2026-09-25T00:00:00.000Z",
+                            sourceSize:
+                                9520,
+                            semanticType:
+                                "unknown_semantic_type"
+                        })
+                }
+            );
+
+        assert.strictEqual(
+            response.status,
+            422
+        );
+
+        assert.strictEqual(
+            documentTypeLookupCalled,
+            false
+        );
+        assert.strictEqual(
+            supportPreviewCalled,
+            false
+        );
+        assert.strictEqual(
+            recipientPreviewCalled,
+            false
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportPreviewService =
+            originalSupportPreview;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientPreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
 test("POST /import-preview rejects an invalid request before preview", async () => {
     const original =
         app.locals.getImportPreviewService;
@@ -4171,6 +4449,163 @@ test("POST /import-execute dispatches recipient certificate only to dedicated ex
                 updated: 0,
                 unchanged: 1,
                 residentsCreated: 1
+            }
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getImportExecutionService =
+            originalSupportExecution;
+        app.locals.getRecipientCertificateImportExecutionService =
+            originalRecipientExecution;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+test("POST /import-execute dispatches requested recipient certificate semantic projection independently of source classification", async () => {
+    const originalSupportExecution =
+        app.locals.getImportExecutionService;
+    const originalRecipientExecution =
+        app.locals.getRecipientCertificateImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let supportExecutionCalled = false;
+    let recipientReceived = null;
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get(input) {
+                assert.deepStrictEqual(
+                    input,
+                    {
+                        sourceDocumentKey:
+                            "doc-resident-master-execute-1",
+                        sourceUpdatedAt:
+                            "2026-09-25T00:00:00.000Z",
+                        sourceSize:
+                            23456
+                    }
+                );
+
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "resident_master",
+                        confirmedAt:
+                            "2026-09-25T01:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getImportExecutionService =
+        async () => ({
+            async execute() {
+                supportExecutionCalled = true;
+                throw new Error(
+                    "support execution service must not be called"
+                );
+            }
+        });
+
+    app.locals.getRecipientCertificateImportExecutionService =
+        async () => ({
+            async execute(input) {
+                recipientReceived = input;
+
+                return {
+                    status: "completed",
+                    processed: 2,
+                    created: 1,
+                    updated: 0,
+                    unchanged: 1,
+                    residentsCreated: 0
+                };
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-resident-master-execute-1",
+                            sourceUpdatedAt:
+                                "2026-09-25T00:00:00.000Z",
+                            sourceSize:
+                                23456,
+                            expectedFingerprint:
+                                "d".repeat(64),
+                            semanticType:
+                                "recipient_certificate"
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.strictEqual(
+            supportExecutionCalled,
+            false
+        );
+
+        assert.deepStrictEqual(
+            recipientReceived,
+            {
+                sourceDocumentKey:
+                    "doc-resident-master-execute-1",
+                sourceUpdatedAt:
+                    "2026-09-25T00:00:00.000Z",
+                sourceSize:
+                    23456,
+                expectedFingerprint:
+                    "d".repeat(64)
+            }
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                status: "completed",
+                processed: 2,
+                created: 1,
+                updated: 0,
+                unchanged: 1,
+                residentsCreated: 0
             }
         );
     } finally {

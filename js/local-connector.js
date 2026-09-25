@@ -88,8 +88,36 @@ let selectedSourceRecordIdentityFieldKey = "";
 let sourceRecordIdentityCandidates = [];
 let sourceRecordIdentityCandidateStatus = null;
 let confirmedDocumentType = null;
+let selectedSemanticType = null;
 let subjectContextResolution = null;
 let subjectContextResolutionLoading = false;
+
+function getSelectedSemanticProjectionType() {
+    return window.RisenSemanticProjectionPolicy
+        ?.resolveSemanticProjectionType(
+            confirmedDocumentType,
+            selectedSemanticType
+        ) || null;
+}
+
+function getConfirmedExecutionSemanticType(
+    preview = confirmedImportPreview
+) {
+    const explicitSemanticProjectionType =
+        window.RisenSemanticProjectionPolicy
+            ?.resolveExplicitSemanticProjectionType(
+                selectedSemanticType
+            ) || null;
+
+    return window.RisenSemanticProjectionPolicy
+        ?.resolveConfirmedExecutionSemanticType({
+            confirmedDocumentType,
+            explicitSemanticType:
+                explicitSemanticProjectionType,
+            previewSemanticType:
+                preview?.semanticType ?? null
+        }) || null;
+}
 
 async function refreshSubjectContextResolution() {
     if (!latestAnalysis) {
@@ -599,8 +627,11 @@ async function loadRecipientCertificateSemanticTargets() {
 }
 
 function getAvailableStandardFields() {
+    const semanticProjectionType =
+        getSelectedSemanticProjectionType();
+
     if (
-        confirmedDocumentType !==
+        semanticProjectionType !==
         "recipient_certificate"
     ) {
         return standardFields;
@@ -618,7 +649,7 @@ function isMeaningAllowedForConfirmedDocumentType(
 ) {
     return window.RisenStandardFieldMapping
         ?.isSemanticTargetAllowedForDocumentType(
-            confirmedDocumentType,
+            getSelectedSemanticProjectionType(),
             semanticMeaning,
             recipientCertificateSemanticTargets
         ) === true;
@@ -1165,6 +1196,7 @@ async function analyzeFile(filePath) {
         sourceRecordIdentityCandidates = [];
         sourceRecordIdentityCandidateStatus = null;
         confirmedDocumentType = null;
+        selectedSemanticType = null;
         subjectContextResolution = null;
 
         latestAnalysis = result;
@@ -1801,6 +1833,73 @@ function renderConfirmation() {
         </div>
     `;
 
+    const explicitSemanticProjectionType =
+        window.RisenSemanticProjectionPolicy
+            ?.resolveExplicitSemanticProjectionType(
+                selectedSemanticType
+            ) || null;
+
+    const semanticProjectionSection =
+        confirmedDocumentType === "resident_master"
+            ? `
+                <div
+                    style="
+                        margin-top: 20px;
+                        margin-bottom: 20px;
+                        padding: 16px;
+                        border: 1px solid #d0d5dd;
+                        border-radius: 10px;
+                        background: #f9fafb;
+                    "
+                >
+                    <h3 style="margin-top: 0;">
+                        取り込み対象
+                    </h3>
+
+                    <p class="form-help">
+                        原本のデータ種別は変更せず、
+                        このデータからRISENへ取り込む情報を選択します。
+                    </p>
+
+                    <select id="semanticProjectionSelect">
+                        <option value="">
+                            取り込み対象を選択
+                        </option>
+                        <option
+                            value="recipient_certificate"
+                            ${
+                                explicitSemanticProjectionType ===
+                                "recipient_certificate"
+                                    ? "selected"
+                                    : ""
+                            }
+                        >
+                            受給者証
+                        </option>
+                    </select>
+
+                    <div
+                        class="form-help"
+                        style="
+                            margin-top: 10px;
+                            color: ${
+                                explicitSemanticProjectionType
+                                    ? "#176b36"
+                                    : "#667085"
+                            };
+                        "
+                    >
+                        ${
+                            explicitSemanticProjectionType ===
+                            "recipient_certificate"
+                                ? "選択中：受給者証"
+                                : "まだ選択されていません。"
+                        }
+                    </div>
+                </div>
+            `
+            : "";
+
     const subjectLabels = {
         user: "利用者",
         staff: "職員",
@@ -2037,7 +2136,7 @@ function renderConfirmation() {
                     window.RisenStandardFieldMapping
                         ?.getSemanticConfirmationValidity(
                             reviewState,
-                            confirmedDocumentType,
+                            getSelectedSemanticProjectionType(),
                             selectedMeaning,
                             recipientCertificateSemanticTargets
                         ) || "not_confirmed";
@@ -2404,10 +2503,45 @@ function renderConfirmation() {
         </p>
 
         ${documentTypeSection}
+        ${semanticProjectionSection}
         ${subjectContextSection}
         ${identitySection}
         ${sourceFieldSection}
     `;
+
+    const semanticProjectionSelect =
+        document.getElementById(
+            "semanticProjectionSelect"
+        );
+
+    semanticProjectionSelect?.addEventListener(
+        "change",
+        event => {
+            const requestedSemanticType =
+                typeof event.currentTarget?.value === "string"
+                    ? event.currentTarget.value
+                    : "";
+
+            selectedSemanticType =
+                window.RisenSemanticProjectionPolicy
+                    ?.resolveExplicitSemanticProjectionType(
+                        requestedSemanticType
+                    ) || null;
+
+            confirmedImportPreviewFingerprint = null;
+            confirmedImportPreview = null;
+
+            renderConfirmation();
+
+            setStatus(
+                selectedSemanticType ===
+                    "recipient_certificate"
+                    ? "取り込み対象として受給者証を選択しました。"
+                    : "取り込み対象の選択を解除しました。",
+                "success"
+            );
+        }
+    );
 
     const documentTypeSelect =
         document.getElementById(
@@ -2457,6 +2591,12 @@ function renderConfirmation() {
 
                 confirmedDocumentType =
                     profile.type;
+                selectedSemanticType =
+                    null;
+                confirmedImportPreviewFingerprint =
+                    null;
+                confirmedImportPreview =
+                    null;
                 subjectContextResolution =
                     null;
 
@@ -4186,6 +4326,21 @@ async function loadImportPreview() {
     const snapshot =
         getResidentLinkingSnapshot();
 
+    const explicitSemanticProjectionType =
+        window.RisenSemanticProjectionPolicy
+            ?.resolveExplicitSemanticProjectionType(
+                selectedSemanticType
+            ) || null;
+
+    const payload =
+        explicitSemanticProjectionType
+            ? {
+                ...snapshot,
+                semanticType:
+                    explicitSemanticProjectionType
+            }
+            : snapshot;
+
     const response =
         await fetch(
             `${LOCAL_CONNECTOR_BASE}/import-preview`,
@@ -4196,7 +4351,7 @@ async function loadImportPreview() {
                         "application/json"
                 },
                 body:
-                    JSON.stringify(snapshot)
+                    JSON.stringify(payload)
             }
         );
 
@@ -4223,11 +4378,26 @@ async function loadImportPreview() {
         );
     }
 
+    if (
+        explicitSemanticProjectionType &&
+        result.semanticType !==
+            explicitSemanticProjectionType
+    ) {
+        throw new Error(
+            "取り込み対象とプレビューの意味種別が一致しません"
+        );
+    }
+
     return result;
 }
 
-async function executeConfirmedImport() {
+async function executeConfirmedImport(
+    executionSemanticType
+) {
     if (
+        !["support_record", "recipient_certificate"].includes(
+            executionSemanticType
+        ) ||
         !latestAnalysis ||
         typeof latestAnalysis.sourceDocumentKey !== "string" ||
         !latestAnalysis.sourceDocumentKey.trim() ||
@@ -4257,6 +4427,26 @@ async function executeConfirmedImport() {
         expectedFingerprint:
             confirmedImportPreviewFingerprint
     };
+
+    const explicitSemanticProjectionType =
+        window.RisenSemanticProjectionPolicy
+            ?.resolveExplicitSemanticProjectionType(
+                selectedSemanticType
+            ) || null;
+
+    if (explicitSemanticProjectionType) {
+        if (
+            explicitSemanticProjectionType !==
+                executionSemanticType
+        ) {
+            throw new Error(
+                "確認済みの取り込み対象と最終確定条件が一致しません"
+            );
+        }
+
+        payload.semanticType =
+            explicitSemanticProjectionType;
+    }
 
     const response =
         await fetch(
@@ -4290,14 +4480,14 @@ async function executeConfirmedImport() {
         Number.isSafeInteger(result.updated) &&
         (
             (
-                confirmedDocumentType ===
+                executionSemanticType ===
                     "support_record" &&
                 Number.isSafeInteger(
                     result.alreadyApplied
                 )
             ) ||
             (
-                confirmedDocumentType ===
+                executionSemanticType ===
                     "recipient_certificate" &&
                 Number.isSafeInteger(
                     result.unchanged
@@ -4990,14 +5180,19 @@ async function openImportPreviewStep() {
             return;
         }
 
+        const previewExecutionSemanticType =
+            getConfirmedExecutionSemanticType(
+                preview
+            );
+
         const previewExecutionAuthorized =
             (
-                confirmedDocumentType ===
+                previewExecutionSemanticType ===
                     "support_record" &&
                 preview.status === "ready"
             ) ||
             (
-                confirmedDocumentType ===
+                previewExecutionSemanticType ===
                     "recipient_certificate" &&
                 preview.status === "preview_only" &&
                 preview.executionAvailable === true
@@ -5723,8 +5918,12 @@ importPreviewBackButton?.addEventListener(
 importPreviewNextButton?.addEventListener(
     "click",
     () => {
+        const executionSemanticType =
+            getConfirmedExecutionSemanticType();
+
         if (
             !confirmedImportPreview ||
+            !executionSemanticType ||
             typeof confirmedImportPreviewFingerprint !==
                 "string" ||
             !/^[0-9a-f]{64}$/.test(
@@ -5732,13 +5931,13 @@ importPreviewNextButton?.addEventListener(
             ) ||
             !(
                 (
-                    confirmedDocumentType ===
+                    executionSemanticType ===
                         "support_record" &&
                     confirmedImportPreview.status ===
                         "ready"
                 ) ||
                 (
-                    confirmedDocumentType ===
+                    executionSemanticType ===
                         "recipient_certificate" &&
                     confirmedImportPreview.status ===
                         "preview_only" &&
@@ -5757,7 +5956,7 @@ importPreviewNextButton?.addEventListener(
         let executionSummaryHtml = "";
 
         if (
-            confirmedDocumentType ===
+            executionSemanticType ===
                 "recipient_certificate"
         ) {
             const summary =
@@ -5897,17 +6096,21 @@ importExecutionBackButton?.addEventListener(
 importExecutionConfirmButton?.addEventListener(
     "click",
     async () => {
+        const executionSemanticType =
+            getConfirmedExecutionSemanticType();
+
         if (
             !confirmedImportPreview ||
+            !executionSemanticType ||
             !(
                 (
-                    confirmedDocumentType ===
+                    executionSemanticType ===
                         "support_record" &&
                     confirmedImportPreview.status ===
                         "ready"
                 ) ||
                 (
-                    confirmedDocumentType ===
+                    executionSemanticType ===
                         "recipient_certificate" &&
                     confirmedImportPreview.status ===
                         "preview_only" &&
@@ -5946,7 +6149,9 @@ importExecutionConfirmButton?.addEventListener(
 
         try {
             const result =
-                await executeConfirmedImport();
+                await executeConfirmedImport(
+                    executionSemanticType
+                );
 
             confirmedImportPreviewFingerprint =
                 null;
@@ -5960,7 +6165,7 @@ importExecutionConfirmButton?.addEventListener(
 
             if (importExecutionSummary) {
                 const completionDetails =
-                    confirmedDocumentType ===
+                    executionSemanticType ===
                         "recipient_certificate"
                         ? `
                             処理済み: ${result.processed}件<br>
@@ -6573,12 +6778,36 @@ importReadyButton?.addEventListener(
             collectSourceFieldInterpretations();
 
 
-const step3RequirementState =
-            window.RisenDocumentTypeProfiles
-                .getStep3RequirementState(
-                    confirmedDocumentType,
-                    mappings
-                );
+        const explicitSemanticProjectionType =
+            window.RisenSemanticProjectionPolicy
+                ?.resolveExplicitSemanticProjectionType(
+                    selectedSemanticType
+                ) || null;
+
+        const step3RequirementState =
+            explicitSemanticProjectionType
+                ? window.RisenSemanticProjectionPolicy
+                    .getSemanticProjectionRequirementState(
+                        explicitSemanticProjectionType,
+                        mappings
+                    )
+                : window.RisenDocumentTypeProfiles
+                    .getStep3RequirementState(
+                        confirmedDocumentType,
+                        mappings
+                    );
+
+        if (
+            step3RequirementState.status ===
+            "semantic_projection_not_supported"
+        ) {
+            setStatus(
+                "選択した取り込み対象は、まだ取り込み確定に対応していません。",
+                "error"
+            );
+
+            return;
+        }
 
         if (
             step3RequirementState.status ===
@@ -6621,9 +6850,16 @@ const step3RequirementState =
             return;
         }
 
+        const sourceRecordIdentityRequired =
+            explicitSemanticProjectionType
+                ? step3RequirementState
+                    .sourceRecordIdentityRequired === true
+                : step3RequirementState
+                    .profile
+                    ?.sourceRecordIdentityRequired === true;
+
         if (
-            step3RequirementState.profile
-                .sourceRecordIdentityRequired === true &&
+            sourceRecordIdentityRequired &&
             (
                 !confirmedSourceRecordIdentity ||
                 typeof confirmedSourceRecordIdentity
@@ -6641,8 +6877,7 @@ const step3RequirementState =
         }
 
         if (
-            step3RequirementState.profile
-                .sourceRecordIdentityRequired === true
+            sourceRecordIdentityRequired
         ) {
             const identityFieldDefinitions =
                 Array.isArray(

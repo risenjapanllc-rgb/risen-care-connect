@@ -3352,16 +3352,34 @@ app.post(
                 new Set([
                     "sourceDocumentKey",
                     "sourceUpdatedAt",
-                    "sourceSize"
+                    "sourceSize",
+                    "semanticType"
                 ]);
 
             const keys =
                 Object.keys(input);
 
+            const hasSemanticType =
+                Object.prototype.hasOwnProperty.call(
+                    input,
+                    "semanticType"
+                );
+
             if (
-                keys.length !== 3 ||
+                (
+                    keys.length !== 3 &&
+                    keys.length !== 4
+                ) ||
                 keys.some(
                     key => !allowedKeys.has(key)
+                ) ||
+                (
+                    hasSemanticType &&
+                    (
+                        typeof input.semanticType !== "string" ||
+                        input.semanticType.trim() !==
+                            "recipient_certificate"
+                    )
                 )
             ) {
                 return res.status(422).json({
@@ -3406,14 +3424,23 @@ app.post(
                 confirmedDocumentTypeResult
                     .confirmation.documentType.trim();
 
+            const requestedSemanticType =
+                hasSemanticType
+                    ? input.semanticType.trim()
+                    : null;
+
+            const previewSemanticType =
+                requestedSemanticType ||
+                trustedDocumentType;
+
             let previewService;
 
-            if (trustedDocumentType === "support_record") {
+            if (previewSemanticType === "support_record") {
                 previewService =
                     await app.locals
                         .getImportPreviewService();
             } else if (
-                trustedDocumentType ===
+                previewSemanticType ===
                     "recipient_certificate"
             ) {
                 previewService =
@@ -3441,7 +3468,9 @@ app.post(
 
             return res.status(200).json({
                 success: true,
-                ...result
+                ...result,
+                semanticType:
+                    previewSemanticType
             });
         } catch (error) {
 
@@ -3495,11 +3524,18 @@ app.post(
                     "sourceDocumentKey",
                     "sourceUpdatedAt",
                     "sourceSize",
-                    "expectedFingerprint"
+                    "expectedFingerprint",
+                    "semanticType"
                 ]);
 
             const keys =
                 Object.keys(input);
+
+            const hasSemanticType =
+                Object.prototype.hasOwnProperty.call(
+                    input,
+                    "semanticType"
+                );
 
             const sourceDocumentKey =
                 typeof input.sourceDocumentKey === "string"
@@ -3520,9 +3556,17 @@ app.post(
                 input.sourceSize;
 
             if (
-                keys.length !== 4 ||
+                ![4, 5].includes(keys.length) ||
                 keys.some(
                     key => !allowedKeys.has(key)
+                ) ||
+                (
+                    hasSemanticType &&
+                    (
+                        typeof input.semanticType !== "string" ||
+                        input.semanticType.trim() !==
+                            "recipient_certificate"
+                    )
                 ) ||
                 !sourceDocumentKey ||
                 !sourceUpdatedAt ||
@@ -3572,11 +3616,20 @@ app.post(
                 confirmedDocumentTypeResult
                     .confirmation.documentType.trim();
 
+            const requestedSemanticType =
+                hasSemanticType
+                    ? input.semanticType.trim()
+                    : null;
+
+            const executionSemanticType =
+                requestedSemanticType ||
+                trustedDocumentType;
+
             if (
                 ![
                     "support_record",
                     "recipient_certificate"
-                ].includes(trustedDocumentType)
+                ].includes(executionSemanticType)
             ) {
                 return res.status(409).json({
                     success: false,
@@ -3588,7 +3641,8 @@ app.post(
             }
 
             const executionService =
-                trustedDocumentType === "recipient_certificate"
+                executionSemanticType ===
+                    "recipient_certificate"
                     ? await app.locals
                         .getRecipientCertificateImportExecutionService()
                     : await app.locals
@@ -3603,17 +3657,11 @@ app.post(
                 });
 
             if (
-                trustedDocumentType ===
-                "recipient_certificate"
-            ) {
-            }
-
-            if (
                 result &&
                 result.status === "completed"
             ) {
                 if (
-                    trustedDocumentType ===
+                    executionSemanticType ===
                     "recipient_certificate"
                 ) {
                     return res.status(200).json({

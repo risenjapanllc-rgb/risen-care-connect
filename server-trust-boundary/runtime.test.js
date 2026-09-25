@@ -70,9 +70,12 @@ test("creates complete Server Trust Boundary application runtime", () => {
             "connectorSemanticRecordPreviewService",
             "connectorSemanticLogicalRecordService",
             "connectorSemanticLogicalRecordPersistenceService",
+            "recipientCertificateAtomicPersistenceService",
             "connectorSupportRecordBatchWriteService",
             "residentCreationService",
             "connectorResidentAdmissionService",
+            "connectorResidentProfileService",
+            "connectorResidentProfileQueryService",
             "voiceCallService",
             "voiceCallHttpAdapter"
         ]

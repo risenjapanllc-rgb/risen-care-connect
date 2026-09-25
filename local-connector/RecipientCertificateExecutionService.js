@@ -147,6 +147,15 @@ class RecipientCertificateExecutionService {
             ) {
                 residentId = currentMapping.residentId.trim();
 
+                if (entry.resolution === "planned_new") {
+                    return {
+                        status: "conflict",
+                        identifierType: entry.identifierType,
+                        identifierDigest: entry.identifierDigest,
+                        ...counts
+                    };
+                }
+
                 if (
                     entry.resolution === "existing" &&
                     residentId !== entry.residentId

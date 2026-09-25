@@ -1097,3 +1097,103 @@ test(
     );
   }
 );
+
+test(
+    "readRegisteredCsv reuses CsvIntakeInspector rows instead of CsvReader reread",
+    async () => {
+        const expectedRows = [
+            ["氏名", "利用日"],
+            ["山田", "2026-09-01"]
+        ];
+
+        let inspectCalls = 0;
+        let csvReaderCalls = 0;
+
+        const service =
+            new LocalConnectorService({
+                config: {
+                    getAllowedFolder() {
+                        return "/registered";
+                    }
+                },
+                sourceDocumentRegistry: {
+                    async findByRelativePath() {
+                        return null;
+                    }
+                },
+                csvIntakeInspector: {
+                    async inspect(filePath) {
+                        inspectCalls += 1;
+
+                        assert.strictEqual(
+                            filePath,
+                            "/registered/source.csv"
+                        );
+
+                        return {
+                            rows: expectedRows,
+                            headerCandidate: {
+                                rowIndex: 0,
+                                columnCount: 2,
+                                confidence:
+                                    "candidate"
+                            }
+                        };
+                    }
+                },
+                csvReader: {
+                    async read() {
+                        csvReaderCalls += 1;
+
+                        throw new Error(
+                            "CsvReader reread must not occur"
+                        );
+                    }
+                }
+            });
+
+        service._resolveRegisteredFileDetails =
+            async () => ({
+                filePath:
+                    "/registered/source.csv",
+                fileName:
+                    "source.csv",
+                relativePath:
+                    "source.csv",
+                extension:
+                    ".csv",
+                size:
+                    100,
+                updatedAt:
+                    "2026-09-25T00:00:00.000Z"
+            });
+
+        const document =
+            await service.readRegisteredCsv(
+                "source.csv"
+            );
+
+        assert.deepStrictEqual(
+            document,
+            {
+                sheetNames: ["csv"],
+                sheets: [
+                    {
+                        sheetName: "csv",
+                        rows: expectedRows
+                    }
+                ]
+            }
+        );
+
+        assert.strictEqual(
+            inspectCalls,
+            1
+        );
+
+        assert.strictEqual(
+            csvReaderCalls,
+            0
+        );
+    }
+);

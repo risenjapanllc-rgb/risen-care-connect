@@ -402,9 +402,31 @@ class LocalConnectorService {
             );
         }
 
-        return await this.csvReader.read(
-            details.filePath
-        );
+        const inspection =
+            await this.csvIntakeInspector.inspect(
+                details.filePath
+            );
+
+        if (
+            !inspection ||
+            !Array.isArray(
+                inspection.rows
+            )
+        ) {
+            throw new Error(
+                'csv_rows_unavailable'
+            );
+        }
+
+        return {
+            sheetNames: ['csv'],
+            sheets: [
+                {
+                    sheetName: 'csv',
+                    rows: inspection.rows
+                }
+            ]
+        };
     }
 
     async normalizeRegisteredCsv(fileName) {

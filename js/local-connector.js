@@ -74,6 +74,7 @@ let confirmedImportPreviewFingerprint = null;
 let confirmedImportPreview = null;
 
 let standardFields = [];
+let recipientCertificateSemanticTargets = [];
 
 const sourceFieldMeaningSelections = new Map();
 const confirmedSourceFieldSelections = new Set();
@@ -570,6 +571,57 @@ async function loadStandardFields() {
     }
 
     standardFields = result;
+}
+
+async function loadRecipientCertificateSemanticTargets() {
+    const response = await fetch(
+        "/semantic-contracts/recipient-certificate"
+    );
+
+    const result = await response.json();
+
+    if (
+        !response.ok ||
+        result?.success !== true ||
+        result?.semanticType !==
+            "recipient_certificate" ||
+        !Array.isArray(
+            result?.supportedSemanticTargets
+        )
+    ) {
+        throw new Error(
+            "受給者証の標準項目契約を取得できませんでした"
+        );
+    }
+
+    recipientCertificateSemanticTargets =
+        [...result.supportedSemanticTargets];
+}
+
+function getAvailableStandardFields() {
+    if (
+        confirmedDocumentType !==
+        "recipient_certificate"
+    ) {
+        return standardFields;
+    }
+
+    return window.RisenStandardFieldMapping
+        ?.filterStandardFieldsBySemanticTargets(
+            standardFields,
+            recipientCertificateSemanticTargets
+        ) || [];
+}
+
+function isMeaningAllowedForConfirmedDocumentType(
+    semanticMeaning
+) {
+    return window.RisenStandardFieldMapping
+        ?.isSemanticTargetAllowedForDocumentType(
+            confirmedDocumentType,
+            semanticMeaning,
+            recipientCertificateSemanticTargets
+        ) === true;
 }
 
 function setStatus(message, type = "") {
@@ -1091,6 +1143,16 @@ async function analyzeFile(filePath) {
             standardFields = [];
             console.warn(
                 "標準項目の取得に失敗しました:",
+                error.message
+            );
+        }
+
+        try {
+            await loadRecipientCertificateSemanticTargets();
+        } catch (error) {
+            recipientCertificateSemanticTargets = [];
+            console.warn(
+                "受給者証の標準項目契約を取得できませんでした:",
                 error.message
             );
         }
@@ -1883,8 +1945,11 @@ function renderConfirmation() {
         `;
     })();
 
+    const availableStandardFields =
+        getAvailableStandardFields();
+
     const standardMeaningOptions =
-        standardFields.map(field => ({
+        availableStandardFields.map(field => ({
             value: `${field.entity_name}.${field.field_name}`,
             label:
                 `${field.display_name} ` +
@@ -1912,7 +1977,7 @@ function renderConfirmation() {
                     window.RisenStandardFieldMapping
                         ?.findStandardFieldSuggestion(
                             field.headerLabel || "",
-                            standardFields
+                            availableStandardFields
                         ) || null;
 
                 const suggestedMeaning =
@@ -1943,8 +2008,16 @@ function renderConfirmation() {
                         ? `${contextualCandidate.candidate.entityName}.${contextualCandidate.candidate.fieldName}`
                         : "";
 
+                const contextualMeaningAllowed =
+                    contextualMeaning
+                        ? isMeaningAllowedForConfirmedDocumentType(
+                            contextualMeaning
+                        )
+                        : false;
+
                 const contextualLabel =
-                    contextualCandidate?.candidate
+                    contextualCandidate?.candidate &&
+                    contextualMeaningAllowed
                         ? `${contextualCandidate.candidate.displayName} (${contextualMeaning})`
                         : "";
 
@@ -1960,16 +2033,31 @@ function renderConfirmation() {
                             : "pending"
                     );
 
+                const confirmationValidity =
+                    window.RisenStandardFieldMapping
+                        ?.getSemanticConfirmationValidity(
+                            reviewState,
+                            confirmedDocumentType,
+                            selectedMeaning,
+                            recipientCertificateSemanticTargets
+                        ) || "not_confirmed";
+
+                const confirmedOutsideCurrentContract =
+                    confirmationValidity ===
+                    "confirmed_outside_current_contract";
+
                 const stateLabel =
-                    reviewState === "confirmed"
-                        ? "確認済み"
-                        : reviewState === "unmapped"
-                            ? "標準項目なし"
-                            : reviewState === "deferred"
-                                ? "保留"
-                                : suggestedField
-                                    ? "おすすめ候補あり"
-                                    : "要確認";
+                    confirmedOutsideCurrentContract
+                        ? "過去に確認済み・現在の契約対象外"
+                        : reviewState === "confirmed"
+                            ? "確認済み"
+                            : reviewState === "unmapped"
+                                ? "標準項目なし"
+                                : reviewState === "deferred"
+                                    ? "保留"
+                                    : suggestedField
+                                        ? "おすすめ候補あり"
+                                        : "要確認";
 
                 const options =
                     standardMeaningOptions.map(option => `
@@ -2086,6 +2174,7 @@ function renderConfirmation() {
                                 ${
                                     !suggestedField &&
                                     contextualCandidate &&
+                                    contextualMeaningAllowed &&
                                     reviewState !== "confirmed"
                                         ? `
                                             <div style="
@@ -2143,10 +2232,18 @@ function renderConfirmation() {
                                     selectedMeaning
                                         ? `
                                             <div style="
-                                                color: #176b36;
+                                                color: ${
+                                                    confirmedOutsideCurrentContract
+                                                        ? "#8a6116"
+                                                        : "#176b36"
+                                                };
                                                 font-size: 0.9rem;
                                             ">
-                                                確認済み：
+                                                ${
+                                                    confirmedOutsideCurrentContract
+                                                        ? "過去に確認済み（現在の契約対象外）："
+                                                        : "確認済み："
+                                                }
                                                 ${escapeHtml(
                                                     standardMeaningOptions
                                                         .find(
@@ -2170,7 +2267,12 @@ function renderConfirmation() {
                                                     cursor: pointer;
                                                     color: #3157a4;
                                                 ">
-                                                    すべてのRISEN標準項目から探す
+                                                    ${
+                                                        confirmedDocumentType ===
+                                                        "recipient_certificate"
+                                                            ? "受給者証で利用できるRISEN標準項目から探す"
+                                                            : "すべてのRISEN標準項目から探す"
+                                                    }
                                                 </summary>
 
                                                 <div style="
@@ -2515,7 +2617,10 @@ function renderConfirmation() {
 
                 if (
                     !sourceFieldKey ||
-                    !standardMeaning
+                    !standardMeaning ||
+                    !isMeaningAllowedForConfirmedDocumentType(
+                        standardMeaning
+                    )
                 ) {
                     return;
                 }
@@ -2566,7 +2671,13 @@ function renderConfirmation() {
                     event.currentTarget.dataset
                         .standardMeaning || "";
 
-                if (!sourceFieldKey || !standardMeaning) {
+                if (
+                    !sourceFieldKey ||
+                    !standardMeaning ||
+                    !isMeaningAllowedForConfirmedDocumentType(
+                        standardMeaning
+                    )
+                ) {
                     return;
                 }
 
@@ -2610,7 +2721,15 @@ function renderConfirmation() {
                 const standardMeaning =
                     event.currentTarget.value || "";
 
-                if (!sourceFieldKey) {
+                if (
+                    !sourceFieldKey ||
+                    (
+                        standardMeaning &&
+                        !isMeaningAllowedForConfirmedDocumentType(
+                            standardMeaning
+                        )
+                    )
+                ) {
                     return;
                 }
 
@@ -2776,7 +2895,10 @@ function collectConfirmedSourceFieldMappings() {
          */
         if (
             typeof standardMeaning !== "string" ||
-            standardMeaning === ""
+            standardMeaning === "" ||
+            !isMeaningAllowedForConfirmedDocumentType(
+                standardMeaning
+            )
         ) {
             return [];
         }
@@ -2984,7 +3106,10 @@ function collectSourceFieldInterpretations() {
 
             if (
                 typeof confirmedMeaning !== "string" ||
-                !confirmedMeaning.trim()
+                !confirmedMeaning.trim() ||
+                !isMeaningAllowedForConfirmedDocumentType(
+                    confirmedMeaning.trim()
+                )
             ) {
                 return [];
             }

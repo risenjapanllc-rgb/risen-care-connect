@@ -213,3 +213,274 @@ test("複数の意味に一致する場合は自動提案しない", () => {
         null
     );
 });
+
+test("semantic contract targetsで標準項目の選択肢を絞る", () => {
+    const mapping = loadMapping();
+
+    const fields = [
+        {
+            entity_name: "user",
+            field_name: "name",
+            display_name: "利用者名"
+        },
+        {
+            entity_name: "support_record",
+            field_name: "staff_name",
+            display_name: "記録者名"
+        },
+        {
+            entity_name: "recipient_certificate",
+            field_name: "certificate_number",
+            display_name: "受給者証番号"
+        }
+    ];
+
+    const filtered =
+        mapping.filterStandardFieldsBySemanticTargets(
+            fields,
+            [
+                "user.name",
+                "recipient_certificate.certificate_number"
+            ]
+        );
+
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(filtered)),
+        [
+            fields[0],
+            fields[2]
+        ]
+    );
+});
+
+test("semantic contract filterは未知targetを標準項目へ追加しない", () => {
+    const mapping = loadMapping();
+
+    const fields = [
+        {
+            entity_name: "user",
+            field_name: "name",
+            display_name: "利用者名"
+        }
+    ];
+
+    const filtered =
+        mapping.filterStandardFieldsBySemanticTargets(
+            fields,
+            [
+                "user.name",
+                "recipient_certificate.not_a_real_field"
+            ]
+        );
+
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(filtered)),
+        fields
+    );
+});
+
+test("semantic contract filterは入力配列を変更しない", () => {
+    const mapping = loadMapping();
+
+    const fields = [
+        {
+            entity_name: "support_record",
+            field_name: "staff_name",
+            display_name: "記録者名"
+        },
+        {
+            entity_name: "user",
+            field_name: "name",
+            display_name: "利用者名"
+        }
+    ];
+
+    const before =
+        JSON.stringify(fields);
+
+    mapping.filterStandardFieldsBySemanticTargets(
+        fields,
+        ["user.name"]
+    );
+
+    assert.equal(
+        JSON.stringify(fields),
+        before
+    );
+});
+
+test("semantic target membershipは許可された意味だけを認める", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetSupported(
+            "user.name",
+            [
+                "user.name",
+                "recipient_certificate.certificate_number"
+            ]
+        ),
+        true
+    );
+
+    assert.equal(
+        mapping.isSemanticTargetSupported(
+            "support_record.staff_name",
+            [
+                "user.name",
+                "recipient_certificate.certificate_number"
+            ]
+        ),
+        false
+    );
+});
+
+test("semantic target membershipはtarget名を正規化して許可しない", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetSupported(
+            " user.name ",
+            ["user.name"]
+        ),
+        false
+    );
+});
+
+test("semantic target membershipは契約を取得できない場合fail closedになる", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetSupported(
+            "user.name",
+            []
+        ),
+        false
+    );
+
+    assert.equal(
+        mapping.isSemanticTargetSupported(
+            "user.name",
+            null
+        ),
+        false
+    );
+});
+
+test("recipient_certificateはsemantic contract内targetだけを許可する", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            "recipient_certificate",
+            "user.name",
+            ["user.name"]
+        ),
+        true
+    );
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            "recipient_certificate",
+            "support_record.staff_name",
+            ["user.name"]
+        ),
+        false
+    );
+});
+
+test("recipient_certificateはsemantic contract未取得時にfail closedになる", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            "recipient_certificate",
+            "user.name",
+            []
+        ),
+        false
+    );
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            "recipient_certificate",
+            "user.name",
+            null
+        ),
+        false
+    );
+});
+
+test("recipient_certificate以外には受給者証contractを適用しない", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            "support_record",
+            "support_record.staff_name",
+            []
+        ),
+        true
+    );
+
+    assert.equal(
+        mapping.isSemanticTargetAllowedForDocumentType(
+            null,
+            "support_record.staff_name",
+            []
+        ),
+        true
+    );
+});
+
+test("確認済みでも現在のdocument contract外ならhistorical confirmedとして扱う", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.getSemanticConfirmationValidity(
+            "confirmed",
+            "recipient_certificate",
+            "support_record.staff_name",
+            ["user.name"]
+        ),
+        "confirmed_outside_current_contract"
+    );
+});
+
+test("確認済みで現在のdocument contract内ならcurrent confirmedとして扱う", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.getSemanticConfirmationValidity(
+            "confirmed",
+            "recipient_certificate",
+            "user.name",
+            ["user.name"]
+        ),
+        "confirmed_current"
+    );
+});
+
+test("未確認状態をhistorical confirmedへ昇格させない", () => {
+    const mapping = loadMapping();
+
+    assert.equal(
+        mapping.getSemanticConfirmationValidity(
+            "pending",
+            "recipient_certificate",
+            "support_record.staff_name",
+            ["user.name"]
+        ),
+        "not_confirmed"
+    );
+
+    assert.equal(
+        mapping.getSemanticConfirmationValidity(
+            "deferred",
+            "recipient_certificate",
+            "user.name",
+            ["user.name"]
+        ),
+        "not_confirmed"
+    );
+});

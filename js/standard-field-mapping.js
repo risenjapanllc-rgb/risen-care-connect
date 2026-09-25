@@ -89,8 +89,92 @@ function findStandardFieldSuggestion(
     return matches[0];
 }
 
+function isSemanticTargetSupported(
+    semanticTarget,
+    supportedSemanticTargets
+) {
+    if (
+        typeof semanticTarget !== "string" ||
+        !Array.isArray(supportedSemanticTargets)
+    ) {
+        return false;
+    }
+
+    return supportedSemanticTargets.includes(
+        semanticTarget
+    );
+}
+
+function isSemanticTargetAllowedForDocumentType(
+    documentType,
+    semanticTarget,
+    recipientCertificateSemanticTargets
+) {
+    if (documentType !== "recipient_certificate") {
+        return true;
+    }
+
+    return isSemanticTargetSupported(
+        semanticTarget,
+        recipientCertificateSemanticTargets
+    );
+}
+
+function getSemanticConfirmationValidity(
+    reviewState,
+    documentType,
+    semanticTarget,
+    recipientCertificateSemanticTargets
+) {
+    if (reviewState !== "confirmed") {
+        return "not_confirmed";
+    }
+
+    return isSemanticTargetAllowedForDocumentType(
+        documentType,
+        semanticTarget,
+        recipientCertificateSemanticTargets
+    )
+        ? "confirmed_current"
+        : "confirmed_outside_current_contract";
+}
+
+function filterStandardFieldsBySemanticTargets(
+    standardFields,
+    supportedSemanticTargets
+) {
+    if (!Array.isArray(standardFields)) {
+        return [];
+    }
+
+    return standardFields.filter(field => {
+        const entityName =
+            typeof field?.entity_name === "string"
+                ? field.entity_name.trim()
+                : "";
+
+        const fieldName =
+            typeof field?.field_name === "string"
+                ? field.field_name.trim()
+                : "";
+
+        if (!entityName || !fieldName) {
+            return false;
+        }
+
+        return isSemanticTargetSupported(
+            `${entityName}.${fieldName}`,
+            supportedSemanticTargets
+        );
+    });
+}
+
 window.RisenStandardFieldMapping = {
     normalizeStandardFieldSourceName,
     isAmbiguousIdentifierSourceName,
-    findStandardFieldSuggestion
+    findStandardFieldSuggestion,
+    filterStandardFieldsBySemanticTargets,
+    isSemanticTargetSupported,
+    isSemanticTargetAllowedForDocumentType,
+    getSemanticConfirmationValidity
 };

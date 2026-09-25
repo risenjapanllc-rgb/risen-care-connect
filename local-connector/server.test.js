@@ -4775,3 +4775,57 @@ test("POST /import-preview preserves unavailable processing as 503", async () =>
             original;
     }
 });
+
+test("GET /semantic-contracts/recipient-certificate exposes governed semantic targets", async () => {
+    const server =
+        http.createServer(app);
+
+    await new Promise(
+        resolve =>
+            server.listen(
+                0,
+                "127.0.0.1",
+                resolve
+            )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/semantic-contracts/recipient-certificate`
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                semanticType:
+                    "recipient_certificate",
+                supportedSemanticTargets: [
+                    "user.user_code",
+                    "user.name",
+                    "user.birth_date",
+                    "user.gender",
+                    "recipient_certificate.certificate_number",
+                    "recipient_certificate.valid_until"
+                ]
+            }
+        );
+    } finally {
+        await new Promise(
+            resolve =>
+                server.close(resolve)
+        );
+    }
+});

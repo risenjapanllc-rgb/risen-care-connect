@@ -2,11 +2,18 @@
 
 const JapaneseBusinessDateNormalizer =
     require("./JapaneseBusinessDateNormalizer");
+const RecipientCertificateSemanticContract =
+    require("./RecipientCertificateSemanticContract");
 
 class RecipientCertificateSemanticPlanner {
-    constructor() {
+    constructor({
+        semanticContract =
+            new RecipientCertificateSemanticContract()
+    } = {}) {
         this.dateNormalizer =
             new JapaneseBusinessDateNormalizer();
+        this.semanticContract =
+            semanticContract;
     }
 
     normalizeSemanticValue(
@@ -56,6 +63,17 @@ class RecipientCertificateSemanticPlanner {
             typeof mapping.standardFieldName === "string" &&
             mapping.standardFieldName.trim()
         );
+
+        for (const mapping of usableMappings) {
+            const semanticKey =
+                mapping.standardEntityName.trim() +
+                "." +
+                mapping.standardFieldName.trim();
+
+            this.semanticContract.assertSupported(
+                semanticKey
+            );
+        }
 
         return sourceEntities.map(entity => {
             const values =

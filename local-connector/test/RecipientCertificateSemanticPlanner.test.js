@@ -251,3 +251,28 @@ test("recipient certificate planner canonicalizes explicit Japanese era dates wi
         }
     ]);
 });
+
+test("recipient certificate planner fails closed on unsupported semantic target", () => {
+    const planner =
+        new RecipientCertificateSemanticPlanner();
+
+    assert.throws(
+        () => planner.build({
+            sourceEntities: [{
+                sourceEntityKey: "sheet:0:row:2",
+                valuesBySourceFieldKey: {
+                    unknown: "must-not-enter-semantic-record"
+                }
+            }],
+            fieldMappings: [{
+                sourceFieldKey: "unknown",
+                standardEntityName: "recipient_certificate",
+                standardFieldName: "not_a_real_field"
+            }]
+        }),
+        error =>
+            error &&
+            error.code ===
+                "recipient_certificate_semantic_target_unsupported"
+    );
+});

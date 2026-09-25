@@ -69,6 +69,17 @@ class CsvIntakeInspector {
                     rowShape
                 );
 
+        const columnObservations =
+            rows === null ||
+            rowShape === null ||
+            headerCandidate === null
+                ? null
+                : this.inspectColumnObservations(
+                    rows,
+                    rowShape,
+                    headerCandidate
+                );
+
         return {
             encoding:
                 encodingObservation.selected,
@@ -86,7 +97,8 @@ class CsvIntakeInspector {
             delimiterCandidates:
                 delimiterObservation.candidates,
             rowShape,
-            headerCandidate
+            headerCandidate,
+            columnObservations
         };
     }
 
@@ -221,6 +233,110 @@ class CsvIntakeInspector {
                     : "ambiguous",
             candidates
         };
+    }
+
+    inspectColumnObservations(
+        rows,
+        rowShape,
+        headerCandidate,
+        { sampleLimit = 3 } = {}
+    ) {
+        if (
+            !Array.isArray(rows) ||
+            rows.some(
+                row => !Array.isArray(row)
+            ) ||
+            rowShape === null ||
+            typeof rowShape !== "object"
+        ) {
+            throw new TypeError(
+                "CSV row-shape evidence is required"
+            );
+        }
+
+        if (headerCandidate === null) {
+            return null;
+        }
+
+        if (
+            typeof headerCandidate !== "object" ||
+            !Number.isInteger(
+                headerCandidate.rowIndex
+            ) ||
+            headerCandidate.rowIndex < 0 ||
+            !Number.isInteger(
+                headerCandidate.columnCount
+            ) ||
+            headerCandidate.columnCount <= 0 ||
+            headerCandidate.confidence !==
+                "candidate" ||
+            !Number.isInteger(sampleLimit) ||
+            sampleLimit < 0
+        ) {
+            throw new TypeError(
+                "CSV header candidate is required"
+            );
+        }
+
+        const headerRow =
+            rows[headerCandidate.rowIndex];
+
+        if (
+            !Array.isArray(headerRow) ||
+            headerRow.length !==
+                headerCandidate.columnCount
+        ) {
+            throw new TypeError(
+                "CSV header candidate is inconsistent"
+            );
+        }
+
+        const dataRows =
+            rows.slice(
+                headerCandidate.rowIndex + 1
+            );
+
+        return headerRow.map(
+            (headerValue, columnIndex) => {
+                let nonBlankValueCount = 0;
+                let blankValueCount = 0;
+                let missingCellCount = 0;
+                const sampleValues = [];
+
+                for (const row of dataRows) {
+                    const value =
+                        row[columnIndex];
+
+                    if (value === undefined) {
+                        missingCellCount += 1;
+                        continue;
+                    }
+
+                    if (value === "") {
+                        blankValueCount += 1;
+                        continue;
+                    }
+
+                    nonBlankValueCount += 1;
+
+                    if (
+                        sampleValues.length <
+                            sampleLimit
+                    ) {
+                        sampleValues.push(value);
+                    }
+                }
+
+                return {
+                    columnIndex,
+                    headerValue,
+                    nonBlankValueCount,
+                    blankValueCount,
+                    missingCellCount,
+                    sampleValues
+                };
+            }
+        );
     }
 
     inspectHeaderCandidate(

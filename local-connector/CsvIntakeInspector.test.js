@@ -859,3 +859,407 @@ test(
         }
     }
 );
+
+test(
+    "observes physical columns from a confirmed header candidate",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["name", "code"],
+            ["Alice", "A001"],
+            ["Bob", "B002"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        const headerCandidate =
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            );
+
+        assert.deepStrictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                headerCandidate
+            ),
+            [
+                {
+                    columnIndex: 0,
+                    headerValue: "name",
+                    nonBlankValueCount: 2,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "Alice",
+                        "Bob"
+                    ]
+                },
+                {
+                    columnIndex: 1,
+                    headerValue: "code",
+                    nonBlankValueCount: 2,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "A001",
+                        "B002"
+                    ]
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "observes blank values without trimming source content",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["name", "code"],
+            ["Alice", ""],
+            [" ", "A002"],
+            ["Bob", ""]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        const headerCandidate =
+            inspector.inspectHeaderCandidate(
+                rows,
+                rowShape
+            );
+
+        assert.deepStrictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                headerCandidate
+            ),
+            [
+                {
+                    columnIndex: 0,
+                    headerValue: "name",
+                    nonBlankValueCount: 3,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "Alice",
+                        " ",
+                        "Bob"
+                    ]
+                },
+                {
+                    columnIndex: 1,
+                    headerValue: "code",
+                    nonBlankValueCount: 1,
+                    blankValueCount: 2,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "A002"
+                    ]
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "preserves duplicate sample values in source order",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["status"],
+            ["active"],
+            ["active"],
+            ["inactive"]
+        ];
+
+        const rowShape = {
+            shapeConfidence: "structural",
+            modeColumnCount: 1
+        };
+
+        const headerCandidate = {
+            rowIndex: 0,
+            columnCount: 1,
+            confidence: "candidate"
+        };
+
+        assert.deepStrictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                headerCandidate
+            ),
+            [
+                {
+                    columnIndex: 0,
+                    headerValue: "status",
+                    nonBlankValueCount: 3,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "active",
+                        "active",
+                        "inactive"
+                    ]
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "limits sample values without changing observation counts",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["value"],
+            ["A"],
+            ["B"],
+            ["C"],
+            ["D"]
+        ];
+
+        const rowShape = {
+            shapeConfidence: "structural",
+            modeColumnCount: 1
+        };
+
+        const headerCandidate = {
+            rowIndex: 0,
+            columnCount: 1,
+            confidence: "candidate"
+        };
+
+        assert.deepStrictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                headerCandidate,
+                { sampleLimit: 2 }
+            ),
+            [
+                {
+                    columnIndex: 0,
+                    headerValue: "value",
+                    nonBlankValueCount: 4,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "A",
+                        "B"
+                    ]
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "does not observe columns without a header candidate",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["alpha", "beta"],
+            ["A", "B"]
+        ];
+
+        const rowShape =
+            inspector.inspectRowShape(rows);
+
+        assert.strictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                null
+            ),
+            null
+        );
+    }
+);
+
+test(
+    "distinguishes an empty cell from a physically missing cell",
+    () => {
+        const inspector =
+            new CsvIntakeInspector();
+
+        const rows = [
+            ["name", "code"],
+            ["Alice", "A001"],
+            ["Bob"],
+            ["Carol", ""],
+            ["Dave", "D004"]
+        ];
+
+        const rowShape = {
+            shapeConfidence: "structural",
+            modeColumnCount: 2
+        };
+
+        const headerCandidate = {
+            rowIndex: 0,
+            columnCount: 2,
+            confidence: "candidate"
+        };
+
+        assert.deepStrictEqual(
+            inspector.inspectColumnObservations(
+                rows,
+                rowShape,
+                headerCandidate
+            ),
+            [
+                {
+                    columnIndex: 0,
+                    headerValue: "name",
+                    nonBlankValueCount: 4,
+                    blankValueCount: 0,
+                    missingCellCount: 0,
+                    sampleValues: [
+                        "Alice",
+                        "Bob",
+                        "Carol"
+                    ]
+                },
+                {
+                    columnIndex: 1,
+                    headerValue: "code",
+                    nonBlankValueCount: 2,
+                    blankValueCount: 1,
+                    missingCellCount: 1,
+                    sampleValues: [
+                        "A001",
+                        "D004"
+                    ]
+                }
+            ]
+        );
+    }
+);
+
+test(
+    "includes column observations when a header candidate is available",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "unknown.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "name,code\nAlice,A001\nBob,B002\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.deepStrictEqual(
+                result.columnObservations,
+                [
+                    {
+                        columnIndex: 0,
+                        headerValue: "name",
+                        nonBlankValueCount: 2,
+                        blankValueCount: 0,
+                        missingCellCount: 0,
+                        sampleValues: [
+                            "Alice",
+                            "Bob"
+                        ]
+                    },
+                    {
+                        columnIndex: 1,
+                        headerValue: "code",
+                        nonBlankValueCount: 2,
+                        blankValueCount: 0,
+                        missingCellCount: 0,
+                        sampleValues: [
+                            "A001",
+                            "B002"
+                        ]
+                    }
+                ]
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "does not infer column observations when delimiter is unresolved",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "unknown.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "alpha\nbeta\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.strictEqual(
+                result.columnObservations,
+                null
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

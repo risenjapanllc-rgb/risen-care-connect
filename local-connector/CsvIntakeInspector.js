@@ -96,6 +96,7 @@ class CsvIntakeInspector {
                 delimiterObservation.confidence,
             delimiterCandidates:
                 delimiterObservation.candidates,
+            rows,
             rowShape,
             headerCandidate,
             columnObservations

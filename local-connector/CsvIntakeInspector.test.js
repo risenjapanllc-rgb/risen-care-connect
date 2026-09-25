@@ -1263,3 +1263,61 @@ test(
         }
     }
 );
+
+test(
+    "returns the exact parsed rows used for physical CSV inspection",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "source.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                [
+                    "name\tcode",
+                    "\" Alice \"\tA001",
+                    "Bob\t\"B,002\"",
+                    ""
+                ].join("\n"),
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.strictEqual(
+                result.delimiter,
+                "\t"
+            );
+
+            assert.deepStrictEqual(
+                result.rows,
+                [
+                    ["name", "code"],
+                    [" Alice ", "A001"],
+                    ["Bob", "B,002"]
+                ]
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

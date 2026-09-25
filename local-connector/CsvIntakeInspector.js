@@ -42,6 +42,19 @@ class CsvIntakeInspector {
         const delimiterObservation =
             this.inspectDelimiter(text);
 
+        const rowShape =
+            delimiterObservation.selected === null
+                ? null
+                : this.inspectRowShape(
+                    this.csvReader.parse(
+                        text,
+                        {
+                            delimiter:
+                                delimiterObservation.selected
+                        }
+                    )
+                );
+
         return {
             encoding:
                 encodingObservation.selected,
@@ -57,7 +70,8 @@ class CsvIntakeInspector {
             delimiterConfidence:
                 delimiterObservation.confidence,
             delimiterCandidates:
-                delimiterObservation.candidates
+                delimiterObservation.candidates,
+            rowShape
         };
     }
 
@@ -191,6 +205,138 @@ class CsvIntakeInspector {
                     ? "structural"
                     : "ambiguous",
             candidates
+        };
+    }
+
+    inspectRowShape(rows) {
+        if (
+            !Array.isArray(rows) ||
+            rows.some(
+                row => !Array.isArray(row)
+            )
+        ) {
+            throw new TypeError(
+                "CSV rows are required"
+            );
+        }
+
+        const observedRows =
+            rows.map(
+                (row, rowIndex) => ({
+                    rowIndex,
+                    columnCount:
+                        row.length,
+                    blank:
+                        row.every(
+                            value =>
+                                value === ""
+                        )
+                })
+            );
+
+        const nonBlankRows =
+            observedRows.filter(
+                row => !row.blank
+            );
+
+        const frequencies =
+            new Map();
+
+        for (
+            const row of nonBlankRows
+        ) {
+            frequencies.set(
+                row.columnCount,
+                (
+                    frequencies.get(
+                        row.columnCount
+                    ) ||
+                    0
+                ) + 1
+            );
+        }
+
+        const columnCountFrequencies =
+            [...frequencies.entries()]
+                .map(
+                    ([
+                        columnCount,
+                        rowCount
+                    ]) => ({
+                        columnCount,
+                        rowCount
+                    })
+                )
+                .sort(
+                    (left, right) =>
+                        right.rowCount -
+                            left.rowCount ||
+                        right.columnCount -
+                            left.columnCount
+                );
+
+        const nonBlankRowCount =
+            nonBlankRows.length;
+
+        const highestFrequency =
+            columnCountFrequencies[0]
+                ?.rowCount ||
+            0;
+
+        const modes =
+            columnCountFrequencies.filter(
+                entry =>
+                    entry.rowCount ===
+                    highestFrequency
+            );
+
+        const shapeConfidence =
+            nonBlankRowCount === 0
+                ? "undetermined"
+                : modes.length === 1
+                    ? "structural"
+                    : "ambiguous";
+
+        const modeColumnCount =
+            shapeConfidence === "structural"
+                ? modes[0].columnCount
+                : null;
+
+        return {
+            rowCount: rows.length,
+            nonBlankRowCount,
+            blankRowCount:
+                rows.length -
+                nonBlankRowCount,
+            columnCountFrequencies,
+            modeColumnCount,
+            consistentRowCount:
+                highestFrequency,
+            consistencyRatio:
+                nonBlankRowCount === 0
+                    ? 0
+                    : (
+                        highestFrequency /
+                        nonBlankRowCount
+                    ),
+            shapeConfidence,
+            irregularRows:
+                modeColumnCount === null
+                    ? []
+                    : nonBlankRows
+                        .filter(
+                            row =>
+                                row.columnCount !==
+                                modeColumnCount
+                        )
+                        .map(
+                            row => ({
+                                rowIndex:
+                                    row.rowIndex,
+                                columnCount:
+                                    row.columnCount
+                            })
+                        )
         };
     }
 

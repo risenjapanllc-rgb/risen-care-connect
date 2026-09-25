@@ -331,3 +331,289 @@ test(
         );
     }
 );
+
+test(
+    "observes consistent non-blank row shape",
+    () => {
+        const result =
+            new CsvIntakeInspector()
+                .inspectRowShape([
+                    ["A", "B", "C"],
+                    ["1", "2", "3"],
+                    ["4", "5", "6"]
+                ]);
+
+        assert.deepStrictEqual(
+            result,
+            {
+                rowCount: 3,
+                nonBlankRowCount: 3,
+                blankRowCount: 0,
+                columnCountFrequencies: [
+                    {
+                        columnCount: 3,
+                        rowCount: 3
+                    }
+                ],
+                modeColumnCount: 3,
+                consistentRowCount: 3,
+                consistencyRatio: 1,
+                shapeConfidence: "structural",
+                irregularRows: []
+            }
+        );
+    }
+);
+
+test(
+    "observes blank rows without using them in structural consistency",
+    () => {
+        const result =
+            new CsvIntakeInspector()
+                .inspectRowShape([
+                    ["A", "B"],
+                    ["1", "2"],
+                    [""],
+                    ["", ""],
+                    ["3", "4"]
+                ]);
+
+        assert.deepStrictEqual(
+            result,
+            {
+                rowCount: 5,
+                nonBlankRowCount: 3,
+                blankRowCount: 2,
+                columnCountFrequencies: [
+                    {
+                        columnCount: 2,
+                        rowCount: 3
+                    }
+                ],
+                modeColumnCount: 2,
+                consistentRowCount: 3,
+                consistencyRatio: 1,
+                shapeConfidence: "structural",
+                irregularRows: []
+            }
+        );
+    }
+);
+
+test(
+    "reports irregular non-blank rows by physical row index",
+    () => {
+        const result =
+            new CsvIntakeInspector()
+                .inspectRowShape([
+                    ["A", "B", "C"],
+                    ["1", "2", "3"],
+                    ["TOTAL", "100"],
+                    ["4", "5", "6"]
+                ]);
+
+        assert.deepStrictEqual(
+            result,
+            {
+                rowCount: 4,
+                nonBlankRowCount: 4,
+                blankRowCount: 0,
+                columnCountFrequencies: [
+                    {
+                        columnCount: 3,
+                        rowCount: 3
+                    },
+                    {
+                        columnCount: 2,
+                        rowCount: 1
+                    }
+                ],
+                modeColumnCount: 3,
+                consistentRowCount: 3,
+                consistencyRatio: 0.75,
+                shapeConfidence: "structural",
+                irregularRows: [
+                    {
+                        rowIndex: 2,
+                        columnCount: 2
+                    }
+                ]
+            }
+        );
+    }
+);
+
+test(
+    "preserves row-shape ambiguity when column-count modes are tied",
+    () => {
+        const result =
+            new CsvIntakeInspector()
+                .inspectRowShape([
+                    ["A", "B", "C"],
+                    ["1", "2", "3"],
+                    ["X", "Y"],
+                    ["4", "5"]
+                ]);
+
+        assert.strictEqual(
+            result.modeColumnCount,
+            null
+        );
+
+        assert.strictEqual(
+            result.consistentRowCount,
+            2
+        );
+
+        assert.strictEqual(
+            result.consistencyRatio,
+            0.5
+        );
+
+        assert.strictEqual(
+            result.shapeConfidence,
+            "ambiguous"
+        );
+
+        assert.deepStrictEqual(
+            result.irregularRows,
+            []
+        );
+    }
+);
+
+test(
+    "reports undetermined row shape when every row is blank",
+    () => {
+        const result =
+            new CsvIntakeInspector()
+                .inspectRowShape([
+                    [""],
+                    ["", ""],
+                    [""]
+                ]);
+
+        assert.deepStrictEqual(
+            result,
+            {
+                rowCount: 3,
+                nonBlankRowCount: 0,
+                blankRowCount: 3,
+                columnCountFrequencies: [],
+                modeColumnCount: null,
+                consistentRowCount: 0,
+                consistencyRatio: 0,
+                shapeConfidence: "undetermined",
+                irregularRows: []
+            }
+        );
+    }
+);
+
+test(
+    "includes row-shape evidence when delimiter is structurally selected",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "row-shape.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "name,code\nAlice,A001\nBob,B002\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.deepStrictEqual(
+                result.rowShape,
+                {
+                    rowCount: 3,
+                    nonBlankRowCount: 3,
+                    blankRowCount: 0,
+                    columnCountFrequencies: [
+                        {
+                            columnCount: 2,
+                            rowCount: 3
+                        }
+                    ],
+                    modeColumnCount: 2,
+                    consistentRowCount: 3,
+                    consistencyRatio: 1,
+                    shapeConfidence: "structural",
+                    irregularRows: []
+                }
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "does not infer row shape when delimiter is unresolved",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-csv-intake-"
+                )
+            );
+
+        try {
+            const filePath =
+                path.join(
+                    directory,
+                    "unresolved.csv"
+                );
+
+            await fs.writeFile(
+                filePath,
+                "alpha\nbeta\ngamma\n",
+                "utf8"
+            );
+
+            const result =
+                await new CsvIntakeInspector()
+                    .inspect(filePath);
+
+            assert.strictEqual(
+                result.delimiter,
+                null
+            );
+
+            assert.strictEqual(
+                result.rowShape,
+                null
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

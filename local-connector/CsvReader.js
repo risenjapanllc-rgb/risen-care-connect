@@ -33,7 +33,24 @@ class CsvReader {
         };
     }
 
-    parse(text) {
+    parse(
+        text,
+        {
+            delimiter = ","
+        } = {}
+    ) {
+        if (
+            typeof delimiter !== "string" ||
+            delimiter.length !== 1 ||
+            delimiter === "\"" ||
+            delimiter === "\r" ||
+            delimiter === "\n"
+        ) {
+            throw new TypeError(
+                "CSV delimiter must be a single non-record character"
+            );
+        }
+
         const rows = [];
         let row = [];
         let field = "";
@@ -69,7 +86,7 @@ class CsvReader {
                 continue;
             }
 
-            if (character === ",") {
+            if (character === delimiter) {
                 row.push(field);
                 field = "";
                 continue;

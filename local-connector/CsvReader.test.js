@@ -126,3 +126,82 @@ test(
         );
     }
 );
+
+test(
+    "parses a tab-delimited source when the delimiter is explicit",
+    () => {
+        const rows =
+            new CsvReader().parse(
+                "利用者名\t利用日\r\n山田太郎\t2026-09-01\r\n",
+                {
+                    delimiter: "\t"
+                }
+            );
+
+        assert.deepStrictEqual(
+            rows,
+            [
+                [
+                    "利用者名",
+                    "利用日"
+                ],
+                [
+                    "山田太郎",
+                    "2026-09-01"
+                ]
+            ]
+        );
+    }
+);
+
+test(
+    "keeps delimiters inside quoted fields as field content",
+    () => {
+        const rows =
+            new CsvReader().parse(
+                '利用者名\t備考\r\n山田太郎\t"送迎\tあり"\r\n',
+                {
+                    delimiter: "\t"
+                }
+            );
+
+        assert.deepStrictEqual(
+            rows,
+            [
+                [
+                    "利用者名",
+                    "備考"
+                ],
+                [
+                    "山田太郎",
+                    "送迎\tあり"
+                ]
+            ]
+        );
+    }
+);
+
+test(
+    "rejects invalid explicit delimiters",
+    () => {
+        const reader =
+            new CsvReader();
+
+        for (const delimiter of [
+            "",
+            "::",
+            "\"",
+            "\r",
+            "\n"
+        ]) {
+            assert.throws(
+                () =>
+                    reader.parse(
+                        "a,b\n1,2\n",
+                        { delimiter }
+                    ),
+                /CSV delimiter/
+            );
+        }
+    }
+);

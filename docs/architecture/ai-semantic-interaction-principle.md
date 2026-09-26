@@ -70,6 +70,39 @@ RISEN contracts and services.
 The AI interaction layer must not bypass Domain rules, Promotion rules,
 validation, authorization, concurrency protection, or billing safeguards.
 
+## 2.1 Prefer governed deterministic resolution before AI inference
+
+AI capability does not by itself justify using AI for every semantic
+resolution.
+
+When RISEN can safely resolve meaning through governed, deterministic, and
+verifiable mechanisms, those mechanisms should be preferred.
+
+Examples may include:
+
+- an already confirmed mapping whose applicable source context has not changed;
+- an exact governed semantic identifier;
+- governed synonyms or aliases;
+- deterministic canonicalization and validation rules; and
+- other explicit semantic contracts that establish the required meaning.
+
+AI may assist when deterministic mechanisms are insufficient, especially for
+unknown expressions, ambiguous source labels, natural-language requests, or
+context-dependent interpretation.
+
+AI output in such cases is a candidate interpretation or resolution aid,
+not business authority. AI confidence alone must not make the result
+authoritative.
+
+Where the applicable governed contract cannot safely establish the required
+meaning, identity, context, or business impact, RISEN must require appropriate
+clarification or human confirmation.
+
+This principle is intentionally capability-based rather than
+provider-specific. RISEN's governed meaning system must remain valid whether
+an AI provider is available, unavailable, changed, or not required for the
+operation.
+
 ## 3. Natural language resolves to stable semantic meaning
 
 Human expressions may vary while their governed meaning remains stable.

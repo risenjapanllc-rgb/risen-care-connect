@@ -52,6 +52,40 @@ meaning.
 A semantic identifier is not a database column name and is not a UI label.
 It is a stable business-meaning identifier.
 
+## 2.1 Semantic Resolution is a governed process, not a new authority
+
+Before RISEN accepts a governed semantic meaning, it may use multiple
+resolution mechanisms to determine which Standard Meaning best represents the
+source evidence or business expression.
+
+Depending on the context, these mechanisms may include:
+
+- exact governed semantic identifiers;
+- governed labels, synonyms, or aliases;
+- previously confirmed mappings whose applicable source context remains valid;
+- source or business context;
+- deterministic value-shape or validation rules;
+- AI-assisted candidate interpretation when deterministic mechanisms are
+  insufficient; and
+- human clarification or confirmation when required.
+
+These mechanisms produce candidates or supporting signals. They do not
+independently become Semantic Authority merely because they produced one
+candidate or a high-confidence result.
+
+RISEN must preserve ambiguity or conflict when the applicable governed
+contract cannot safely establish the required meaning. Human confirmation
+should be required when necessary, rather than forcing a convenient semantic
+assignment merely to continue processing.
+
+Semantic Resolution should be reusable across interaction channels such as
+RISEN Connect, UI workflows, AI conversation, APIs, and automation where the
+same business meaning is being resolved.
+
+The resolution process determines meaning. It must not independently decide
+database destinations, Promotion authority, Domain truth, regulatory rules,
+remuneration calculations, or Claim truth.
+
 ## 3. Display-name change and meaning correction are different
 
 Changing a human-readable label must not change the semantic identity.

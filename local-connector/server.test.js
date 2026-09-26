@@ -5264,3 +5264,535 @@ test("GET /semantic-contracts/recipient-certificate exposes governed semantic ta
         );
     }
 });
+
+test("GET /runtime-contract exposes the Local Connector runtime capability contract", async () => {
+    const server =
+        http.createServer(app);
+
+    await new Promise(
+        resolve =>
+            server.listen(
+                0,
+                "127.0.0.1",
+                resolve
+            )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/runtime-contract`
+            );
+
+        assert.strictEqual(
+            response.status,
+            200
+        );
+
+        const body =
+            await response.json();
+
+        assert.deepStrictEqual(
+            body,
+            {
+                success: true,
+                contractVersion:
+                    "local-connector-runtime-v1",
+                service:
+                    "RISEN CARE Local Connector",
+                capabilities: [
+                    "recipient_certificate.semantic_contract",
+                    "recipient_certificate.preview",
+                    "recipient_certificate.fingerprint_execution"
+                ]
+            }
+        );
+    } finally {
+        await new Promise(
+            resolve =>
+                server.close(resolve)
+        );
+    }
+});
+
+test("POST /import-preview fails closed when required recipient certificate preview runtime capability is unsupported", async () => {
+    const originalRuntimeContract =
+        app.locals.getLocalConnectorRuntimeContract;
+    const originalRecipientCertificatePreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let certificatePreviewCalled = false;
+
+    app.locals.getLocalConnectorRuntimeContract =
+        () => ({
+            contractVersion:
+                "local-connector-runtime-v1",
+            service:
+                "RISEN CARE Local Connector",
+            capabilities: [
+                "recipient_certificate.semantic_contract",
+                "recipient_certificate.fingerprint_execution"
+            ]
+        });
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-26T00:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview() {
+                certificatePreviewCalled = true;
+                throw new Error(
+                    "recipient certificate preview must not be called"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-runtime-preview-gate",
+                            sourceUpdatedAt:
+                                "2026-09-26T00:00:00.000Z",
+                            sourceSize:
+                                12345
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+
+        assert.strictEqual(
+            certificatePreviewCalled,
+            false
+        );
+
+        assert.strictEqual(
+            body.success,
+            false
+        );
+
+        assert.strictEqual(
+            body.status,
+            "capability_unsupported"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getLocalConnectorRuntimeContract =
+            originalRuntimeContract;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientCertificatePreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+test("POST /import-execute fails closed when required recipient certificate fingerprint execution runtime capability is unsupported", async () => {
+    const originalRuntimeContract =
+        app.locals.getLocalConnectorRuntimeContract;
+    const originalRecipientExecution =
+        app.locals.getRecipientCertificateImportExecutionService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let recipientExecutionCalled = false;
+
+    app.locals.getLocalConnectorRuntimeContract =
+        () => ({
+            contractVersion:
+                "local-connector-runtime-v1",
+            service:
+                "RISEN CARE Local Connector",
+            capabilities: [
+                "recipient_certificate.semantic_contract",
+                "recipient_certificate.preview"
+            ]
+        });
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-26T00:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getRecipientCertificateImportExecutionService =
+        async () => ({
+            async execute() {
+                recipientExecutionCalled = true;
+
+                throw new Error(
+                    "recipient certificate execution must not be called"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-execute`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-runtime-execution-gate",
+                            sourceUpdatedAt:
+                                "2026-09-26T00:00:00.000Z",
+                            sourceSize:
+                                12345,
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+
+        assert.strictEqual(
+            recipientExecutionCalled,
+            false
+        );
+
+        assert.strictEqual(
+            body.success,
+            false
+        );
+
+        assert.strictEqual(
+            body.status,
+            "capability_unsupported"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getLocalConnectorRuntimeContract =
+            originalRuntimeContract;
+        app.locals.getRecipientCertificateImportExecutionService =
+            originalRecipientExecution;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+test("POST /import-preview fails closed when runtime contract version is incompatible even if preview capability is declared", async () => {
+    const originalRuntimeContract =
+        app.locals.getLocalConnectorRuntimeContract;
+    const originalRecipientCertificatePreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let certificatePreviewCalled = false;
+
+    app.locals.getLocalConnectorRuntimeContract =
+        () => ({
+            contractVersion:
+                "local-connector-runtime-v999",
+            service:
+                "RISEN CARE Local Connector",
+            capabilities: [
+                "recipient_certificate.semantic_contract",
+                "recipient_certificate.preview",
+                "recipient_certificate.fingerprint_execution"
+            ]
+        });
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-26T00:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview() {
+                certificatePreviewCalled = true;
+
+                throw new Error(
+                    "incompatible runtime must not reach recipient certificate preview"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-incompatible-runtime-preview",
+                            sourceUpdatedAt:
+                                "2026-09-26T00:00:00.000Z",
+                            sourceSize:
+                                12345
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+
+        assert.strictEqual(
+            certificatePreviewCalled,
+            false
+        );
+
+        assert.strictEqual(
+            body.success,
+            false
+        );
+
+        assert.strictEqual(
+            body.status,
+            "runtime_incompatible"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getLocalConnectorRuntimeContract =
+            originalRuntimeContract;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientCertificatePreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});
+
+test("POST /import-preview fails closed as runtime unavailable when runtime contract data is malformed", async () => {
+    const originalRuntimeContract =
+        app.locals.getLocalConnectorRuntimeContract;
+    const originalRecipientCertificatePreview =
+        app.locals.getRecipientCertificateImportPreviewService;
+    const originalConfirmedDocumentTypeService =
+        app.locals.getConfirmedDocumentTypeService;
+
+    let certificatePreviewCalled = false;
+
+    app.locals.getLocalConnectorRuntimeContract =
+        () => ({
+            contractVersion:
+                "local-connector-runtime-v1",
+            service:
+                "RISEN CARE Local Connector",
+            capabilities: null
+        });
+
+    app.locals.getConfirmedDocumentTypeService =
+        async () => ({
+            async get() {
+                return {
+                    status: "found",
+                    confirmation: {
+                        documentType:
+                            "recipient_certificate",
+                        confirmedAt:
+                            "2026-09-26T00:00:00.000Z"
+                    }
+                };
+            }
+        });
+
+    app.locals.getRecipientCertificateImportPreviewService =
+        async () => ({
+            async preview() {
+                certificatePreviewCalled = true;
+
+                throw new Error(
+                    "malformed runtime contract must not reach recipient certificate preview"
+                );
+            }
+        });
+
+    const server =
+        http.createServer(app);
+
+    await new Promise(resolve =>
+        server.listen(
+            0,
+            "127.0.0.1",
+            resolve
+        )
+    );
+
+    try {
+        const address =
+            server.address();
+
+        const response =
+            await fetch(
+                `http://127.0.0.1:${address.port}/import-preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            sourceDocumentKey:
+                                "doc-malformed-runtime-preview",
+                            sourceUpdatedAt:
+                                "2026-09-26T00:00:00.000Z",
+                            sourceSize:
+                                12345
+                        })
+                }
+            );
+
+        const body =
+            await response.json();
+
+        assert.strictEqual(
+            response.status,
+            503
+        );
+
+        assert.strictEqual(
+            certificatePreviewCalled,
+            false
+        );
+
+        assert.strictEqual(
+            body.success,
+            false
+        );
+
+        assert.strictEqual(
+            body.status,
+            "runtime_unavailable"
+        );
+    } finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+
+        app.locals.getLocalConnectorRuntimeContract =
+            originalRuntimeContract;
+        app.locals.getRecipientCertificateImportPreviewService =
+            originalRecipientCertificatePreview;
+        app.locals.getConfirmedDocumentTypeService =
+            originalConfirmedDocumentTypeService;
+    }
+});

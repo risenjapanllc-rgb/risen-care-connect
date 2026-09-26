@@ -484,3 +484,37 @@ test("未確認状態をhistorical confirmedへ昇格させない", () => {
         "not_confirmed"
     );
 });
+
+test(
+    "confirmed semantic mapping remains unconfirmed when the semantic contract has not been loaded",
+    () => {
+        const mapping = loadMapping();
+
+        assert.equal(
+            mapping.getSemanticConfirmationValidity(
+                "confirmed",
+                "recipient_certificate",
+                "user.name",
+                null
+            ),
+            "contract_unconfirmed"
+        );
+    }
+);
+
+test(
+    "confirmed semantic mapping is outside the current contract only after a loaded contract excludes it",
+    () => {
+        const mapping = loadMapping();
+
+        assert.equal(
+            mapping.getSemanticConfirmationValidity(
+                "confirmed",
+                "recipient_certificate",
+                "user.name",
+                []
+            ),
+            "confirmed_outside_current_contract"
+        );
+    }
+);

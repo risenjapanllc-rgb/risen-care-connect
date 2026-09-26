@@ -4,6 +4,16 @@ const path = require('path');
 const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
 const RecipientCertificateSemanticContract =
     require("./RecipientCertificateSemanticContract");
+const LocalConnectorRuntimeContract =
+    require("./LocalConnectorRuntimeContract");
+
+const {
+    evaluateRuntimeCapability:
+        evaluateLocalConnectorRuntimeCapability
+} =
+    require(
+        "./LocalConnectorRuntimeCompatibilityPolicy"
+    );
 
 const app = express();
 app.disable('x-powered-by');
@@ -759,6 +769,22 @@ app.get('/health', (req, res) => {
         success: true,
         service: 'RISEN CARE Local Connector',
         status: 'ready'
+    });
+});
+
+app.locals.getLocalConnectorRuntimeContract =
+    () =>
+        new LocalConnectorRuntimeContract()
+            .describe();
+
+app.get("/runtime-contract", (req, res) => {
+    const contract =
+        app.locals
+            .getLocalConnectorRuntimeContract();
+
+    return res.json({
+        success: true,
+        ...contract
     });
 });
 
@@ -3433,6 +3459,33 @@ app.post(
                 requestedSemanticType ||
                 trustedDocumentType;
 
+            if (
+                previewSemanticType ===
+                    "recipient_certificate"
+            ) {
+                const runtimeContract =
+                    app.locals
+                        .getLocalConnectorRuntimeContract();
+
+                const runtimeCompatibility =
+                    evaluateLocalConnectorRuntimeCapability(
+                        runtimeContract,
+                        "recipient_certificate.preview"
+                    );
+
+                if (
+                    !runtimeCompatibility.supported
+                ) {
+                    return res.status(503).json({
+                        success: false,
+                        status:
+                            runtimeCompatibility.status,
+                        message:
+                            "現在のLocal Connector実行環境では、受給者証の取り込みプレビューを実行できません"
+                    });
+                }
+            }
+
             let previewService;
 
             if (previewSemanticType === "support_record") {
@@ -3638,6 +3691,33 @@ app.post(
                     message:
                         "このデータ種別の最終確定はまだ利用できません"
                 });
+            }
+
+            if (
+                executionSemanticType ===
+                    "recipient_certificate"
+            ) {
+                const runtimeContract =
+                    app.locals
+                        .getLocalConnectorRuntimeContract();
+
+                const runtimeCompatibility =
+                    evaluateLocalConnectorRuntimeCapability(
+                        runtimeContract,
+                        "recipient_certificate.fingerprint_execution"
+                    );
+
+                if (
+                    !runtimeCompatibility.supported
+                ) {
+                    return res.status(503).json({
+                        success: false,
+                        status:
+                            runtimeCompatibility.status,
+                        message:
+                            "現在のLocal Connector実行環境では、受給者証の最終確定を実行できません"
+                    });
+                }
             }
 
             const executionService =

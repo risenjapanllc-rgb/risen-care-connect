@@ -74,7 +74,12 @@ let confirmedImportPreviewFingerprint = null;
 let confirmedImportPreview = null;
 
 let standardFields = [];
-let recipientCertificateSemanticTargets = [];
+let recipientCertificateSemanticTargets = null;
+let localConnectorRuntimeContract = null;
+let localConnectorRuntimeCompatibility = {
+    status: "runtime_unavailable",
+    supported: false
+};
 
 const sourceFieldMeaningSelections = new Map();
 const confirmedSourceFieldSelections = new Set();
@@ -599,6 +604,79 @@ async function loadStandardFields() {
     }
 
     standardFields = result;
+}
+
+function evaluateLocalConnectorOperationCapability(
+    semanticType,
+    operation
+) {
+    const policy =
+        window.LocalConnectorRuntimeCompatibilityPolicy;
+
+    const requiredCapability =
+        policy?.getRequiredCapability(
+            semanticType,
+            operation
+        ) || null;
+
+    if (!requiredCapability) {
+        return {
+            status: "runtime_unavailable",
+            supported: false
+        };
+    }
+
+    return policy
+        ?.evaluateRuntimeCapability(
+            localConnectorRuntimeContract,
+            requiredCapability
+        ) || {
+            status: "runtime_unavailable",
+            supported: false
+        };
+}
+
+async function loadLocalConnectorRuntimeCompatibility() {
+    localConnectorRuntimeContract = null;
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/runtime-contract`
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    const contract =
+        response.ok &&
+        result?.success === true
+            ? result
+            : null;
+
+    localConnectorRuntimeContract =
+        contract;
+
+    const compatibility =
+        window.LocalConnectorRuntimeCompatibilityPolicy
+            ?.evaluateRuntimeCapability(
+                contract,
+                "recipient_certificate.semantic_contract"
+            ) || {
+                status:
+                    "runtime_unavailable",
+                supported: false
+            };
+
+    localConnectorRuntimeCompatibility =
+        compatibility;
+
+    return compatibility;
 }
 
 async function loadRecipientCertificateSemanticTargets() {
@@ -1178,12 +1256,30 @@ async function analyzeFile(filePath) {
             );
         }
 
+        recipientCertificateSemanticTargets = null;
+
         try {
-            await loadRecipientCertificateSemanticTargets();
+            const compatibility =
+                await loadLocalConnectorRuntimeCompatibility();
+
+            if (!compatibility.supported) {
+                console.warn(
+                    "Local Connectorとの互換性を確認できないため、受給者証の標準項目契約を利用できません:",
+                    compatibility.status
+                );
+            } else {
+                await loadRecipientCertificateSemanticTargets();
+            }
         } catch (error) {
-            recipientCertificateSemanticTargets = [];
+            localConnectorRuntimeCompatibility = {
+                status:
+                    "runtime_unavailable",
+                supported: false
+            };
+            recipientCertificateSemanticTargets = null;
+
             console.warn(
-                "受給者証の標準項目契約を取得できませんでした:",
+                "Local Connectorとの互換性または受給者証の標準項目契約を確認できませんでした:",
                 error.message
             );
         }
@@ -4326,6 +4422,26 @@ async function loadImportPreview() {
     const snapshot =
         getResidentLinkingSnapshot();
 
+    const selectedSemanticProjectionType =
+        getSelectedSemanticProjectionType();
+
+    if (
+        selectedSemanticProjectionType ===
+            "recipient_certificate"
+    ) {
+        const runtimeCompatibility =
+            evaluateLocalConnectorOperationCapability(
+                getSelectedSemanticProjectionType(),
+                "preview"
+            );
+
+        if (!runtimeCompatibility.supported) {
+            throw new Error(
+                "現在のLocal Connector実行環境では、受給者証の取り込みプレビューを実行できません"
+            );
+        }
+    }
+
     const explicitSemanticProjectionType =
         window.RisenSemanticProjectionPolicy
             ?.resolveExplicitSemanticProjectionType(
@@ -4413,6 +4529,23 @@ async function executeConfirmedImport(
         throw new Error(
             "最終確定する取り込み条件を確認できません"
         );
+    }
+
+    if (
+        executionSemanticType ===
+            "recipient_certificate"
+    ) {
+        const runtimeCompatibility =
+            evaluateLocalConnectorOperationCapability(
+                executionSemanticType,
+                "fingerprint_execution"
+            );
+
+        if (!runtimeCompatibility.supported) {
+            throw new Error(
+                "現在のLocal Connector実行環境では、受給者証の最終確定を実行できません"
+            );
+        }
     }
 
     const payload = {
@@ -6796,6 +6929,29 @@ importReadyButton?.addEventListener(
                         confirmedDocumentType,
                         mappings
                     );
+
+        const selectedSemanticProjectionType =
+            getSelectedSemanticProjectionType();
+
+        if (
+            selectedSemanticProjectionType ===
+                "recipient_certificate"
+        ) {
+            const runtimeCompatibility =
+                evaluateLocalConnectorOperationCapability(
+                    getSelectedSemanticProjectionType(),
+                    "semantic_contract"
+                );
+
+            if (!runtimeCompatibility.supported) {
+                setStatus(
+                    "現在のLocal Connector実行環境では、受給者証の意味契約を確認できません。Local Connectorの状態を確認してください。",
+                    "error"
+                );
+
+                return;
+            }
+        }
 
         if (
             step3RequirementState.status ===

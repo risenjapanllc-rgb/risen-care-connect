@@ -130,6 +130,15 @@ function getSemanticConfirmationValidity(
         return "not_confirmed";
     }
 
+    if (
+        documentType === "recipient_certificate" &&
+        !Array.isArray(
+            recipientCertificateSemanticTargets
+        )
+    ) {
+        return "contract_unconfirmed";
+    }
+
     return isSemanticTargetAllowedForDocumentType(
         documentType,
         semanticTarget,

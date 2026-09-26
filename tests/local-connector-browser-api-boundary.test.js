@@ -190,3 +190,35 @@ test(
         );
     }
 );
+
+test(
+    "semantic candidate resolver is loaded through a stable browser boundary before the controller",
+    () => {
+        const resolverIndex =
+            browserHtml.indexOf(
+                "/js/semantic-candidate-resolver.js"
+            );
+
+        const controllerIndex =
+            browserHtml.indexOf(
+                "/js/local-connector.js"
+            );
+
+        assert.notStrictEqual(
+            resolverIndex,
+            -1,
+            "Semantic Candidate Resolver must be exposed through the browser js boundary."
+        );
+
+        assert.ok(
+            resolverIndex < controllerIndex,
+            "Semantic Candidate Resolver must load before local-connector.js."
+        );
+
+        assert.doesNotMatch(
+            browserHtml,
+            /<script[^>]+src=["']\/server-domain\//,
+            "Browser HTML must not depend on the physical server-domain path."
+        );
+    }
+);

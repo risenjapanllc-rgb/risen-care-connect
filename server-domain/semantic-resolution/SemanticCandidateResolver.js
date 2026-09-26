@@ -73,4 +73,17 @@ class SemanticCandidateResolver {
     }
 }
 
-module.exports = SemanticCandidateResolver;
+if (
+    typeof module !== "undefined" &&
+    module.exports
+) {
+    module.exports =
+        SemanticCandidateResolver;
+}
+
+if (
+    typeof window !== "undefined"
+) {
+    window.RisenSemanticCandidateResolver =
+        SemanticCandidateResolver;
+}

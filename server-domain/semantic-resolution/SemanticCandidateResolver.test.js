@@ -101,3 +101,26 @@ test('異なるSource Fieldのsignalを同じ解決対象として混在させ�
     assert.deepStrictEqual(result.candidates, []);
 });
 
+
+test(
+    "同一Resolver実装をBrowser境界にも公開できる",
+    () => {
+        const fs = require("node:fs");
+        const path = require("node:path");
+
+        const source =
+            fs.readFileSync(
+                path.join(
+                    __dirname,
+                    "SemanticCandidateResolver.js"
+                ),
+                "utf8"
+            );
+
+        assert.match(
+            source,
+            /typeof\s+window\s*!==\s*["']undefined["'][\s\S]*window\.RisenSemanticCandidateResolver\s*=\s*SemanticCandidateResolver/,
+            "NodeとBrowserで別々のSemantic Candidate Resolution実装を持ってはならない"
+        );
+    }
+);

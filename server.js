@@ -81,6 +81,20 @@ app.use(cors());
 app.use(express.json({
     limit: "50mb"
 }));
+app.get(
+    "/js/semantic-candidate-resolver.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "server-domain",
+                "semantic-resolution",
+                "SemanticCandidateResolver.js"
+            )
+        );
+    }
+);
+
 app.use(express.static(__dirname));
 
 

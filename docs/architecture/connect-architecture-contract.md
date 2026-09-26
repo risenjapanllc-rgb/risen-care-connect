@@ -201,6 +201,73 @@ safe profile filling:
 This pattern is an example, not a requirement that every future domain use
 identical rules.
 
+### Evidence discovery and Promotion readiness
+
+RISEN should not require staff to re-enter business information merely because
+RISEN has not yet represented that information in an operational Domain model.
+
+Before requiring re-entry, Connect should, where permitted and technically
+available, discover relevant evidence from facility sources such as registered
+local files and other governed source inputs.
+
+Discovery does not create business authority.
+
+A discovered value remains Source Evidence until RISEN has sufficient authority
+to assign governed semantic meaning and, separately, to promote that meaning
+into an operational Domain fact.
+
+When multiple sources appear to support the same business fact, Connect must not
+resolve authority merely by:
+
+- preferring the newest file;
+- preferring the source with the most occurrences;
+- preferring a particular software product or physical file type; or
+- using AI confidence as business authority.
+
+Instead, the applicable Promotion contract must define the evidence required to
+establish Promotion readiness for that Domain fact.
+
+As appropriate to the Domain, Promotion readiness may require resolution of:
+
+- semantic meaning;
+- subject or resident identity;
+- service or other business context;
+- effective period;
+- source provenance;
+- required supporting authority evidence;
+- existing authoritative Domain state;
+- conflicts or contradictions;
+- revision relationship to an existing fact; and
+- the applicable Promotion contract version.
+
+Promotion readiness is a decision state, not a new authority or a new owner of
+business truth.
+
+An implementation may distinguish outcomes such as:
+
+- promotion ready;
+- confirmation required;
+- conflict; and
+- insufficient evidence.
+
+The exact states and automatic-promotion conditions are Domain-specific and must
+be defined by the applicable governed contract. A generic confidence score must
+not substitute for those conditions.
+
+Human confirmation should be required when the applicable contract cannot
+safely establish the required identity, meaning, context, effective period,
+authority, conflict resolution, authorization, or business impact.
+
+Where a proposed Promotion or correction can affect existing Performance,
+regulatory calculation, remuneration, or Claim history, the operation must
+follow the applicable revision and claim-evidence chain rather than silently
+replace historical state.
+
+The purpose is not to remove human judgment. It is to avoid making staff
+re-confirm routine information that RISEN can establish safely from governed
+evidence, while directing ambiguous, conflicting, corrective, or materially
+impactful cases to human review.
+
 ## 7. Promotion must be explicit
 
 Implementations must not use the rule:

@@ -222,3 +222,85 @@ test(
         );
     }
 );
+
+test(
+    "semantic candidate signal adapter is loaded through a stable browser boundary before the controller",
+    () => {
+        const adapterIndex =
+            browserHtml.indexOf(
+                "/js/semantic-candidate-signal-adapter.js"
+            );
+
+        const resolverIndex =
+            browserHtml.indexOf(
+                "/js/semantic-candidate-resolver.js"
+            );
+
+        const controllerIndex =
+            browserHtml.indexOf(
+                "/js/local-connector.js"
+            );
+
+        assert.notStrictEqual(
+            adapterIndex,
+            -1,
+            "Semantic Candidate Signal Adapter must be exposed through the browser js boundary."
+        );
+
+        assert.ok(
+            adapterIndex < resolverIndex,
+            "Semantic Candidate Signal Adapter must load before Semantic Candidate Resolver."
+        );
+
+        assert.ok(
+            adapterIndex < controllerIndex,
+            "Semantic Candidate Signal Adapter must load before local-connector.js."
+        );
+
+        assert.doesNotMatch(
+            browserHtml,
+            /<script[^>]+src=["']\/server-domain\//,
+            "Browser HTML must not depend on the physical server-domain path."
+        );
+    }
+);
+
+test(
+    "browser resolves source-field semantic candidates through the governed adapter and resolver",
+    () => {
+        assert.match(
+            browserSource,
+            /RisenSemanticCandidateSignalAdapter[\s\S]*fromSourceFieldCandidates/
+        );
+
+        assert.match(
+            browserSource,
+            /RisenSemanticCandidateResolver/
+        );
+
+        assert.match(
+            browserSource,
+            /\.resolve\([\s\S]*semanticCandidateSignals[\s\S]*\)/
+        );
+
+        assert.match(
+            browserSource,
+            /semanticCandidateResolution\.status/
+        );
+    }
+);
+
+test(
+    "browser does not present an exact suggestion as resolved when semantic candidates conflict",
+    () => {
+        assert.match(
+            browserSource,
+            /suggestedField\s*&&\s*semanticCandidateResolutionStatus\s*===\s*["']candidate["']\s*&&\s*reviewState\s*!==\s*["']confirmed["']/
+        );
+
+        assert.match(
+            browserSource,
+            /semanticCandidateResolutionStatus\s*===\s*["']conflict["'][\s\S]*候補が競合しています/
+        );
+    }
+);

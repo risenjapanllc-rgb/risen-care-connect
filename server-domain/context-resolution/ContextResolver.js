@@ -110,22 +110,27 @@ function resolveSubjectContext({
         });
     }
 
-    const employeeNumberField =
+    const userCodeField =
         fieldDefinitions.find(field =>
-            normalizeObservedLabel(
-                field?.headerLabel
-            ) === "社員番号"
+            [
+                "社員番号",
+                "利用者番号"
+            ].includes(
+                normalizeObservedLabel(
+                    field?.headerLabel
+                )
+            )
         );
 
     if (
-        employeeNumberField &&
+        userCodeField &&
         userEvidenceCount >= 2
     ) {
         contextualCandidates.push({
             sourceFieldKey:
-                employeeNumberField.sourceFieldKey || null,
+                userCodeField.sourceFieldKey || null,
             headerLabel:
-                employeeNumberField.headerLabel || null,
+                userCodeField.headerLabel || null,
             candidate: {
                 entityName: "user",
                 fieldName: "user_code",

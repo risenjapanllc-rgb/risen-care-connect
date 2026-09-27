@@ -2216,6 +2216,33 @@ function renderConfirmation() {
                         ? `${contextualCandidate.candidate.displayName} (${contextualMeaning})`
                         : "";
 
+                const semanticCandidateSignals =
+                    window.RisenSemanticCandidateSignalAdapter
+                        ?.fromSourceFieldCandidates({
+                            sourceFieldKey,
+                            suggestedMeaning,
+                            contextualMeaning,
+                            contextualMeaningAllowed
+                        }) || [];
+
+                const semanticCandidateResolver =
+                    typeof window.RisenSemanticCandidateResolver === "function"
+                        ? new window.RisenSemanticCandidateResolver()
+                        : null;
+
+                const semanticCandidateResolution =
+                    semanticCandidateResolver
+                        ? semanticCandidateResolver.resolve(
+                            semanticCandidateSignals
+                        )
+                        : {
+                            status: "unresolved",
+                            candidates: []
+                        };
+
+                const semanticCandidateResolutionStatus =
+                    semanticCandidateResolution.status;
+
                 const reviewState =
                     sourceFieldReviewStates.get(
                         selectionKey
@@ -2316,6 +2343,7 @@ function renderConfirmation() {
 
                                 ${
                                     suggestedField &&
+                                    semanticCandidateResolutionStatus === "candidate" &&
                                     reviewState !== "confirmed"
                                         ? `
                                             <div style="
@@ -2367,7 +2395,34 @@ function renderConfirmation() {
                                 }
 
                                 ${
+                                    semanticCandidateResolutionStatus === "conflict" &&
+                                    reviewState !== "confirmed"
+                                        ? `
+                                            <div style="
+                                                padding: 10px;
+                                                border: 1px solid #f04438;
+                                                border-radius: 8px;
+                                                background: #fff6f5;
+                                                color: #b42318;
+                                            ">
+                                                <strong>
+                                                    候補が競合しています
+                                                </strong>
+                                                <div style="
+                                                    margin-top: 4px;
+                                                    font-size: 0.82rem;
+                                                ">
+                                                    複数の意味候補が一致していないため、
+                                                    自動では確定しません。
+                                                </div>
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
+                                ${
                                     !suggestedField &&
+                                    semanticCandidateResolutionStatus === "candidate" &&
                                     contextualCandidate &&
                                     contextualMeaningAllowed &&
                                     reviewState !== "confirmed"

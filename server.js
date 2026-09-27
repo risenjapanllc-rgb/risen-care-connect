@@ -82,6 +82,20 @@ app.use(express.json({
     limit: "50mb"
 }));
 app.get(
+    "/js/semantic-candidate-signal-adapter.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "server-domain",
+                "semantic-resolution",
+                "SemanticCandidateSignalAdapter.js"
+            )
+        );
+    }
+);
+
+app.get(
     "/js/semantic-candidate-resolver.js",
     (req, res) => {
         return res.sendFile(

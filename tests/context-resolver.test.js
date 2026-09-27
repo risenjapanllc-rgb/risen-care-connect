@@ -187,3 +187,37 @@ console.log("ContextResolver tests PASS");
         false
     );
 }
+
+{
+    const result = resolveSubjectContext({
+        fieldDefinitions: [
+            { sourceFieldKey: "c0", headerLabel: "利用者番号" },
+            { sourceFieldKey: "c4", headerLabel: "受給者証NO" },
+            { sourceFieldKey: "c8", headerLabel: "(性別)" },
+            { sourceFieldKey: "c9", headerLabel: "(生年月日)" }
+        ]
+    });
+
+    const candidate =
+        result.contextualCandidates.find(
+            item => item.headerLabel === "利用者番号"
+        );
+
+    assert.ok(candidate);
+    assert.strictEqual(
+        candidate.status,
+        "contextual_candidate"
+    );
+    assert.strictEqual(
+        candidate.candidate.entityName,
+        "user"
+    );
+    assert.strictEqual(
+        candidate.candidate.fieldName,
+        "user_code"
+    );
+    assert.strictEqual(
+        candidate.humanConfirmationRequired,
+        true
+    );
+}

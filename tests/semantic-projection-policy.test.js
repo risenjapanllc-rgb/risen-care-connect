@@ -390,3 +390,48 @@ test("legacy execution semantic type fails closed when preview semantic type mis
         null
     );
 });
+
+test("internal projection resolution can enumerate only governed explicit projection types", () => {
+    const policy = loadPolicy();
+
+    assert.deepStrictEqual(
+        Array.from(
+            policy.getSupportedExplicitSemanticProjectionTypes()
+        ),
+        [
+            "recipient_certificate"
+        ]
+    );
+});
+
+test("internally resolved resident master projection becomes execution type only when preview matches", () => {
+    const policy = loadPolicy();
+
+    assert.strictEqual(
+        policy.resolveConfirmedExecutionSemanticType({
+            confirmedDocumentType:
+                "resident_master",
+            explicitSemanticType:
+                null,
+            resolvedSemanticProjectionType:
+                "recipient_certificate",
+            previewSemanticType:
+                "recipient_certificate"
+        }),
+        "recipient_certificate"
+    );
+
+    assert.strictEqual(
+        policy.resolveConfirmedExecutionSemanticType({
+            confirmedDocumentType:
+                "resident_master",
+            explicitSemanticType:
+                null,
+            resolvedSemanticProjectionType:
+                "recipient_certificate",
+            previewSemanticType:
+                "support_record"
+        }),
+        null
+    );
+});

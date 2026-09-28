@@ -109,6 +109,20 @@ app.get(
     }
 );
 
+app.get(
+    "/js/semantic-projection-resolver.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "server-domain",
+                "semantic-resolution",
+                "SemanticProjectionResolver.js"
+            )
+        );
+    }
+);
+
 app.use(express.static(__dirname));
 
 

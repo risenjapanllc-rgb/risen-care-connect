@@ -304,3 +304,254 @@ test(
         );
     }
 );
+
+test(
+    "semantic projection resolver is loaded through a stable browser boundary before the controller",
+    () => {
+        const resolverIndex =
+            browserHtml.indexOf(
+                "/js/semantic-projection-resolver.js"
+            );
+
+        const controllerIndex =
+            browserHtml.indexOf(
+                "/js/local-connector.js"
+            );
+
+        assert.notStrictEqual(
+            resolverIndex,
+            -1,
+            "Semantic Projection Resolver must be exposed through the browser js boundary."
+        );
+
+        assert.ok(
+            resolverIndex < controllerIndex,
+            "Semantic Projection Resolver must load before local-connector.js."
+        );
+
+        assert.doesNotMatch(
+            browserHtml,
+            /<script[^>]+src=["']\/server-domain\//,
+            "Browser HTML must not depend on the physical server-domain path."
+        );
+    }
+);
+
+test(
+    "browser can resolve semantic projections internally from human-confirmed source field mappings",
+    () => {
+        const match =
+            browserSource.match(
+                /function getSelectedSemanticProjectionType\(\) \{[\s\S]*?\n\}/
+            );
+
+        assert.ok(
+            match,
+            "Browser controller must define the semantic projection selection boundary."
+        );
+
+        const source = match[0];
+
+        assert.match(
+            source,
+            /RisenSemanticProjectionResolver/,
+            "Semantic projection selection must consult the governed internal Projection Resolver."
+        );
+
+        assert.match(
+            source,
+            /collectHumanConfirmedSemanticMappings\(\)/,
+            "Internal Projection Resolution must use projection-independent human-confirmed semantic mappings."
+        );
+    }
+);
+
+test(
+    "human-confirmed semantic mapping collection remains projection-independent",
+    () => {
+        const start =
+            browserSource.indexOf(
+                "function collectHumanConfirmedSemanticMappings()"
+            );
+
+        const end =
+            browserSource.indexOf(
+                "function collectConfirmedSourceFieldMappings()"
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1,
+            "Browser controller must define projection-independent human-confirmed semantic mapping collection."
+        );
+
+        assert.ok(
+            end > start,
+            "Projection-independent mapping collection must be a separate boundary before projection-filtered persistence mappings."
+        );
+
+        const source =
+            browserSource.slice(start, end);
+
+        assert.match(
+            source,
+            /confirmedSourceFieldSelections/
+        );
+
+        assert.match(
+            source,
+            /sourceFieldMeaningSelections/
+        );
+
+        assert.match(
+            source,
+            /standardFields/
+        );
+
+        assert.doesNotMatch(
+            source,
+            /getSelectedSemanticProjectionType/
+        );
+
+        assert.doesNotMatch(
+            source,
+            /isMeaningAllowedForConfirmedDocumentType/
+        );
+    }
+);
+
+test(
+    "browser carries internally resolved resident-master projection through preview request and verification",
+    () => {
+        const start =
+            browserSource.indexOf(
+                "async function loadImportPreview()"
+            );
+
+        const end =
+            browserSource.indexOf(
+                "async function executeConfirmedImport(",
+                start
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        assert.ok(
+            end > start
+        );
+
+        const source =
+            browserSource.slice(start, end);
+
+        assert.match(
+            source,
+            /confirmedDocumentType\s*===\s*"resident_master"/
+        );
+
+        assert.match(
+            source,
+            /semanticType:\s*previewSemanticProjectionType/
+        );
+
+        assert.match(
+            source,
+            /result\.semanticType\s*!==\s*previewSemanticProjectionType/
+        );
+    }
+);
+
+
+test(
+    "browser carries internally resolved projection from preview into confirmed execution semantic type",
+    () => {
+        const start =
+            browserSource.indexOf(
+                "function getConfirmedExecutionSemanticType("
+            );
+
+        const end =
+            browserSource.indexOf(
+                "async function refreshSubjectContextResolution()",
+                start
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        assert.ok(
+            end > start
+        );
+
+        const source =
+            browserSource.slice(start, end);
+
+        assert.match(
+            source,
+            /resolvedSemanticProjectionType:\s*getSelectedSemanticProjectionType\(\)/
+        );
+    }
+);
+
+
+test(
+    "resident-master STEP3 readiness uses the internally resolved governed projection",
+    () => {
+        const start =
+            browserSource.indexOf(
+                'importReadyButton?.addEventListener('
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        const source =
+            browserSource.slice(start);
+
+        assert.match(
+            source,
+            /const selectedSemanticProjectionType\s*=\s*getSelectedSemanticProjectionType\(\)/
+        );
+
+        assert.match(
+            source,
+            /confirmedDocumentType\s*===\s*"resident_master"/
+        );
+
+        assert.match(
+            source,
+            /getSemanticProjectionRequirementState\(\s*selectedSemanticProjectionType,\s*mappings\s*\)/
+        );
+    }
+);
+
+test(
+    "STEP3 presents internally resolved projection as RISEN-read information without a manual projection selector",
+    () => {
+        assert.doesNotMatch(
+            browserSource,
+            /id=["']semanticProjectionSelect["']/
+        );
+
+        assert.doesNotMatch(
+            browserSource,
+            /semanticProjectionSelect\?\.addEventListener/
+        );
+
+        assert.match(
+            browserSource,
+            /RISENが読み取った情報/
+        );
+
+        assert.match(
+            browserSource,
+            /getSelectedSemanticProjectionType\(\)/
+        );
+    }
+);

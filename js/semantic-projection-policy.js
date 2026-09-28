@@ -12,6 +12,12 @@
             "recipient_certificate"
         ]);
 
+    function getSupportedExplicitSemanticProjectionTypes() {
+        return Array.from(
+            EXPLICIT_SEMANTIC_PROJECTION_TYPES
+        );
+    }
+
     function resolveExplicitSemanticProjectionType(
         explicitSemanticType
     ) {
@@ -138,6 +144,7 @@
     function resolveConfirmedExecutionSemanticType({
         confirmedDocumentType,
         explicitSemanticType,
+        resolvedSemanticProjectionType,
         previewSemanticType
     } = {}) {
         const explicitProjection =
@@ -155,6 +162,27 @@
             }
 
             return explicitProjection;
+        }
+
+        if (
+            confirmedDocumentType ===
+                "resident_master" &&
+            resolvedSemanticProjectionType != null
+        ) {
+            const resolvedProjection =
+                resolveExplicitSemanticProjectionType(
+                    resolvedSemanticProjectionType
+                );
+
+            if (
+                !resolvedProjection ||
+                previewSemanticType !==
+                    resolvedProjection
+            ) {
+                return null;
+            }
+
+            return resolvedProjection;
         }
 
         const legacyProjection =
@@ -179,6 +207,7 @@
     }
 
     window.RisenSemanticProjectionPolicy = {
+        getSupportedExplicitSemanticProjectionTypes,
         resolveExplicitSemanticProjectionType,
         resolveSemanticProjectionType,
         getSemanticProjectionRequirementState,

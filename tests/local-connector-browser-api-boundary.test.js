@@ -555,3 +555,29 @@ test(
         );
     }
 );
+
+test(
+    "browser carries internally resolved recipient-certificate projection into STEP6 import-execute payload",
+    () => {
+        const start =
+            browserSource.indexOf(
+                "async function executeConfirmedImport("
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        const source =
+            browserSource.slice(
+                start,
+                start + 7000
+            );
+
+        assert.match(
+            source,
+            /executionSemanticType\s*===\s*"recipient_certificate"[\s\S]*?payload\.semanticType\s*=\s*executionSemanticType/
+        );
+    }
+);

@@ -4708,18 +4708,22 @@ async function executeConfirmedImport(
                 selectedSemanticType
             ) || null;
 
-    if (explicitSemanticProjectionType) {
-        if (
-            explicitSemanticProjectionType !==
-                executionSemanticType
-        ) {
-            throw new Error(
-                "確認済みの取り込み対象と最終確定条件が一致しません"
-            );
-        }
+    if (
+        explicitSemanticProjectionType &&
+        explicitSemanticProjectionType !==
+            executionSemanticType
+    ) {
+        throw new Error(
+            "確認済みの取り込み対象と最終確定条件が一致しません"
+        );
+    }
 
+    if (
+        executionSemanticType ===
+            "recipient_certificate"
+    ) {
         payload.semanticType =
-            explicitSemanticProjectionType;
+            executionSemanticType;
     }
 
     const response =

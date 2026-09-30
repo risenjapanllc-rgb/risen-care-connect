@@ -67,10 +67,9 @@ class VoiceCallHttpAdapter {
         requestId,
         connectorId,
         credential,
-        to,
-        answerUrl,
-        eventUrl,
-        ncco
+        caseId,
+        contactId,
+        recordingSessionId
     } = {}) {
         let result;
 
@@ -79,10 +78,9 @@ class VoiceCallHttpAdapter {
                 await this.voiceCallService.call({
                     connectorId,
                     credential,
-                    to,
-                    answerUrl,
-                    eventUrl,
-                    ncco
+                    caseId,
+                    contactId,
+                    recordingSessionId
                 });
         } catch (error) {
             this.diagnoseError(

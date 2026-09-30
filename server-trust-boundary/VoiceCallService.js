@@ -7,14 +7,20 @@
  * - authenticate the connector
  * - obtain verified facility context
  * - resolve the facility's active Vonage phone number
+ * - resolve the emergency contact phone number from
+ *   the verified facility + case/contact relationship
+ * - record the observed call-start action
  * - initiate a Vonage outbound call
  *
- * Client-supplied facilityId is never used as authority.
+ * Client-supplied facilityId / phoneNumber / to are never
+ * used as authority.
  */
 class VoiceCallService {
     constructor({
         connectorTrustService,
         facilityPhoneNumberRepository,
+        emergencyContactRepository,
+        emergencyContactCallRepository,
         vonageVoiceService
     } = {}) {
         if (
@@ -39,6 +45,28 @@ class VoiceCallService {
         }
 
         if (
+            !emergencyContactRepository ||
+            typeof emergencyContactRepository
+                .findActiveByCaseAndContact !==
+                "function"
+        ) {
+            throw new Error(
+                "VoiceCallService requires emergencyContactRepository"
+            );
+        }
+
+        if (
+            !emergencyContactCallRepository ||
+            typeof emergencyContactCallRepository
+                .recordCallStarted !==
+                "function"
+        ) {
+            throw new Error(
+                "VoiceCallService requires emergencyContactCallRepository"
+            );
+        }
+
+        if (
             !vonageVoiceService ||
             typeof vonageVoiceService.createOutboundCall !==
                 "function"
@@ -54,6 +82,12 @@ class VoiceCallService {
         this.facilityPhoneNumberRepository =
             facilityPhoneNumberRepository;
 
+        this.emergencyContactRepository =
+            emergencyContactRepository;
+
+        this.emergencyContactCallRepository =
+            emergencyContactCallRepository;
+
         this.vonageVoiceService =
             vonageVoiceService;
     }
@@ -61,19 +95,29 @@ class VoiceCallService {
     async call({
         connectorId,
         credential,
-        to,
-        answerUrl,
-        eventUrl,
-        ncco
+        caseId,
+        contactId,
+        recordingSessionId
     } = {}) {
-        const normalizedTo =
-            String(to || "").trim();
+        const normalizedCaseId =
+            String(caseId || "").trim();
 
-        if (!normalizedTo) {
+        const normalizedContactId =
+            String(contactId || "").trim();
+
+        const normalizedRecordingSessionId =
+            String(recordingSessionId || "").trim();
+
+        if (
+            !normalizedCaseId ||
+            !normalizedContactId
+        ) {
             return {
-                status: "invalid",
+                status:
+                    "invalid",
+
                 errorCode:
-                    "voice_destination_required"
+                    "emergency_contact_target_required"
             };
         }
 
@@ -88,7 +132,9 @@ class VoiceCallService {
                     });
         } catch (error) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "connector_trust_unavailable"
             };
@@ -100,7 +146,9 @@ class VoiceCallService {
             Array.isArray(trustResult)
         ) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "connector_trust_invalid_result"
             };
@@ -111,7 +159,9 @@ class VoiceCallService {
             "denied"
         ) {
             return {
-                status: "denied",
+                status:
+                    "denied",
+
                 errorCode:
                     "connector_trust_denied"
             };
@@ -122,7 +172,9 @@ class VoiceCallService {
             "error"
         ) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "connector_trust_unavailable"
             };
@@ -133,7 +185,9 @@ class VoiceCallService {
             "verified"
         ) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "connector_trust_invalid_result"
             };
@@ -149,7 +203,9 @@ class VoiceCallService {
             !verifiedContext.facilityId
         ) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "connector_trust_invalid_result"
             };
@@ -169,7 +225,9 @@ class VoiceCallService {
                     );
         } catch (error) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "facility_phone_lookup_unavailable"
             };
@@ -177,7 +235,9 @@ class VoiceCallService {
 
         if (!phoneNumber) {
             return {
-                status: "not_ready",
+                status:
+                    "not_ready",
+
                 errorCode:
                     "facility_phone_number_not_configured"
             };
@@ -185,15 +245,88 @@ class VoiceCallService {
 
         if (
             phoneNumber.provider !==
-            "vonage" ||
+                "vonage" ||
             phoneNumber.status !==
-            "active" ||
+                "active" ||
             !phoneNumber.phoneNumber
         ) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "facility_phone_number_invalid"
+            };
+        }
+
+        let contact;
+
+        try {
+            contact =
+                await this
+                    .emergencyContactRepository
+                    .findActiveByCaseAndContact({
+                        facilityId:
+                            verifiedFacilityId,
+
+                        caseId:
+                            normalizedCaseId,
+
+                        contactId:
+                            normalizedContactId
+                    });
+        } catch (error) {
+            return {
+                status:
+                    "error",
+
+                errorCode:
+                    "emergency_contact_lookup_unavailable"
+            };
+        }
+
+        if (
+            !contact ||
+            typeof contact !== "object" ||
+            Array.isArray(contact) ||
+            typeof contact.phoneNumber !==
+                "string" ||
+            !contact.phoneNumber.trim()
+        ) {
+            return {
+                status:
+                    "error",
+
+                errorCode:
+                    "emergency_contact_invalid"
+            };
+        }
+
+        /*
+         * This event records the observed user action.
+         * It does not mean that Vonage connected the call.
+         */
+        try {
+            await this
+                .emergencyContactCallRepository
+                .recordCallStarted({
+                    caseId:
+                        normalizedCaseId,
+
+                    contactId:
+                        normalizedContactId,
+
+                    recordingSessionId:
+                        normalizedRecordingSessionId ||
+                        null
+                });
+        } catch (error) {
+            return {
+                status:
+                    "error",
+
+                errorCode:
+                    "emergency_contact_call_record_failed"
             };
         }
 
@@ -206,25 +339,23 @@ class VoiceCallService {
                             phoneNumber.phoneNumber,
 
                         to:
-                            normalizedTo,
-
-                        answerUrl,
-                        eventUrl,
-                        ncco
+                            contact.phoneNumber
                     });
 
             return {
-                status: "initiated",
+                status:
+                    "initiated",
 
                 facilityId:
                     verifiedFacilityId,
 
                 result
             };
-
         } catch (error) {
             return {
-                status: "error",
+                status:
+                    "error",
+
                 errorCode:
                     "vonage_voice_call_failed"
             };
@@ -232,4 +363,5 @@ class VoiceCallService {
     }
 }
 
-module.exports = VoiceCallService;
+module.exports =
+    VoiceCallService;

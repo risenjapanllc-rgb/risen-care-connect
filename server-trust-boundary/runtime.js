@@ -154,6 +154,12 @@ const ConnectorResidentProfileQueryService =
 const VoiceCallService =
     require("./VoiceCallService");
 
+const SupabaseEmergencyContactRepository =
+    require("./SupabaseEmergencyContactRepository");
+
+const SupabaseEmergencyContactCallRepository =
+    require("./SupabaseEmergencyContactCallRepository");
+
 const VoiceCallHttpAdapter =
     require("./VoiceCallHttpAdapter");
 
@@ -742,10 +748,26 @@ function createServerTrustBoundaryRuntime({
         createOutboundCall
     };
 
+    const emergencyContactRepository =
+        new SupabaseEmergencyContactRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const emergencyContactCallRepository =
+        new SupabaseEmergencyContactCallRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
     const voiceCallService =
         new VoiceCallService({
             connectorTrustService,
             facilityPhoneNumberRepository,
+            emergencyContactRepository,
+            emergencyContactCallRepository,
             vonageVoiceService
         });
 

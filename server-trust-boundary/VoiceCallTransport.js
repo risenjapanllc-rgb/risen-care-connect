@@ -174,10 +174,9 @@ class VoiceCallTransport {
          * verifiedContext.facilityIdとして確定する。
          */
         const allowedKeys = [
-            "to",
-            "answerUrl",
-            "eventUrl",
-            "ncco"
+            "caseId",
+            "contactId",
+            "recordingSessionId"
         ];
 
         for (
@@ -207,17 +206,14 @@ class VoiceCallTransport {
 
                 credential,
 
-                to:
-                    body.to,
+                caseId:
+                    body.caseId,
 
-                answerUrl:
-                    body.answerUrl,
+                contactId:
+                    body.contactId,
 
-                eventUrl:
-                    body.eventUrl,
-
-                ncco:
-                    body.ncco
+                recordingSessionId:
+                    body.recordingSessionId
             });
 
         if (

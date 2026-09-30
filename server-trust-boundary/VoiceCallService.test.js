@@ -213,7 +213,10 @@ test(
                     "https://example.com/answer",
 
                 eventUrl:
-                    "https://example.com/event"
+                    "https://example.com/event",
+
+                ncco:
+                    undefined
             });
 
         assert.equal(
@@ -249,7 +252,10 @@ test(
                     "https://example.com/answer",
 
                 eventUrl:
-                    "https://example.com/event"
+                    "https://example.com/event",
+
+                ncco:
+                    undefined
             }
         );
     }
@@ -479,7 +485,10 @@ test(
                     "https://example.com/answer",
 
                 eventUrl:
-                    "https://example.com/event"
+                    "https://example.com/event",
+
+                ncco:
+                    undefined
             }
         );
     }

@@ -63,7 +63,8 @@ class VoiceCallService {
         credential,
         to,
         answerUrl,
-        eventUrl
+        eventUrl,
+        ncco
     } = {}) {
         const normalizedTo =
             String(to || "").trim();
@@ -208,7 +209,8 @@ class VoiceCallService {
                             normalizedTo,
 
                         answerUrl,
-                        eventUrl
+                        eventUrl,
+                        ncco
                     });
 
             return {

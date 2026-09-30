@@ -17,6 +17,54 @@ function getRequiredEnv(name) {
     return value;
 }
 
+
+function normalizeJapanesePhoneNumber(
+    value,
+    label
+) {
+    const normalized =
+        String(value || "").trim();
+
+    if (!normalized) {
+        throw new Error(
+            `発信${label}電話番号が必要です`
+        );
+    }
+
+    if (normalized.startsWith("+")) {
+        if (
+            !/^\+\d{1,15}$/.test(
+                normalized
+            )
+        ) {
+            throw new Error(
+                `発信${label}電話番号の形式が不正です`
+            );
+        }
+
+        return normalized;
+    }
+
+    const digits =
+        normalized.replace(
+            /[-\s()]/g,
+            ""
+        );
+
+    if (
+        /^0\d{9,10}$/.test(digits)
+    ) {
+        return (
+            "+81" +
+            digits.slice(1)
+        );
+    }
+
+    throw new Error(
+        `発信${label}電話番号の形式が不正です`
+    );
+}
+
 /**
  * Vonage Voice APIへ発信要求を送る。
  *
@@ -28,6 +76,7 @@ async function createOutboundCall({
     to,
     answerUrl,
     eventUrl,
+    ncco,
     createJwt =
         createVonageVoiceJwt
 }) {
@@ -37,37 +86,66 @@ async function createOutboundCall({
         );
 
     const normalizedFrom =
-        String(from || "").trim();
+        normalizeJapanesePhoneNumber(
+            from,
+            "元"
+        );
 
     const normalizedTo =
-        String(to || "").trim();
-
-    if (!normalizedFrom) {
-        throw new Error(
-            "発信元電話番号(from)が必要です"
+        normalizeJapanesePhoneNumber(
+            to,
+            "先"
         );
-    }
 
-    if (!normalizedTo) {
-        throw new Error(
-            "発信先電話番号(to)が必要です"
-        );
-    }
+    const hasNcco =
+        Array.isArray(ncco) &&
+        ncco.length > 0;
 
-    if (!answerUrl) {
-        throw new Error(
-            "answerUrl が必要です"
-        );
-    }
+    if (!hasNcco) {
+        if (!answerUrl) {
+            throw new Error(
+                "answerUrl が必要です"
+            );
+        }
 
-    if (!eventUrl) {
-        throw new Error(
-            "eventUrl が必要です"
-        );
+        if (!eventUrl) {
+            throw new Error(
+                "eventUrl が必要です"
+            );
+        }
     }
 
     const jwt =
         createJwt();
+
+    const requestBody = {
+        to: [
+            {
+                type: "phone",
+                number:
+                    normalizedTo
+            }
+        ],
+
+        from: {
+            type: "phone",
+            number:
+                normalizedFrom
+        }
+    };
+
+    if (hasNcco) {
+        requestBody.ncco =
+            ncco;
+    } else {
+        requestBody.answer_url = [
+            answerUrl
+        ];
+
+        requestBody.event_url = [
+            eventUrl
+        ];
+    }
 
     const response =
         await fetch(
@@ -83,29 +161,10 @@ async function createOutboundCall({
                         "application/json"
                 },
 
-                body: JSON.stringify({
-                    to: [
-                        {
-                            type: "phone",
-                            number:
-                                normalizedTo
-                        }
-                    ],
-
-                    from: {
-                        type: "phone",
-                        number:
-                            normalizedFrom
-                    },
-
-                    answer_url: [
-                        answerUrl
-                    ],
-
-                    event_url: [
-                        eventUrl
-                    ]
-                })
+                body:
+                    JSON.stringify(
+                        requestBody
+                    )
             }
         );
 

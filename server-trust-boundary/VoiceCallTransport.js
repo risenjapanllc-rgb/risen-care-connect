@@ -176,7 +176,8 @@ class VoiceCallTransport {
         const allowedKeys = [
             "to",
             "answerUrl",
-            "eventUrl"
+            "eventUrl",
+            "ncco"
         ];
 
         for (
@@ -213,7 +214,10 @@ class VoiceCallTransport {
                     body.answerUrl,
 
                 eventUrl:
-                    body.eventUrl
+                    body.eventUrl,
+
+                ncco:
+                    body.ncco
             });
 
         if (

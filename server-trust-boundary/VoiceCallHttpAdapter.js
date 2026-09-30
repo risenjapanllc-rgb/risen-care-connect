@@ -69,7 +69,8 @@ class VoiceCallHttpAdapter {
         credential,
         to,
         answerUrl,
-        eventUrl
+        eventUrl,
+        ncco
     } = {}) {
         let result;
 
@@ -80,7 +81,8 @@ class VoiceCallHttpAdapter {
                     credential,
                     to,
                     answerUrl,
-                    eventUrl
+                    eventUrl,
+                    ncco
                 });
         } catch (error) {
             this.diagnoseError(

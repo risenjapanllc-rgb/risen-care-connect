@@ -138,14 +138,14 @@ test(
                         {
                             type: "phone",
                             number:
-                                "09012345678"
+                                "+819012345678"
                         }
                     ],
 
                     from: {
                         type: "phone",
                         number:
-                            "05012345678"
+                            "+815012345678"
                     },
 
                     answer_url: [
@@ -186,7 +186,7 @@ test(
                         from: "",
 
                         to:
-                            "09012345678",
+                            "+819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -223,7 +223,7 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "05012345678",
+                            "+815012345678",
 
                         to: "",
 
@@ -262,10 +262,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "05012345678",
+                            "+815012345678",
 
                         to:
-                            "09012345678",
+                            "+819012345678",
 
                         eventUrl:
                             "https://example.com/event"
@@ -299,10 +299,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "05012345678",
+                            "+815012345678",
 
                         to:
-                            "09012345678",
+                            "+819012345678",
 
                         answerUrl:
                             "https://example.com/answer"
@@ -343,10 +343,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "05012345678",
+                            "+815012345678",
 
                         to:
-                            "09012345678",
+                            "+819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -389,10 +389,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "05012345678",
+                            "+815012345678",
 
                         to:
-                            "09012345678",
+                            "+819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -417,6 +417,286 @@ test(
                     previous;
             }
 
+            restore();
+        }
+    }
+);
+
+
+test(
+    "NCCOを指定した場合はanswerUrlとeventUrlなしでVonageへ発信要求を送る",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await createOutboundCall({
+                from:
+                    "+815032021021",
+
+                to:
+                    "+819049373052",
+
+                ncco: [
+                    {
+                        action:
+                            "talk",
+
+                        text:
+                            "RISEN CAREの音声発信テストです。"
+                    }
+                ],
+
+                createJwt:
+                    () => "test-jwt"
+            });
+
+            assert.equal(
+                calls.length,
+                1
+            );
+
+            assert.deepEqual(
+                JSON.parse(
+                    calls[0].options.body
+                ),
+                {
+                    to: [
+                        {
+                            type: "phone",
+                            number:
+                                "+819049373052"
+                        }
+                    ],
+
+                    from: {
+                        type: "phone",
+                        number:
+                            "+815032021021"
+                    },
+
+                    ncco: [
+                        {
+                            action:
+                                "talk",
+
+                            text:
+                                "RISEN CAREの音声発信テストです。"
+                        }
+                    ]
+                }
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "国内050番号をE.164へ正規化する",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await createOutboundCall({
+                from:
+                    "05032021021",
+
+                to:
+                    "09049373052",
+
+                ncco: [
+                    {
+                        action:
+                            "talk",
+
+                        text:
+                            "test"
+                    }
+                ],
+
+                createJwt:
+                    () => "test-jwt"
+            });
+
+            const body =
+                JSON.parse(
+                    calls[0].options.body
+                );
+
+            assert.equal(
+                body.from.number,
+                "+815032021021"
+            );
+
+            assert.equal(
+                body.to[0].number,
+                "+819049373052"
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "ハイフン付き国内番号をE.164へ正規化する",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await createOutboundCall({
+                from:
+                    "050-3202-1021",
+
+                to:
+                    "090-4937-3052",
+
+                ncco: [
+                    {
+                        action:
+                            "talk",
+
+                        text:
+                            "test"
+                    }
+                ],
+
+                createJwt:
+                    () => "test-jwt"
+            });
+
+            const body =
+                JSON.parse(
+                    calls[0].options.body
+                );
+
+            assert.equal(
+                body.from.number,
+                "+815032021021"
+            );
+
+            assert.equal(
+                body.to[0].number,
+                "+819049373052"
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "既にE.164形式なら番号を変更しない",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await createOutboundCall({
+                from:
+                    "+815032021021",
+
+                to:
+                    "+819049373052",
+
+                ncco: [
+                    {
+                        action:
+                            "talk",
+
+                        text:
+                            "test"
+                    }
+                ],
+
+                createJwt:
+                    () => "test-jwt"
+            });
+
+            const body =
+                JSON.parse(
+                    calls[0].options.body
+                );
+
+            assert.equal(
+                body.from.number,
+                "+815032021021"
+            );
+
+            assert.equal(
+                body.to[0].number,
+                "+819049373052"
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "不正な電話番号ならVonageを呼ばない",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await assert.rejects(
+                () =>
+                    createOutboundCall({
+                        from:
+                            "050123",
+
+                        to:
+                            "09049373052",
+
+                        ncco: [
+                            {
+                                action:
+                                    "talk",
+
+                                text:
+                                    "test"
+                            }
+                        ],
+
+                        createJwt:
+                            () => "test-jwt"
+                    }),
+                /電話番号の形式が不正です/
+            );
+
+            assert.equal(
+                calls.length,
+                0
+            );
+        } finally {
             restore();
         }
     }

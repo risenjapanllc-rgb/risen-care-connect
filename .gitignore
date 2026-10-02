@@ -13,3 +13,5 @@ local-connector/.local-connector-config.json
 # Vonage private key
 secrets/
 *.key
+
+/supabase/.temp/

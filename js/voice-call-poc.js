@@ -273,7 +273,35 @@
 
     async function ensureSession(token) {
         if (sessionReady) {
-            return;
+            setStatus(
+                "Vonageセッションを更新しています…"
+            );
+
+            if (
+                typeof client.refreshSession ===
+                "function"
+            ) {
+                try {
+                    await client.refreshSession(
+                        token
+                    );
+
+                    return;
+                } catch (error) {
+                    /*
+                     * Browser state can outlive the
+                     * server-side Vonage session.
+                     *
+                     * Fall through and establish a
+                     * fresh session with the new JWT.
+                     */
+                    sessionReady =
+                        false;
+                }
+            } else {
+                sessionReady =
+                    false;
+            }
         }
 
         setStatus(

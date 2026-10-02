@@ -19,7 +19,13 @@ function validBody() {
             "CON-A",
 
         recording_url:
-            "https://api-us.nexmo.com/v1/files/recording-A"
+            "https://api-us.nexmo.com/v1/files/recording-A",
+
+        start_time:
+            "2026-10-02T00:00:00Z",
+
+        end_time:
+            "2026-10-02T00:00:30Z"
     };
 }
 
@@ -106,6 +112,12 @@ test(
 
                 recordingUrl:
                     "https://api-us.nexmo.com/v1/files/recording-A",
+
+                startTime:
+                    "2026-10-02T00:00:00Z",
+
+                endTime:
+                    "2026-10-02T00:00:30Z",
 
                 conversationContext:
                     context()

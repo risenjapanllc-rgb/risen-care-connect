@@ -54,6 +54,8 @@ class VoiceRecordingProcessingService {
         recordingUuid,
         conversationUuid,
         recordingUrl,
+        startTime,
+        endTime,
         conversationContext
     } = {}) {
         const normalizedRecordingUuid =
@@ -66,9 +68,39 @@ class VoiceRecordingProcessingService {
                 conversationUuid || ""
             ).trim();
 
+        const normalizedStartTime =
+            String(
+                startTime || ""
+            ).trim();
+
+        const normalizedEndTime =
+            String(
+                endTime || ""
+            ).trim();
+
+        const startTimeMs =
+            Date.parse(
+                normalizedStartTime
+            );
+
+        const endTimeMs =
+            Date.parse(
+                normalizedEndTime
+            );
+
         if (
             !normalizedRecordingUuid ||
             !normalizedConversationUuid ||
+            !normalizedStartTime ||
+            !normalizedEndTime ||
+            !Number.isFinite(
+                startTimeMs
+            ) ||
+            !Number.isFinite(
+                endTimeMs
+            ) ||
+            endTimeMs <
+                startTimeMs ||
             typeof recordingUrl !==
                 "string" ||
             !recordingUrl.trim() ||
@@ -146,6 +178,12 @@ class VoiceRecordingProcessingService {
                         String(
                             conversationContext.communicationLogId
                         ).trim(),
+
+                    startTime:
+                        normalizedStartTime,
+
+                    endTime:
+                        normalizedEndTime,
 
                     data:
                         download.data,

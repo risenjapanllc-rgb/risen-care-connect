@@ -24,6 +24,12 @@ function validInput() {
         recordingUrl:
             "https://api-us.nexmo.com/v1/files/recording-A",
 
+        startTime:
+            "2026-10-02T00:00:00Z",
+
+        endTime:
+            "2026-10-02T00:00:30Z",
+
         conversationContext: {
             facilityId:
                 "facility-A",
@@ -132,6 +138,16 @@ test(
         assert.equal(
             saved.communicationLogId,
             "communication-log-A"
+        );
+
+        assert.equal(
+            saved.startTime,
+            "2026-10-02T00:00:00Z"
+        );
+
+        assert.equal(
+            saved.endTime,
+            "2026-10-02T00:00:30Z"
         );
 
         assert.deepEqual(

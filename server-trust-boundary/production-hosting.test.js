@@ -20,7 +20,9 @@ function validEnv() {
         SUPABASE_CONNECTOR_TRUST_EMAIL:
             "connector@example.test",
         SUPABASE_CONNECTOR_TRUST_PASSWORD:
-            "test-password"
+            "test-password",
+        VONAGE_API_SIGNATURE_SECRET:
+            "test-signature-secret"
     };
 }
 

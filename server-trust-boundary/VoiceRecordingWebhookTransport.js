@@ -219,6 +219,19 @@ class VoiceRecordingWebhookTransport {
                     recordingUuid,
                     conversationUuid,
                     recordingUrl,
+
+                    startTime:
+                        typeof body.start_time ===
+                            "string"
+                            ? body.start_time.trim()
+                            : "",
+
+                    endTime:
+                        typeof body.end_time ===
+                            "string"
+                            ? body.end_time.trim()
+                            : "",
+
                     conversationContext
                 });
         } catch (error) {

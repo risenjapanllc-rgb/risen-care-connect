@@ -152,6 +152,8 @@ class SupabaseVoiceRecordingStore {
         caseId,
         contactId,
         communicationLogId,
+        startTime,
+        endTime,
         data,
         size,
         contentType
@@ -185,6 +187,50 @@ class SupabaseVoiceRecordingStore {
             String(
                 communicationLogId || ""
             ).trim();
+
+        const normalizedStartTime =
+            String(
+                startTime || ""
+            ).trim();
+
+        const normalizedEndTime =
+            String(
+                endTime || ""
+            ).trim();
+
+        const timingRequested =
+            Boolean(
+                normalizedStartTime ||
+                normalizedEndTime
+            );
+
+        if (
+            timingRequested &&
+            (
+                !normalizedStartTime ||
+                !normalizedEndTime ||
+                !Number.isFinite(
+                    Date.parse(
+                        normalizedStartTime
+                    )
+                ) ||
+                !Number.isFinite(
+                    Date.parse(
+                        normalizedEndTime
+                    )
+                ) ||
+                Date.parse(
+                    normalizedEndTime
+                ) <
+                    Date.parse(
+                        normalizedStartTime
+                    )
+            )
+        ) {
+            throw new Error(
+                "voice_recording_storage_timing_invalid"
+            );
+        }
 
         if (
             !normalizedRecordingUuid ||
@@ -327,12 +373,106 @@ class SupabaseVoiceRecordingStore {
         const storageReference =
             `${expectedBucket}/${expectedPath}`;
 
+        const persistTiming =
+            async () => {
+                if (!timingRequested) {
+                    return null;
+                }
+
+                const timingResponse =
+                    await this.fetchImpl(
+                        `${this.supabaseUrl}/rest/v1/rpc/update_voice_recording_timing`,
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                ...commonHeaders,
+
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    p_recording_id:
+                                        recordingId,
+
+                                    p_facility_id:
+                                        normalizedFacilityId,
+
+                                    p_provider_recording_id:
+                                        normalizedRecordingUuid,
+
+                                    p_started_at:
+                                        normalizedStartTime,
+
+                                    p_ended_at:
+                                        normalizedEndTime
+                                })
+                        }
+                    );
+
+                if (!timingResponse.ok) {
+                    throw this.createHttpError(
+                        "Supabase voice recording timing failed",
+                        timingResponse,
+                        "timing"
+                    );
+                }
+
+                const timed =
+                    await timingResponse.json();
+
+                if (
+                    !Array.isArray(timed) ||
+                    timed.length !== 1 ||
+                    !timed[0] ||
+                    typeof timed[0] !==
+                        "object" ||
+                    timed[0].status !==
+                        "timed" ||
+                    timed[0].recording_id !==
+                        recordingId
+                ) {
+                    throw new Error(
+                        "Supabase voice recording timing returned invalid result"
+                    );
+                }
+
+                const durationMs =
+                    Number(
+                        timed[0].duration_ms
+                    );
+
+                if (
+                    !Number.isSafeInteger(
+                        durationMs
+                    ) ||
+                    durationMs < 0
+                ) {
+                    throw new Error(
+                        "Supabase voice recording timing returned invalid duration"
+                    );
+                }
+
+                return durationMs;
+            };
+
         if (
             prepared[0].upload_status ===
             "uploaded"
         ) {
+            const durationMs =
+                await persistTiming();
+
             return {
-                storageReference
+                storageReference,
+                ...(durationMs === null
+                    ? {}
+                    : {
+                        durationMs
+                    })
             };
         }
 
@@ -438,8 +578,16 @@ class SupabaseVoiceRecordingStore {
             );
         }
 
+        const durationMs =
+            await persistTiming();
+
         return {
-            storageReference
+            storageReference,
+            ...(durationMs === null
+                ? {}
+                : {
+                    durationMs
+                })
         };
     }
 }

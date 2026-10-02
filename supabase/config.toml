@@ -1,0 +1,4 @@
+project_id = "risen-care-connect"
+
+[functions.voice-transcription-worker]
+verify_jwt = false

@@ -169,6 +169,9 @@ const VonageWebhookSignatureVerifier =
 const VoiceRecordingWebhookTransport =
     require("./VoiceRecordingWebhookTransport");
 
+const VoiceEventWebhookTransport =
+    require("./VoiceEventWebhookTransport");
+
 
 const {
     createServerTrustBoundaryApp
@@ -721,6 +724,15 @@ function createServerTrustBoundaryHttpRuntime({
             diagnosticLogger
         });
 
+    const voiceEventTransport =
+        new VoiceEventWebhookTransport({
+            webhookSignatureVerifier:
+                vonageWebhookSignatureVerifier,
+
+            communicationEventRepository:
+                coreRuntime.voiceCommunicationEventRepository
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
@@ -793,6 +805,9 @@ function createServerTrustBoundaryHttpRuntime({
             voiceAnswerTransport,
             voiceAnswerEndpointPath:
                 "/voice/answer",
+            voiceEventTransport,
+            voiceEventEndpointPath:
+                "/voice/event",
             voiceRecordingTransport,
             voiceRecordingEndpointPath:
                 "/voice/recording",

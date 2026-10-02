@@ -169,6 +169,9 @@ const SupabaseEmergencyContactCallRepository =
 const SupabaseVoiceCommunicationLogRepository =
     require("./SupabaseVoiceCommunicationLogRepository");
 
+const SupabaseVoiceCommunicationEventRepository =
+    require("./SupabaseVoiceCommunicationEventRepository");
+
 const VoiceRecordingReceiptStore =
     require("./VoiceRecordingReceiptStore");
 
@@ -794,6 +797,13 @@ function createServerTrustBoundaryRuntime({
             accessTokenProvider
         });
 
+    const voiceCommunicationEventRepository =
+        new SupabaseVoiceCommunicationEventRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
     const voiceRecordingReceiptStore =
         new VoiceRecordingReceiptStore();
 
@@ -888,6 +898,7 @@ function createServerTrustBoundaryRuntime({
         voiceClientTokenService,
         voiceCallIntentStore,
         voiceCommunicationLogRepository,
+        voiceCommunicationEventRepository,
         voiceRecordingProcessingService
     };
 }

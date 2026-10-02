@@ -85,6 +85,9 @@ function createServerTrustBoundaryApp({
     voiceAnswerTransport,
     voiceAnswerEndpointPath =
         "/voice/answer",
+    voiceEventTransport,
+    voiceEventEndpointPath =
+        "/voice/event",
     voiceRecordingTransport,
     voiceRecordingEndpointPath =
         "/voice/recording",
@@ -1112,6 +1115,34 @@ function createServerTrustBoundaryApp({
 
                             query:
                                 req.query,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceEventTransport) {
+        app.post(
+            voiceEventEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceEventTransport.handle({
+                            headers:
+                                req.headers,
 
                             body:
                                 req.body

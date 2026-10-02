@@ -17,6 +17,8 @@ class VoiceAnswerTransport {
         recordingEnabled =
             false,
         recordingEventUrl =
+            null,
+        voiceEventUrl =
             null
     } = {}) {
         if (
@@ -82,8 +84,18 @@ class VoiceAnswerTransport {
             );
         }
 
+        const voiceEventRequested =
+            typeof voiceEventUrl ===
+                "string" &&
+            Boolean(
+                voiceEventUrl.trim()
+            );
+
         if (
-            recordingEnabled &&
+            (
+                recordingEnabled ||
+                voiceEventRequested
+            ) &&
             (
                 !communicationLogRepository ||
                 typeof communicationLogRepository.create !==
@@ -91,7 +103,7 @@ class VoiceAnswerTransport {
             )
         ) {
             throw new Error(
-                "VoiceAnswerTransport requires communicationLogRepository when recording is enabled"
+                "VoiceAnswerTransport requires communicationLogRepository when recording or call events are enabled"
             );
         }
 
@@ -129,6 +141,50 @@ class VoiceAnswerTransport {
             }
         }
 
+        let normalizedVoiceEventUrl =
+            null;
+
+        if (
+            voiceEventUrl !== null &&
+            voiceEventUrl !== undefined &&
+            voiceEventUrl !== ""
+        ) {
+            if (
+                typeof voiceEventUrl !==
+                    "string" ||
+                !voiceEventUrl.trim()
+            ) {
+                throw new Error(
+                    "VoiceAnswerTransport voiceEventUrl is invalid"
+                );
+            }
+
+            let parsedVoiceEventUrl;
+
+            try {
+                parsedVoiceEventUrl =
+                    new URL(
+                        voiceEventUrl.trim()
+                    );
+            } catch (error) {
+                throw new Error(
+                    "VoiceAnswerTransport voiceEventUrl is invalid"
+                );
+            }
+
+            if (
+                parsedVoiceEventUrl.protocol !==
+                "https:"
+            ) {
+                throw new Error(
+                    "VoiceAnswerTransport voiceEventUrl must use HTTPS"
+                );
+            }
+
+            normalizedVoiceEventUrl =
+                voiceEventUrl.trim();
+        }
+
         this.phoneNumberNormalizer =
             phoneNumberNormalizer;
 
@@ -139,6 +195,14 @@ class VoiceAnswerTransport {
             recordingEnabled
                 ? recordingEventUrl.trim()
                 : null;
+
+        this.voiceEventUrl =
+            normalizedVoiceEventUrl;
+
+        this.voiceEventEnabled =
+            Boolean(
+                normalizedVoiceEventUrl
+            );
     }
 
     getIntentId({
@@ -300,7 +364,10 @@ class VoiceAnswerTransport {
             });
 
         if (
-            this.recordingEnabled &&
+            (
+                this.recordingEnabled ||
+                this.voiceEventEnabled
+            ) &&
             !conversationUuid
         ) {
             return {
@@ -357,7 +424,10 @@ class VoiceAnswerTransport {
         let communicationLogId =
             null;
 
-        if (this.recordingEnabled) {
+        if (
+            this.recordingEnabled ||
+            this.voiceEventEnabled
+        ) {
             try {
                 const communicationLogResult =
                     await this.communicationLogRepository.create({
@@ -399,7 +469,9 @@ class VoiceAnswerTransport {
                     }
                 };
             }
+        }
 
+        if (this.recordingEnabled) {
             try {
                 this.conversationContextStore.put({
                     conversationUuid,
@@ -462,7 +534,7 @@ class VoiceAnswerTransport {
             });
         }
 
-        ncco.push({
+        const connectAction = {
             action:
                 "connect",
 
@@ -478,7 +550,20 @@ class VoiceAnswerTransport {
                         normalizedTo
                 }
             ]
-        });
+        };
+
+        if (this.voiceEventEnabled) {
+            connectAction.eventUrl = [
+                this.voiceEventUrl
+            ];
+
+            connectAction.eventMethod =
+                "POST";
+        }
+
+        ncco.push(
+            connectAction
+        );
 
         return {
             httpStatus: 200,

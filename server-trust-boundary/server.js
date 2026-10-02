@@ -102,6 +102,34 @@ function resolveServerTrustBoundaryConfig(
         }
     }
 
+    const vonageVoiceEventUrl =
+        requireEnv(
+            "VONAGE_VOICE_EVENT_URL",
+            env
+        );
+
+    let parsedVoiceEventUrl;
+
+    try {
+        parsedVoiceEventUrl =
+            new URL(
+                vonageVoiceEventUrl
+            );
+    } catch (error) {
+        throw new Error(
+            "VONAGE_VOICE_EVENT_URL is invalid"
+        );
+    }
+
+    if (
+        parsedVoiceEventUrl.protocol !==
+        "https:"
+    ) {
+        throw new Error(
+            "VONAGE_VOICE_EVENT_URL must use HTTPS"
+        );
+    }
+
     return {
         host:
             env.SERVER_TRUST_BOUNDARY_HOST ||
@@ -167,7 +195,9 @@ function resolveServerTrustBoundaryConfig(
 
         vonageVoiceRecordingEventUrl:
             vonageVoiceRecordingEventUrl ||
-            null
+            null,
+
+        vonageVoiceEventUrl
     };
 }
 
@@ -199,6 +229,8 @@ function startServerTrustBoundary({
                 config.vonageVoiceRecordingEnabled,
             vonageVoiceRecordingEventUrl:
                 config.vonageVoiceRecordingEventUrl,
+            vonageVoiceEventUrl:
+                config.vonageVoiceEventUrl,
             authorizationScheme:
                 config.authorizationScheme,
             connectorIdHeader:

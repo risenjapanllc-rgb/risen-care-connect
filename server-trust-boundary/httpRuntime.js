@@ -193,6 +193,8 @@ function createServerTrustBoundaryHttpRuntime({
         false,
     vonageVoiceRecordingEventUrl =
         null,
+    vonageVoiceEventUrl =
+        null,
     authorizationScheme,
     connectorIdHeader,
     endpointPath,
@@ -707,7 +709,10 @@ function createServerTrustBoundaryHttpRuntime({
                 vonageVoiceRecordingEnabled,
 
             recordingEventUrl:
-                vonageVoiceRecordingEventUrl
+                vonageVoiceRecordingEventUrl,
+
+            voiceEventUrl:
+                vonageVoiceEventUrl
         });
 
     const voiceRecordingTransport =

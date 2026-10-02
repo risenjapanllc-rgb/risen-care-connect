@@ -49,6 +49,8 @@ function validEnv(overrides = {}) {
             "test-password",
         VONAGE_API_SIGNATURE_SECRET:
             "test-signature-secret",
+        VONAGE_VOICE_EVENT_URL:
+            "https://example.test/voice/event",
         ...overrides
     };
 }
@@ -155,5 +157,53 @@ test("JSON body limit is explicit and configurable", () => {
     assert.strictEqual(
         customConfig.sourceDocumentJsonBodyLimit,
         "32mb"
+    );
+});
+
+
+test("voice event URL is required and HTTPS-only", () => {
+    const missingEnv =
+        validEnv();
+
+    delete missingEnv.VONAGE_VOICE_EVENT_URL;
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                missingEnv
+            ),
+        /Missing required environment variable/
+    );
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                validEnv({
+                    VONAGE_VOICE_EVENT_URL:
+                        "http://example.test/voice/event"
+                })
+            ),
+        /VONAGE_VOICE_EVENT_URL must use HTTPS/
+    );
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                validEnv({
+                    VONAGE_VOICE_EVENT_URL:
+                        "not-a-url"
+                })
+            ),
+        /VONAGE_VOICE_EVENT_URL is invalid/
+    );
+
+    const config =
+        resolveServerTrustBoundaryConfig(
+            validEnv()
+        );
+
+    assert.equal(
+        config.vonageVoiceEventUrl,
+        "https://example.test/voice/event"
     );
 });

@@ -22,7 +22,9 @@ function validEnv() {
         SUPABASE_CONNECTOR_TRUST_PASSWORD:
             "test-password",
         VONAGE_API_SIGNATURE_SECRET:
-            "test-signature-secret"
+            "test-signature-secret",
+        VONAGE_VOICE_EVENT_URL:
+            "https://example.test/voice/event"
     };
 }
 

@@ -154,11 +154,32 @@ const ConnectorResidentProfileQueryService =
 const VoiceCallService =
     require("./VoiceCallService");
 
+const VoiceClientTokenService =
+    require("./VoiceClientTokenService");
+
+const VoiceCallIntentStore =
+    require("./VoiceCallIntentStore");
+
 const SupabaseEmergencyContactRepository =
     require("./SupabaseEmergencyContactRepository");
 
 const SupabaseEmergencyContactCallRepository =
     require("./SupabaseEmergencyContactCallRepository");
+
+const SupabaseVoiceCommunicationLogRepository =
+    require("./SupabaseVoiceCommunicationLogRepository");
+
+const VoiceRecordingReceiptStore =
+    require("./VoiceRecordingReceiptStore");
+
+const VonageRecordingDownloadService =
+    require("./VonageRecordingDownloadService");
+
+const SupabaseVoiceRecordingStore =
+    require("./SupabaseVoiceRecordingStore");
+
+const VoiceRecordingProcessingService =
+    require("./VoiceRecordingProcessingService");
 
 const VoiceCallHttpAdapter =
     require("./VoiceCallHttpAdapter");
@@ -176,6 +197,10 @@ const {
 const {
     createOutboundCall
 } = require("../services/vonageVoiceService");
+
+const {
+    createVonageClientJwt
+} = require("../services/vonageVoiceAuth");
 
 
 const ResidentMatcher =
@@ -762,6 +787,38 @@ function createServerTrustBoundaryRuntime({
             accessTokenProvider
         });
 
+    const voiceCommunicationLogRepository =
+        new SupabaseVoiceCommunicationLogRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const voiceRecordingReceiptStore =
+        new VoiceRecordingReceiptStore();
+
+    const vonageRecordingDownloadService =
+        new VonageRecordingDownloadService();
+
+    const voiceRecordingStore =
+        new SupabaseVoiceRecordingStore({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const voiceRecordingProcessingService =
+        new VoiceRecordingProcessingService({
+            receiptStore:
+                voiceRecordingReceiptStore,
+
+            downloadService:
+                vonageRecordingDownloadService,
+
+            recordingStore:
+                voiceRecordingStore
+        });
+
     const voiceCallService =
         new VoiceCallService({
             connectorTrustService,
@@ -769,6 +826,24 @@ function createServerTrustBoundaryRuntime({
             emergencyContactRepository,
             emergencyContactCallRepository,
             vonageVoiceService
+        });
+
+    const voiceCallIntentStore =
+        new VoiceCallIntentStore();
+
+    const voiceClientTokenService =
+        new VoiceClientTokenService({
+            facilityPhoneNumberRepository,
+            intentStore:
+                voiceCallIntentStore,
+            connectorTrustService,
+            emergencyContactRepository,
+
+            clientTokenFactory:
+                ({ subject } = {}) =>
+                    createVonageClientJwt({
+                        subject
+                    })
         });
 
 
@@ -809,7 +884,11 @@ function createServerTrustBoundaryRuntime({
         connectorResidentProfileService,
         connectorResidentProfileQueryService,
         voiceCallService,
-        voiceCallHttpAdapter
+        voiceCallHttpAdapter,
+        voiceClientTokenService,
+        voiceCallIntentStore,
+        voiceCommunicationLogRepository,
+        voiceRecordingProcessingService
     };
 }
 

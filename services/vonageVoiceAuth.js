@@ -76,6 +76,97 @@ function createVonageVoiceJwt() {
     );
 }
 
+function createVonageClientJwt({
+    subject
+} = {}) {
+    const normalizedSubject =
+        String(subject || "").trim();
+
+    if (
+        !normalizedSubject ||
+        !/^[A-Za-z0-9_.-]{1,64}$/.test(
+            normalizedSubject
+        )
+    ) {
+        throw new Error(
+            "Vonage Client SDK subject の形式が不正です"
+        );
+    }
+
+    const applicationId =
+        getRequiredEnv(
+            "VONAGE_APPLICATION_ID"
+        );
+
+    const privateKeyPath =
+        getRequiredEnv(
+            "VONAGE_PRIVATE_KEY_PATH"
+        );
+
+    const resolvedPath =
+        path.resolve(
+            process.cwd(),
+            privateKeyPath
+        );
+
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(
+            `Vonage private.key が見つかりません: ${resolvedPath}`
+        );
+    }
+
+    const privateKey =
+        fs.readFileSync(
+            resolvedPath,
+            "utf8"
+        );
+
+    if (!privateKey.includes(
+        "BEGIN PRIVATE KEY"
+    )) {
+        throw new Error(
+            "Vonage private.key の形式を確認できません"
+        );
+    }
+
+    const now =
+        Math.floor(Date.now() / 1000);
+
+    const payload = {
+        application_id:
+            applicationId,
+
+        sub:
+            normalizedSubject,
+
+        acl: {
+            paths: {
+                "/*/rtc/**": {},
+                "/*/users/**": {},
+                "/*/conversations/**": {},
+                "/*/sessions/**": {},
+                "/*/devices/**": {},
+                "/*/push/**": {},
+                "/*/knocking/**": {},
+                "/*/legs/**": {}
+            }
+        },
+
+        iat: now,
+
+        exp:
+            now + 15 * 60,
+
+        jti:
+            crypto.randomUUID()
+    };
+
+    return createJwt(
+        payload,
+        privateKey
+    );
+}
+
 function createJwt(payload, privateKey) {
     const header = {
         alg: "RS256",
@@ -115,5 +206,6 @@ function createJwt(payload, privateKey) {
 }
 
 module.exports = {
-    createVonageVoiceJwt
+    createVonageVoiceJwt,
+    createVonageClientJwt
 };

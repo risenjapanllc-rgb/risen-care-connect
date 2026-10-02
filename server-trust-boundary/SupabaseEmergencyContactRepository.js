@@ -114,83 +114,58 @@ class SupabaseEmergencyContactRepository {
         const normalizedContactId =
             contactId.trim();
 
-        const cases =
+        const rows =
             await this.rpc(
-                "get_active_emergency_cases",
-                {
-                    p_facility_id:
-                        normalizedFacilityId
-                }
-            );
-
-        if (!Array.isArray(cases)) {
-            throw new Error(
-                "Supabase emergency case query returned invalid result"
-            );
-        }
-
-        const emergencyCase =
-            cases.find(
-                row =>
-                    row &&
-                    row.id ===
-                        normalizedCaseId
-            );
-
-        if (!emergencyCase) {
-            throw new Error(
-                "emergency case not found"
-            );
-        }
-
-        if (
-            emergencyCase.facility_id !==
-            normalizedFacilityId
-        ) {
-            throw new Error(
-                "emergency case facility mismatch"
-            );
-        }
-
-        if (
-            emergencyCase.status !==
-            "active"
-        ) {
-            throw new Error(
-                "emergency case is not active"
-            );
-        }
-
-        const contacts =
-            await this.rpc(
-                "list_emergency_case_contacts",
+                "get_voice_emergency_contact",
                 {
                     p_facility_id:
                         normalizedFacilityId,
 
-                    p_resident_id:
-                        emergencyCase.resident_id ||
-                        null
+                    p_case_id:
+                        normalizedCaseId,
+
+                    p_contact_id:
+                        normalizedContactId
                 }
             );
 
-        if (!Array.isArray(contacts)) {
+        if (!Array.isArray(rows)) {
             throw new Error(
-                "Supabase emergency contact query returned invalid result"
+                "Supabase voice emergency contact query returned invalid result"
+            );
+        }
+
+        if (rows.length === 0) {
+            throw new Error(
+                "emergency contact not found"
+            );
+        }
+
+        if (rows.length !== 1) {
+            throw new Error(
+                "Supabase voice emergency contact query returned multiple results"
             );
         }
 
         const contact =
-            contacts.find(
-                row =>
-                    row &&
-                    row.id ===
-                        normalizedContactId
-            );
+            rows[0];
 
-        if (!contact) {
+        if (
+            !contact ||
+            typeof contact !== "object" ||
+            Array.isArray(contact)
+        ) {
             throw new Error(
-                "emergency contact not found"
+                "Supabase voice emergency contact query returned invalid contact"
+            );
+        }
+
+        if (
+            contact.contact_id !==
+            normalizedContactId
+        ) {
+            throw new Error(
+                "emergency contact identity mismatch"
             );
         }
 
@@ -200,15 +175,6 @@ class SupabaseEmergencyContactRepository {
         ) {
             throw new Error(
                 "emergency contact facility mismatch"
-            );
-        }
-
-        if (
-            contact.is_active !==
-            true
-        ) {
-            throw new Error(
-                "emergency contact is not active"
             );
         }
 
@@ -224,7 +190,7 @@ class SupabaseEmergencyContactRepository {
 
         return {
             contactId:
-                contact.id,
+                contact.contact_id,
 
             phoneNumber:
                 contact.phone_number.trim(),
@@ -242,10 +208,10 @@ class SupabaseEmergencyContactRepository {
                     : null,
 
             caseId:
-                emergencyCase.id,
+                normalizedCaseId,
 
             residentId:
-                emergencyCase.resident_id ||
+                contact.resident_id ||
                 null
         };
     }

@@ -30,6 +30,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@vonage/client-sdk": "2.7.5",
+    "@vonage/jwt": "^1.17.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

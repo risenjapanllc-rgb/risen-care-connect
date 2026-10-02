@@ -42,7 +42,7 @@ function normalizeJapanesePhoneNumber(
             );
         }
 
-        return normalized;
+        return normalized.slice(1);
     }
 
     const digits =
@@ -55,9 +55,15 @@ function normalizeJapanesePhoneNumber(
         /^0\d{9,10}$/.test(digits)
     ) {
         return (
-            "+81" +
+            "81" +
             digits.slice(1)
         );
+    }
+
+    if (
+        /^81\d{9,10}$/.test(digits)
+    ) {
+        return digits;
     }
 
     throw new Error(
@@ -192,5 +198,6 @@ async function createOutboundCall({
 }
 
 module.exports = {
-    createOutboundCall
+    createOutboundCall,
+    normalizeJapanesePhoneNumber
 };

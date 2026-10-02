@@ -7,8 +7,7 @@ const SupabaseEmergencyContactRepository =
     require("./SupabaseEmergencyContactRepository");
 
 function createRepository({
-    cases = [],
-    contacts = []
+    rows = []
 } = {}) {
     const calls = [];
 
@@ -37,28 +36,14 @@ function createRepository({
 
                 if (
                     url.includes(
-                        "get_active_emergency_cases"
+                        "get_voice_emergency_contact"
                     )
                 ) {
                     return {
                         ok: true,
 
                         async json() {
-                            return cases;
-                        }
-                    };
-                }
-
-                if (
-                    url.includes(
-                        "list_emergency_case_contacts"
-                    )
-                ) {
-                    return {
-                        ok: true,
-
-                        async json() {
-                            return contacts;
+                            return rows;
                         }
                     };
                 }
@@ -83,25 +68,9 @@ test(
             repository,
             calls
         } = createRepository({
-            cases: [
+            rows: [
                 {
-                    id:
-                        "11111111-1111-4111-8111-111111111111",
-
-                    facility_id:
-                        "facility-A",
-
-                    resident_id:
-                        "resident-A",
-
-                    status:
-                        "active"
-                }
-            ],
-
-            contacts: [
-                {
-                    id:
+                    contact_id:
                         "22222222-2222-4222-8222-222222222222",
 
                     facility_id:
@@ -113,8 +82,11 @@ test(
                     phone_number:
                         "09012345678",
 
-                    is_active:
-                        true
+                    contact_name:
+                        "家族A",
+
+                    contact_type:
+                        "family"
                 }
             ]
         });
@@ -142,8 +114,39 @@ test(
         );
 
         assert.equal(
+            result.caseId,
+            "11111111-1111-4111-8111-111111111111"
+        );
+
+        assert.equal(
+            result.residentId,
+            "resident-A"
+        );
+
+        assert.equal(
             calls.length,
-            2
+            1
+        );
+
+        assert.match(
+            calls[0].url,
+            /get_voice_emergency_contact/
+        );
+
+        assert.deepEqual(
+            JSON.parse(
+                calls[0].options.body
+            ),
+            {
+                p_facility_id:
+                    "facility-A",
+
+                p_case_id:
+                    "11111111-1111-4111-8111-111111111111",
+
+                p_contact_id:
+                    "22222222-2222-4222-8222-222222222222"
+            }
         );
     }
 );
@@ -155,25 +158,9 @@ test(
         const {
             repository
         } = createRepository({
-            cases: [
+            rows: [
                 {
-                    id:
-                        "11111111-1111-4111-8111-111111111111",
-
-                    facility_id:
-                        "facility-A",
-
-                    resident_id:
-                        null,
-
-                    status:
-                        "active"
-                }
-            ],
-
-            contacts: [
-                {
-                    id:
+                    contact_id:
                         "22222222-2222-4222-8222-222222222222",
 
                     facility_id:
@@ -185,8 +172,11 @@ test(
                     phone_number:
                         "09012345678",
 
-                    is_active:
-                        true
+                    contact_name:
+                        "施設共通",
+
+                    contact_type:
+                        "facility"
                 }
             ]
         });
@@ -207,20 +197,25 @@ test(
             result.phoneNumber,
             "09012345678"
         );
+
+        assert.equal(
+            result.residentId,
+            null
+        );
     }
 );
 
 
 test(
-    "facilityが一致しないcaseは拒否する",
+    "RPC結果のfacilityが一致しなければ拒否する",
     async () => {
         const {
             repository
         } = createRepository({
-            cases: [
+            rows: [
                 {
-                    id:
-                        "11111111-1111-4111-8111-111111111111",
+                    contact_id:
+                        "22222222-2222-4222-8222-222222222222",
 
                     facility_id:
                         "facility-B",
@@ -228,8 +223,14 @@ test(
                     resident_id:
                         "resident-A",
 
-                    status:
-                        "active"
+                    phone_number:
+                        "09012345678",
+
+                    contact_name:
+                        null,
+
+                    contact_type:
+                        null
                 }
             ]
         });
@@ -245,35 +246,19 @@ test(
                 contactId:
                     "22222222-2222-4222-8222-222222222222"
             }),
-            /emergency case facility mismatch/
+            /emergency contact facility mismatch/
         );
     }
 );
 
 
 test(
-    "contactがrelevant contactsに存在しなければ拒否する",
+    "RPCが対象contactを返さなければ拒否する",
     async () => {
         const {
             repository
         } = createRepository({
-            cases: [
-                {
-                    id:
-                        "11111111-1111-4111-8111-111111111111",
-
-                    facility_id:
-                        "facility-A",
-
-                    resident_id:
-                        "resident-A",
-
-                    status:
-                        "active"
-                }
-            ],
-
-            contacts: []
+            rows: []
         });
 
         await assert.rejects(

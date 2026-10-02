@@ -44,6 +44,64 @@ function parsePort(value) {
 function resolveServerTrustBoundaryConfig(
     env = process.env
 ) {
+    const recordingEnabledValue =
+        String(
+            env.VONAGE_VOICE_RECORDING_ENABLED ||
+            "false"
+        )
+            .trim()
+            .toLowerCase();
+
+    if (
+        recordingEnabledValue !== "true" &&
+        recordingEnabledValue !== "false"
+    ) {
+        throw new Error(
+            "VONAGE_VOICE_RECORDING_ENABLED must be true or false"
+        );
+    }
+
+    const vonageVoiceRecordingEnabled =
+        recordingEnabledValue === "true";
+
+    const vonageVoiceRecordingEventUrl =
+        String(
+            env.VONAGE_VOICE_RECORDING_EVENT_URL ||
+            ""
+        ).trim();
+
+    if (
+        vonageVoiceRecordingEnabled &&
+        !vonageVoiceRecordingEventUrl
+    ) {
+        throw new Error(
+            "VONAGE_VOICE_RECORDING_EVENT_URL is required when recording is enabled"
+        );
+    }
+
+    if (vonageVoiceRecordingEventUrl) {
+        let parsed;
+
+        try {
+            parsed =
+                new URL(
+                    vonageVoiceRecordingEventUrl
+                );
+        } catch (error) {
+            throw new Error(
+                "VONAGE_VOICE_RECORDING_EVENT_URL is invalid"
+            );
+        }
+
+        if (
+            parsed.protocol !== "https:"
+        ) {
+            throw new Error(
+                "VONAGE_VOICE_RECORDING_EVENT_URL must use HTTPS"
+            );
+        }
+    }
+
     return {
         host:
             env.SERVER_TRUST_BOUNDARY_HOST ||
@@ -97,7 +155,19 @@ function resolveServerTrustBoundaryConfig(
             requireEnv(
                 "SUPABASE_CONNECTOR_TRUST_PASSWORD",
                 env
-            )
+            ),
+
+        vonageApiSignatureSecret:
+            requireEnv(
+                "VONAGE_API_SIGNATURE_SECRET",
+                env
+            ),
+
+        vonageVoiceRecordingEnabled,
+
+        vonageVoiceRecordingEventUrl:
+            vonageVoiceRecordingEventUrl ||
+            null
     };
 }
 
@@ -123,6 +193,12 @@ function startServerTrustBoundary({
                 config.connectorTrustEmail,
             connectorTrustPassword:
                 config.connectorTrustPassword,
+            vonageApiSignatureSecret:
+                config.vonageApiSignatureSecret,
+            vonageVoiceRecordingEnabled:
+                config.vonageVoiceRecordingEnabled,
+            vonageVoiceRecordingEventUrl:
+                config.vonageVoiceRecordingEventUrl,
             authorizationScheme:
                 config.authorizationScheme,
             connectorIdHeader:

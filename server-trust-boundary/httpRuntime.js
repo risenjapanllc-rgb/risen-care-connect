@@ -154,6 +154,21 @@ const ConnectorResidentProfileQueryTransport =
 const VoiceCallTransport =
     require("./VoiceCallTransport");
 
+const VoiceClientTokenTransport =
+    require("./VoiceClientTokenTransport");
+
+const VoiceAnswerTransport =
+    require("./VoiceAnswerTransport");
+
+const VoiceConversationContextStore =
+    require("./VoiceConversationContextStore");
+
+const VonageWebhookSignatureVerifier =
+    require("./VonageWebhookSignatureVerifier");
+
+const VoiceRecordingWebhookTransport =
+    require("./VoiceRecordingWebhookTransport");
+
 
 const {
     createServerTrustBoundaryApp
@@ -170,6 +185,11 @@ function createServerTrustBoundaryHttpRuntime({
     apiKey,
     connectorTrustEmail,
     connectorTrustPassword,
+    vonageApiSignatureSecret,
+    vonageVoiceRecordingEnabled =
+        false,
+    vonageVoiceRecordingEventUrl =
+        null,
     authorizationScheme,
     connectorIdHeader,
     endpointPath,
@@ -632,6 +652,75 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const voiceClientTokenTransport =
+        new VoiceClientTokenTransport({
+            tokenService:
+                coreRuntime.voiceClientTokenService,
+
+            credentialTransport,
+
+            connectorIdHeader
+        });
+
+    /*
+     * Production supplies the Vonage signature secret
+     * through server.js. Direct test/runtime construction
+     * without it remains fail-closed.
+     */
+    const vonageWebhookSignatureVerifier =
+        (
+            typeof vonageApiSignatureSecret ===
+                "string" &&
+            vonageApiSignatureSecret.trim()
+        )
+            ? new VonageWebhookSignatureVerifier({
+                signatureSecret:
+                    vonageApiSignatureSecret
+            })
+            : {
+                verify() {
+                    return false;
+                }
+            };
+
+    const voiceConversationContextStore =
+        new VoiceConversationContextStore();
+
+    const voiceAnswerTransport =
+        new VoiceAnswerTransport({
+            intentStore:
+                coreRuntime.voiceCallIntentStore,
+
+            conversationContextStore:
+                voiceConversationContextStore,
+
+            communicationLogRepository:
+                coreRuntime.voiceCommunicationLogRepository,
+
+            webhookSignatureVerifier:
+                vonageWebhookSignatureVerifier,
+
+            recordingEnabled:
+                vonageVoiceRecordingEnabled,
+
+            recordingEventUrl:
+                vonageVoiceRecordingEventUrl
+        });
+
+    const voiceRecordingTransport =
+        new VoiceRecordingWebhookTransport({
+            webhookSignatureVerifier:
+                vonageWebhookSignatureVerifier,
+
+            conversationContextStore:
+                voiceConversationContextStore,
+
+            processingService:
+                coreRuntime.voiceRecordingProcessingService,
+
+            diagnosticLogger
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
@@ -698,6 +787,15 @@ function createServerTrustBoundaryHttpRuntime({
             voiceCallTransport,
             voiceCallEndpointPath:
                 "/connector/voice-calls",
+            voiceClientTokenTransport,
+            voiceClientTokenEndpointPath:
+                "/connector/voice-token",
+            voiceAnswerTransport,
+            voiceAnswerEndpointPath:
+                "/voice/answer",
+            voiceRecordingTransport,
+            voiceRecordingEndpointPath:
+                "/voice/recording",
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",
             jsonBodyLimit,

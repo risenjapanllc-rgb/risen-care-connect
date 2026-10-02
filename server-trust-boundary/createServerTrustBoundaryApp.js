@@ -79,6 +79,15 @@ function createServerTrustBoundaryApp({
     voiceCallTransport,
     voiceCallEndpointPath =
         "/connector/voice-calls",
+    voiceClientTokenTransport,
+    voiceClientTokenEndpointPath =
+        "/connector/voice-token",
+    voiceAnswerTransport,
+    voiceAnswerEndpointPath =
+        "/voice/answer",
+    voiceRecordingTransport,
+    voiceRecordingEndpointPath =
+        "/voice/recording",
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
         jsonBodyLimit
@@ -1037,6 +1046,112 @@ function createServerTrustBoundaryApp({
                             result.body
                         );
 
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceClientTokenTransport) {
+        if (
+            typeof voiceClientTokenTransport.handle !==
+                "function" ||
+            typeof voiceClientTokenTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete voiceClientTokenTransport"
+            );
+        }
+
+        app.all(
+            voiceClientTokenEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceClientTokenTransport.handle({
+                            method:
+                                req.method,
+
+                            contentType:
+                                req.get(
+                                    "content-type"
+                                ),
+
+                            headers:
+                                req.headers,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceAnswerTransport) {
+        app.all(
+            voiceAnswerEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceAnswerTransport.handle({
+                            headers:
+                                req.headers,
+
+                            query:
+                                req.query,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceRecordingTransport) {
+        app.post(
+            voiceRecordingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceRecordingTransport.handle({
+                            headers:
+                                req.headers,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
                 } catch (error) {
                     return next(error);
                 }

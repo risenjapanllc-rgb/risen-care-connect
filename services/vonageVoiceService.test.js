@@ -138,14 +138,14 @@ test(
                         {
                             type: "phone",
                             number:
-                                "+819012345678"
+                                "819012345678"
                         }
                     ],
 
                     from: {
                         type: "phone",
                         number:
-                            "+815012345678"
+                            "815012345678"
                     },
 
                     answer_url: [
@@ -186,7 +186,7 @@ test(
                         from: "",
 
                         to:
-                            "+819012345678",
+                            "819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -223,7 +223,7 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "+815012345678",
+                            "815012345678",
 
                         to: "",
 
@@ -262,10 +262,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "+815012345678",
+                            "815012345678",
 
                         to:
-                            "+819012345678",
+                            "819012345678",
 
                         eventUrl:
                             "https://example.com/event"
@@ -299,10 +299,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "+815012345678",
+                            "815012345678",
 
                         to:
-                            "+819012345678",
+                            "819012345678",
 
                         answerUrl:
                             "https://example.com/answer"
@@ -343,10 +343,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "+815012345678",
+                            "815012345678",
 
                         to:
-                            "+819012345678",
+                            "819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -389,10 +389,10 @@ test(
                 () =>
                     createOutboundCall({
                         from:
-                            "+815012345678",
+                            "815012345678",
 
                         to:
-                            "+819012345678",
+                            "819012345678",
 
                         answerUrl:
                             "https://example.com/answer",
@@ -436,10 +436,10 @@ test(
         try {
             await createOutboundCall({
                 from:
-                    "+815032021021",
+                    "815032021021",
 
                 to:
-                    "+819049373052",
+                    "819049373052",
 
                 ncco: [
                     {
@@ -469,14 +469,14 @@ test(
                         {
                             type: "phone",
                             number:
-                                "+819049373052"
+                                "819049373052"
                         }
                     ],
 
                     from: {
                         type: "phone",
                         number:
-                            "+815032021021"
+                            "815032021021"
                     },
 
                     ncco: [
@@ -536,12 +536,12 @@ test(
 
             assert.equal(
                 body.from.number,
-                "+815032021021"
+                "815032021021"
             );
 
             assert.equal(
                 body.to[0].number,
-                "+819049373052"
+                "819049373052"
             );
         } finally {
             restore();
@@ -589,12 +589,12 @@ test(
 
             assert.equal(
                 body.from.number,
-                "+815032021021"
+                "815032021021"
             );
 
             assert.equal(
                 body.to[0].number,
-                "+819049373052"
+                "819049373052"
             );
         } finally {
             restore();
@@ -605,6 +605,59 @@ test(
 
 test(
     "既にE.164形式なら番号を変更しない",
+    async () => {
+        setRequiredEnv();
+
+        const {
+            calls,
+            restore
+        } = createFetchMock();
+
+        try {
+            await createOutboundCall({
+                from:
+                    "815032021021",
+
+                to:
+                    "819049373052",
+
+                ncco: [
+                    {
+                        action:
+                            "talk",
+
+                        text:
+                            "test"
+                    }
+                ],
+
+                createJwt:
+                    () => "test-jwt"
+            });
+
+            const body =
+                JSON.parse(
+                    calls[0].options.body
+                );
+
+            assert.equal(
+                body.from.number,
+                "815032021021"
+            );
+
+            assert.equal(
+                body.to[0].number,
+                "819049373052"
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "先頭plus付き国際形式はVonage Voice形式へ変換する",
     async () => {
         setRequiredEnv();
 
@@ -642,12 +695,12 @@ test(
 
             assert.equal(
                 body.from.number,
-                "+815032021021"
+                "815032021021"
             );
 
             assert.equal(
                 body.to[0].number,
-                "+819049373052"
+                "819049373052"
             );
         } finally {
             restore();

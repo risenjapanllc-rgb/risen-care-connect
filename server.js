@@ -9,6 +9,10 @@ const CsvDataSourceAdapter =
     require("./adapters/csv/CsvDataSourceAdapter");
 const CsvDataTypeDetector =
     require("./adapters/csv/CsvDataTypeDetector");
+
+const LocalConnectorConfig =
+    require("./local-connector/LocalConnectorConfig");
+
 require("dotenv").config();
 
 const app = express();
@@ -123,7 +127,336 @@ app.get(
     }
 );
 
+/*
+ * Browserへ公開するVonage Client SDK。
+ * node_modules全体のURLへ直接依存せず、
+ * 必要なbundleだけを固定経路で配信する。
+ */
+app.get(
+    "/vendor/vonage-client-sdk.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "node_modules",
+                "@vonage",
+                "client-sdk",
+                "dist",
+                "vonageClientSDK.min.js"
+            )
+        );
+    }
+);
+
 app.use(express.static(__dirname));
+
+
+// ==========================================
+// Voice Client Token Proxy
+//
+// BrowserへConnector credentialや電話番号を
+// 渡さず、localhost serverからTrust Boundaryへ
+// token発行要求を中継する。
+// ==========================================
+
+const voiceLocalConnectorConfig =
+    new LocalConnectorConfig();
+
+function isLoopbackAddress(address) {
+    const value =
+        String(address || "").trim();
+
+    return (
+        value === "127.0.0.1" ||
+        value === "::1" ||
+        value === "::ffff:127.0.0.1"
+    );
+}
+
+function getVoiceTokenEndpoint() {
+    const configured =
+        String(
+            process.env
+                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT ||
+            ""
+        ).trim();
+
+    if (!configured) {
+        throw new Error(
+            "RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT is missing"
+        );
+    }
+
+    const parsed =
+        new URL(configured);
+
+    const isLocalhost =
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "::1";
+
+    if (
+        parsed.protocol !== "https:" &&
+        !(
+            parsed.protocol === "http:" &&
+            isLocalhost
+        )
+    ) {
+        throw new Error(
+            "Voice token Trust Boundary endpoint must use HTTPS or localhost HTTP"
+        );
+    }
+
+    return new URL(
+        "/connector/voice-token",
+        parsed.origin
+    ).toString();
+}
+
+app.post(
+    "/api/voice/client-token",
+    async (req, res) => {
+        /*
+         * Local PoC boundary.
+         *
+         * A malicious remote website must not be able
+         * to use this localhost proxy to obtain tokens.
+         */
+        if (
+            !isLoopbackAddress(
+                req.socket?.remoteAddress
+            )
+        ) {
+            return res.status(403).json({
+                errorCode:
+                    "voice_client_proxy_forbidden"
+            });
+        }
+
+        const origin =
+            typeof req.headers.origin ===
+                "string"
+                ? req.headers.origin.trim()
+                : "";
+
+        if (origin) {
+            let parsedOrigin;
+
+            try {
+                parsedOrigin =
+                    new URL(origin);
+            } catch (error) {
+                return res.status(403).json({
+                    errorCode:
+                        "voice_client_proxy_forbidden"
+                });
+            }
+
+            const originHost =
+                parsedOrigin.hostname;
+
+            if (
+                originHost !== "localhost" &&
+                originHost !== "127.0.0.1" &&
+                originHost !== "::1"
+            ) {
+                return res.status(403).json({
+                    errorCode:
+                        "voice_client_proxy_forbidden"
+                });
+            }
+        }
+
+        const body =
+            req.body;
+
+        if (
+            !body ||
+            typeof body !== "object" ||
+            Array.isArray(body)
+        ) {
+            return res.status(400).json({
+                errorCode:
+                    "malformed_json"
+            });
+        }
+
+        const allowedKeys = [
+            "caseId",
+            "contactId"
+        ];
+
+        if (
+            Object.keys(body).some(
+                key =>
+                    !allowedKeys.includes(key)
+            )
+        ) {
+            return res.status(400).json({
+                errorCode:
+                    "malformed_json"
+            });
+        }
+
+        const caseId =
+            typeof body.caseId === "string"
+                ? body.caseId.trim()
+                : "";
+
+        const contactId =
+            typeof body.contactId === "string"
+                ? body.contactId.trim()
+                : "";
+
+        if (!caseId || !contactId) {
+            return res.status(422).json({
+                errorCode:
+                    "voice_token_request_invalid"
+            });
+        }
+
+        const credential =
+            String(
+                process.env
+                    .CONNECTOR_CREDENTIAL ||
+                ""
+            ).trim();
+
+        if (!credential) {
+            return res.status(503).json({
+                errorCode:
+                    "voice_client_proxy_unavailable"
+            });
+        }
+
+        try {
+            const connectorId =
+                await voiceLocalConnectorConfig
+                    .getConnectorId();
+
+            const endpoint =
+                getVoiceTokenEndpoint();
+
+            const controller =
+                new AbortController();
+
+            const timeout =
+                setTimeout(
+                    () =>
+                        controller.abort(),
+                    10000
+                );
+
+            let response;
+
+            try {
+                response =
+                    await fetch(
+                        endpoint,
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "content-type":
+                                    "application/json",
+
+                                "authorization":
+                                    `RISEN-Connector ${credential}`,
+
+                                "x-risen-connector-id":
+                                    connectorId
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    caseId,
+                                    contactId
+                                }),
+
+                            signal:
+                                controller.signal
+                        }
+                    );
+            } finally {
+                clearTimeout(timeout);
+            }
+
+            let upstream = {};
+
+            try {
+                upstream =
+                    await response.json();
+            } catch (error) {
+                upstream = {};
+            }
+
+            if (
+                response.status === 200 &&
+                upstream?.status ===
+                    "issued" &&
+                typeof upstream.token ===
+                    "string" &&
+                upstream.token &&
+                typeof upstream.intentId ===
+                    "string" &&
+                upstream.intentId
+            ) {
+                return res.status(200).json({
+                    requestId:
+                        upstream.requestId,
+
+                    status:
+                        "issued",
+
+                    token:
+                        upstream.token,
+
+                    intentId:
+                        upstream.intentId,
+
+                    expiresIn:
+                        upstream.expiresIn
+                });
+            }
+
+            const allowedStatuses =
+                new Set([
+                    400,
+                    401,
+                    422,
+                    503
+                ]);
+
+            const status =
+                allowedStatuses.has(
+                    response.status
+                )
+                    ? response.status
+                    : 502;
+
+            return res.status(status).json({
+                requestId:
+                    upstream?.requestId,
+
+                errorCode:
+                    (
+                        typeof upstream?.errorCode ===
+                            "string" &&
+                        upstream.errorCode
+                    )
+                        ? upstream.errorCode
+                        : "voice_token_proxy_failed"
+            });
+
+        } catch (error) {
+            return res.status(503).json({
+                errorCode:
+                    "voice_client_proxy_unavailable"
+            });
+        }
+    }
+);
 
 
 // ==========================================

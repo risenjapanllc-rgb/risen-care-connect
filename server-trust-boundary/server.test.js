@@ -47,6 +47,8 @@ function validEnv(overrides = {}) {
             "connector@example.local",
         SUPABASE_CONNECTOR_TRUST_PASSWORD:
             "test-password",
+        VONAGE_API_SIGNATURE_SECRET:
+            "test-signature-secret",
         ...overrides
     };
 }

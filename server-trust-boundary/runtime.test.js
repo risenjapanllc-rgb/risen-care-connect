@@ -77,7 +77,11 @@ test("creates complete Server Trust Boundary application runtime", () => {
             "connectorResidentProfileService",
             "connectorResidentProfileQueryService",
             "voiceCallService",
-            "voiceCallHttpAdapter"
+            "voiceCallHttpAdapter",
+            "voiceClientTokenService",
+            "voiceCallIntentStore",
+            "voiceCommunicationLogRepository",
+            "voiceRecordingProcessingService"
         ]
     );
 

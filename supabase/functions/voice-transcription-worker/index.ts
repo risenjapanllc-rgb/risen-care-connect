@@ -316,12 +316,12 @@ async function transcribeRecording(
         : "",
     ).trim();
 
-  if (!transcriptionText) {
-    throw new Error(
-      "OpenAI transcription text was empty",
-    );
-  }
-
+  /*
+   * A successful OpenAI response may legitimately contain
+   * an empty transcription when no speech is detected.
+   * Treat that as a completed transcription rather than
+   * retrying the same recording until max attempts.
+   */
   return transcriptionText;
 }
 

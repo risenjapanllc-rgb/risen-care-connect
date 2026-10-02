@@ -230,4 +230,3 @@ from anon;
 revoke all on function
 public.recover_voice_transcriptions()
 from authenticated;
-

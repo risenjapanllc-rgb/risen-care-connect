@@ -82,6 +82,9 @@ function createServerTrustBoundaryApp({
     voiceClientTokenTransport,
     voiceClientTokenEndpointPath =
         "/connector/voice-token",
+    voiceInboundTokenTransport,
+    voiceInboundTokenEndpointPath =
+        "/connector/voice-inbound-token",
     voiceAnswerTransport,
     voiceAnswerEndpointPath =
         "/voice/answer",
@@ -91,6 +94,7 @@ function createServerTrustBoundaryApp({
     voiceRecordingTransport,
     voiceRecordingEndpointPath =
         "/voice/recording",
+    diagnosticLogger,
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
         jsonBodyLimit
@@ -1103,6 +1107,53 @@ function createServerTrustBoundaryApp({
         );
     }
 
+    if (voiceInboundTokenTransport) {
+        if (
+            typeof voiceInboundTokenTransport.handle !==
+                "function" ||
+            typeof voiceInboundTokenTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete voiceInboundTokenTransport"
+            );
+        }
+
+        app.all(
+            voiceInboundTokenEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceInboundTokenTransport.handle({
+                            method:
+                                req.method,
+
+                            contentType:
+                                req.get(
+                                    "content-type"
+                                ),
+
+                            headers:
+                                req.headers,
+
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
     if (voiceAnswerTransport) {
         app.all(
             voiceAnswerEndpointPath,
@@ -1119,6 +1170,86 @@ function createServerTrustBoundaryApp({
                             body:
                                 req.body
                         });
+
+                    console.info(
+                        "RISEN VOICE ANSWER DIAGNOSTIC",
+                        {
+                            method:
+                                req.method,
+
+                            regionUrl:
+                                req.query?.region_url ||
+                                req.body?.region_url ||
+                                null,
+
+                            queryKeys:
+                                Object.keys(
+                                    req.query || {}
+                                ).sort(),
+
+                            bodyKeys:
+                                (
+                                    req.body &&
+                                    typeof req.body ===
+                                        "object" &&
+                                    !Array.isArray(req.body)
+                                )
+                                    ? Object.keys(
+                                        req.body
+                                    ).sort()
+                                    : [],
+
+                            authorizationPresent:
+                                Boolean(
+                                    req.headers &&
+                                    (
+                                        req.headers.authorization ||
+                                        req.headers.Authorization
+                                    )
+                                ),
+
+                            fromPresent:
+                                Boolean(
+                                    req.query?.from ||
+                                    req.body?.from
+                                ),
+
+                            toPresent:
+                                Boolean(
+                                    req.query?.to ||
+                                    req.body?.to
+                                ),
+
+                            conversationUuidPresent:
+                                Boolean(
+                                    req.query?.conversation_uuid ||
+                                    req.query?.conversationUuid ||
+                                    req.body?.conversation_uuid ||
+                                    req.body?.conversationUuid
+                                ),
+
+                            intentIdPresent:
+                                Boolean(
+                                    req.query?.intentId ||
+                                    req.body?.intentId ||
+                                    req.body?.custom_data?.intentId
+                                ),
+
+                            httpStatus:
+                                result.httpStatus,
+
+                            resultKind:
+                                Array.isArray(result.body)
+                                    ? String(
+                                        result.body[0]?.action ||
+                                        "ncco"
+                                    )
+                                    : String(
+                                        result.body?.errorCode ||
+                                        "object"
+                                    )
+                        }
+                    );
 
                     return res
                         .status(
@@ -1139,6 +1270,72 @@ function createServerTrustBoundaryApp({
             voiceEventEndpointPath,
             async (req, res, next) => {
                 try {
+                    if (
+                        diagnosticLogger &&
+                        typeof diagnosticLogger.info ===
+                            "function"
+                    ) {
+                        try {
+                            diagnosticLogger.info(
+                                "RISEN VOICE EVENT ROUTE DIAGNOSTIC",
+                                {
+                                    method:
+                                        req.method,
+
+                                    authorizationPresent:
+                                        Boolean(
+                                            req.headers &&
+                                            req.headers.authorization
+                                        ),
+
+                                    bodyPresent:
+                                        Boolean(
+                                            req.body &&
+                                            typeof req.body ===
+                                                "object"
+                                        ),
+
+                                    statusPresent:
+                                        typeof req.body?.status ===
+                                            "string" &&
+                                        Boolean(
+                                            req.body.status.trim()
+                                        ),
+
+                                    detailPresent:
+                                        req.body?.detail !==
+                                            undefined &&
+                                        req.body?.detail !==
+                                            null,
+
+                                    sipCodePresent:
+                                        req.body?.sip_code !==
+                                            undefined &&
+                                        req.body?.sip_code !==
+                                            null,
+
+                                    uuidPresent:
+                                        typeof req.body?.uuid ===
+                                            "string" &&
+                                        Boolean(
+                                            req.body.uuid.trim()
+                                        ),
+
+                                    conversationUuidPresent:
+                                        typeof req.body
+                                            ?.conversation_uuid ===
+                                            "string" &&
+                                        Boolean(
+                                            req.body
+                                                .conversation_uuid
+                                                .trim()
+                                        )
+                                }
+                            );
+                        } catch {
+                        }
+                    }
+
                     const result =
                         await voiceEventTransport.handle({
                             headers:
@@ -1147,6 +1344,44 @@ function createServerTrustBoundaryApp({
                             body:
                                 req.body
                         });
+
+                    if (
+                        diagnosticLogger &&
+                        typeof diagnosticLogger.info ===
+                            "function"
+                    ) {
+                        try {
+                            diagnosticLogger.info(
+                                "RISEN VOICE EVENT RESULT DIAGNOSTIC",
+                                {
+                                    status:
+                                        typeof req.body?.status ===
+                                            "string"
+                                            ? req.body.status
+                                                .trim()
+                                                .toLowerCase()
+                                            : null,
+
+                                    httpStatus:
+                                        result?.httpStatus ??
+                                        null,
+
+                                    errorCode:
+                                        typeof result?.body
+                                            ?.errorCode ===
+                                            "string"
+                                            ? result.body
+                                                .errorCode
+                                            : null,
+
+                                    accepted:
+                                        result?.body?.status ===
+                                            "accepted"
+                                }
+                            );
+                        } catch {
+                        }
+                    }
 
                     return res
                         .status(

@@ -157,6 +157,9 @@ const VoiceCallService =
 const VoiceClientTokenService =
     require("./VoiceClientTokenService");
 
+const VoiceInboundTokenService =
+    require("./VoiceInboundTokenService");
+
 const VoiceCallIntentStore =
     require("./VoiceCallIntentStore");
 
@@ -856,6 +859,17 @@ function createServerTrustBoundaryRuntime({
                     })
         });
 
+    const voiceInboundTokenService =
+        new VoiceInboundTokenService({
+            connectorTrustService,
+
+            clientTokenFactory:
+                ({ subject } = {}) =>
+                    createVonageClientJwt({
+                        subject
+                    })
+        });
+
 
     const voiceCallHttpAdapter =
         new VoiceCallHttpAdapter({
@@ -896,7 +910,9 @@ function createServerTrustBoundaryRuntime({
         voiceCallService,
         voiceCallHttpAdapter,
         voiceClientTokenService,
+        voiceInboundTokenService,
         voiceCallIntentStore,
+        facilityPhoneNumberRepository,
         voiceCommunicationLogRepository,
         voiceCommunicationEventRepository,
         voiceRecordingProcessingService

@@ -4,6 +4,55 @@ const {
     normalizeJapanesePhoneNumber
 } = require("../services/vonageVoiceService");
 
+
+function normalizeInboundFacilityPhoneNumber(
+    value
+) {
+    const normalized =
+        String(
+            value || ""
+        )
+            .trim()
+            .replace(
+                /[-\s()]/g,
+                ""
+            );
+
+    if (
+        /^0\d{9,10}$/.test(
+            normalized
+        )
+    ) {
+        return normalized;
+    }
+
+    if (
+        /^81\d{9,10}$/.test(
+            normalized
+        )
+    ) {
+        return (
+            "0" +
+            normalized.slice(2)
+        );
+    }
+
+    if (
+        /^\+81\d{9,10}$/.test(
+            normalized
+        )
+    ) {
+        return (
+            "0" +
+            normalized.slice(3)
+        );
+    }
+
+    throw new Error(
+        "inbound facility phone number is invalid"
+    );
+}
+
 class VoiceAnswerTransport {
     constructor({
         intentStore,
@@ -14,11 +63,15 @@ class VoiceAnswerTransport {
             null,
         communicationLogRepository =
             null,
+        facilityPhoneNumberRepository =
+            null,
         recordingEnabled =
             false,
         recordingEventUrl =
             null,
         voiceEventUrl =
+            null,
+        inboundApplicationUser =
             null
     } = {}) {
         if (
@@ -74,6 +127,44 @@ class VoiceAnswerTransport {
 
         this.communicationLogRepository =
             communicationLogRepository;
+
+        if (
+            facilityPhoneNumberRepository !== null &&
+            (
+                typeof facilityPhoneNumberRepository !==
+                    "object" ||
+                typeof facilityPhoneNumberRepository
+                    .findActiveByPhoneNumber !==
+                    "function"
+            )
+        ) {
+            throw new Error(
+                "VoiceAnswerTransport facilityPhoneNumberRepository is invalid"
+            );
+        }
+
+        this.facilityPhoneNumberRepository =
+            facilityPhoneNumberRepository;
+
+        const normalizedInboundApplicationUser =
+            typeof inboundApplicationUser === "string"
+                ? inboundApplicationUser.trim()
+                : "";
+
+        if (
+            normalizedInboundApplicationUser &&
+            !/^[A-Za-z0-9_.-]{1,64}$/.test(
+                normalizedInboundApplicationUser
+            )
+        ) {
+            throw new Error(
+                "VoiceAnswerTransport inboundApplicationUser is invalid"
+            );
+        }
+
+        this.inboundApplicationUser =
+            normalizedInboundApplicationUser ||
+            null;
 
         if (
             typeof recordingEnabled !==
@@ -348,6 +439,166 @@ class VoiceAnswerTransport {
             });
 
         if (!intentId) {
+            const inboundFrom =
+                String(
+                    body?.from ||
+                    query?.from ||
+                    ""
+                ).trim();
+
+            const inboundTo =
+                String(
+                    body?.to ||
+                    query?.to ||
+                    ""
+                ).trim();
+
+            const inboundConversationUuid =
+                this.getConversationUuid({
+                    query,
+                    body
+                });
+
+            if (
+                this.inboundApplicationUser &&
+                inboundFrom &&
+                inboundTo &&
+                inboundConversationUuid
+            ) {
+                if (
+                    !this.facilityPhoneNumberRepository ||
+                    !this.communicationLogRepository ||
+                    typeof this.communicationLogRepository
+                        .createInbound !==
+                        "function"
+                ) {
+                    return {
+                        httpStatus:
+                            503,
+
+                        body: {
+                            errorCode:
+                                "voice_inbound_persistence_unavailable"
+                        }
+                    };
+                }
+
+                let domesticInboundTo;
+
+                try {
+                    domesticInboundTo =
+                        normalizeInboundFacilityPhoneNumber(
+                            inboundTo
+                        );
+                } catch (error) {
+                    return {
+                        httpStatus:
+                            422,
+
+                        body: {
+                            errorCode:
+                                "voice_inbound_phone_number_invalid"
+                        }
+                    };
+                }
+
+                let facilityPhoneNumber;
+
+                try {
+                    facilityPhoneNumber =
+                        await this
+                            .facilityPhoneNumberRepository
+                            .findActiveByPhoneNumber(
+                                domesticInboundTo
+                            );
+                } catch (error) {
+                    return {
+                        httpStatus:
+                            503,
+
+                        body: {
+                            errorCode:
+                                "voice_inbound_facility_lookup_unavailable"
+                        }
+                    };
+                }
+
+                if (!facilityPhoneNumber) {
+                    return {
+                        httpStatus:
+                            404,
+
+                        body: {
+                            errorCode:
+                                "voice_inbound_facility_not_found"
+                        }
+                    };
+                }
+
+                try {
+                    await this
+                        .communicationLogRepository
+                        .createInbound({
+                            facilityId:
+                                facilityPhoneNumber
+                                    .facilityId,
+
+                            fromPhone:
+                                inboundFrom,
+
+                            toPhone:
+                                domesticInboundTo,
+
+                            providerCallId:
+                                inboundConversationUuid
+                        });
+                } catch (error) {
+                    return {
+                        httpStatus:
+                            503,
+
+                        body: {
+                            errorCode:
+                                "voice_inbound_log_creation_unavailable"
+                        }
+                    };
+                }
+
+                const inboundConnectAction = {
+                    action:
+                        "connect",
+
+                    from:
+                        inboundFrom,
+
+                    endpoint: [
+                        {
+                            type:
+                                "app",
+
+                            user:
+                                this.inboundApplicationUser
+                        }
+                    ]
+                };
+
+                if (this.voiceEventEnabled) {
+                    inboundConnectAction.eventUrl = [
+                        this.voiceEventUrl
+                    ];
+
+                    inboundConnectAction.eventMethod =
+                        "POST";
+                }
+
+                return {
+                    httpStatus: 200,
+                    body: [
+                        inboundConnectAction
+                    ]
+                };
+            }
+
             return {
                 httpStatus: 400,
                 body: {

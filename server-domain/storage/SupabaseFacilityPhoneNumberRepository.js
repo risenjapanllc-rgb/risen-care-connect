@@ -48,6 +48,122 @@ class SupabaseFacilityPhoneNumberRepository {
             accessTokenProvider;
     }
 
+    async findActiveByPhoneNumber(
+        phoneNumber
+    ) {
+        const normalizedPhoneNumber =
+            String(
+                phoneNumber || ""
+            ).trim();
+
+        if (!normalizedPhoneNumber) {
+            return null;
+        }
+
+        const accessToken =
+            await this.accessTokenProvider
+                .getAccessToken();
+
+        if (
+            typeof accessToken !== "string" ||
+            !accessToken
+        ) {
+            throw new Error(
+                "Supabase facility phone reverse lookup requires access token"
+            );
+        }
+
+        const response =
+            await fetch(
+                `${this.supabaseUrl}/rest/v1/rpc/get_facility_by_phone_number`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        "apikey":
+                            this.apiKey,
+
+                        "Authorization":
+                            `Bearer ${accessToken}`
+                    },
+
+                    body: JSON.stringify({
+                        p_phone_number:
+                            normalizedPhoneNumber
+                    })
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `Supabase facility phone reverse lookup failed: ${response.status}`
+            );
+        }
+
+        const result =
+            await response.json();
+
+        if (!Array.isArray(result)) {
+            throw new Error(
+                "Supabase facility phone reverse lookup returned invalid result"
+            );
+        }
+
+        if (result.length === 0) {
+            return null;
+        }
+
+        if (result.length !== 1) {
+            throw new Error(
+                "Supabase facility phone reverse lookup returned multiple active facilities"
+            );
+        }
+
+        const row =
+            result[0];
+
+        if (
+            !row ||
+            typeof row !== "object" ||
+            Array.isArray(row) ||
+            typeof row.facility_id !==
+                "string" ||
+            !row.facility_id.trim()
+        ) {
+            throw new Error(
+                "Supabase facility phone reverse lookup returned invalid facility"
+            );
+        }
+
+        return {
+            id:
+                row.id,
+
+            facilityId:
+                row.facility_id,
+
+            phoneNumber:
+                row.phone_number,
+
+            provider:
+                row.provider,
+
+            status:
+                row.status,
+
+            createdAt:
+                row.created_at,
+
+            updatedAt:
+                row.updated_at
+        };
+    }
+
+
+
     async findActiveByFacilityId(
         facilityId
     ) {

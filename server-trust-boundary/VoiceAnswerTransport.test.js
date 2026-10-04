@@ -267,3 +267,129 @@ test(
         );
     }
 );
+
+
+test(
+    "着信先Vonage番号を国内形式にして施設を逆引きする",
+    async () => {
+        const receivedPhoneNumbers =
+            [];
+
+        const transport =
+            new VoiceAnswerTransport({
+                intentStore:
+                    new VoiceCallIntentStore(),
+
+                webhookSignatureVerifier: {
+                    verify() {
+                        return true;
+                    }
+                },
+
+                inboundApplicationUser:
+                    "risencare-emergency",
+
+                facilityPhoneNumberRepository: {
+                    async findActiveByPhoneNumber(
+                        phoneNumber
+                    ) {
+                        receivedPhoneNumbers.push(
+                            phoneNumber
+                        );
+
+                        return {
+                            id:
+                                "phone-A",
+
+                            facilityId:
+                                "facility-A",
+
+                            phoneNumber:
+                                "05032021021",
+
+                            provider:
+                                "vonage",
+
+                            status:
+                                "active"
+                        };
+                    }
+                },
+
+                communicationLogRepository: {
+                    async createInbound(input) {
+                        assert.deepEqual(
+                            input,
+                            {
+                                facilityId:
+                                    "facility-A",
+
+                                fromPhone:
+                                    "819049373052",
+
+                                toPhone:
+                                    "05032021021",
+
+                                providerCallId:
+                                    "CON-inbound-test"
+                            }
+                        );
+
+                        return {
+                            communicationLogId:
+                                "log-A"
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await transport.handle({
+                body: {
+                    from:
+                        "819049373052",
+
+                    to:
+                        "815032021021",
+
+                    conversation_uuid:
+                        "CON-inbound-test"
+                }
+            });
+
+        assert.equal(
+            result.httpStatus,
+            200
+        );
+
+        assert.deepEqual(
+            receivedPhoneNumbers,
+            [
+                "05032021021"
+            ]
+        );
+
+        assert.deepEqual(
+            result.body,
+            [
+                {
+                    action:
+                        "connect",
+
+                    from:
+                        "819049373052",
+
+                    endpoint: [
+                        {
+                            type:
+                                "app",
+
+                            user:
+                                "risencare-emergency"
+                        }
+                    ]
+                }
+            ]
+        );
+    }
+);

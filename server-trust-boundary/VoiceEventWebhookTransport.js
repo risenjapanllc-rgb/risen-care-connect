@@ -51,7 +51,8 @@ function normalizeTimestamp(
 class VoiceEventWebhookTransport {
     constructor({
         webhookSignatureVerifier,
-        communicationEventRepository
+        communicationEventRepository,
+        diagnosticLogger
     } = {}) {
         if (
             !webhookSignatureVerifier ||
@@ -78,6 +79,13 @@ class VoiceEventWebhookTransport {
 
         this.communicationEventRepository =
             communicationEventRepository;
+
+        this.diagnosticLogger =
+            diagnosticLogger &&
+            typeof diagnosticLogger.info ===
+                "function"
+                ? diagnosticLogger
+                : null;
     }
 
 
@@ -284,6 +292,53 @@ class VoiceEventWebhookTransport {
                         "voice_event_processing_unavailable"
                 }
             };
+        }
+
+        if (this.diagnosticLogger) {
+            try {
+                this.diagnosticLogger.info(
+                    "RISEN VOICE EVENT DIAGNOSTIC",
+                    {
+                        authorizationPresent:
+                            Boolean(
+                                headers &&
+                                headers.authorization
+                            ),
+
+                        status:
+                            eventStatus,
+
+                        detailPresent:
+                            typeof body.detail ===
+                                "string" &&
+                            Boolean(
+                                body.detail.trim()
+                            ),
+
+                        sipCodePresent:
+                            body.sip_code !==
+                                undefined &&
+                            body.sip_code !==
+                                null,
+
+                        uuidPresent:
+                            typeof body.uuid ===
+                                "string" &&
+                            Boolean(
+                                body.uuid.trim()
+                            ),
+
+                        conversationUuidPresent:
+                            Boolean(
+                                conversationUuid
+                            ),
+
+                        httpStatus:
+                            200
+                    }
+                );
+            } catch {
+            }
         }
 
         return {

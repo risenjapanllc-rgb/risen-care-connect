@@ -248,3 +248,140 @@ test(
         }
     }
 );
+
+
+test(
+    "phoneNumberが空の場合はnullを返す",
+    async () => {
+        const {
+            repository,
+            restore
+        } = createRepository();
+
+        try {
+            const result =
+                await repository
+                    .findActiveByPhoneNumber("");
+
+            assert.equal(
+                result,
+                null
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "activeなVonage番号から施設を逆引きできる",
+    async () => {
+        const row = {
+            id:
+                "phone-1",
+
+            facility_id:
+                "facility-1",
+
+            phone_number:
+                "05032021021",
+
+            provider:
+                "vonage",
+
+            status:
+                "active",
+
+            created_at:
+                "2026-10-03T00:00:00Z",
+
+            updated_at:
+                "2026-10-03T00:00:00Z"
+        };
+
+        const {
+            repository,
+            restore
+        } = createRepository({
+            responseBody: [row]
+        });
+
+        try {
+            const result =
+                await repository
+                    .findActiveByPhoneNumber(
+                        "05032021021"
+                    );
+
+            assert.deepEqual(
+                result,
+                {
+                    id:
+                        "phone-1",
+
+                    facilityId:
+                        "facility-1",
+
+                    phoneNumber:
+                        "05032021021",
+
+                    provider:
+                        "vonage",
+
+                    status:
+                        "active",
+
+                    createdAt:
+                        "2026-10-03T00:00:00Z",
+
+                    updatedAt:
+                        "2026-10-03T00:00:00Z"
+                }
+            );
+        } finally {
+            restore();
+        }
+    }
+);
+
+
+test(
+    "番号に複数施設が一致した場合はエラーにする",
+    async () => {
+        const {
+            repository,
+            restore
+        } = createRepository({
+            responseBody: [
+                {
+                    id: "phone-1",
+                    facility_id: "facility-1",
+                    phone_number: "05032021021",
+                    provider: "vonage",
+                    status: "active"
+                },
+                {
+                    id: "phone-2",
+                    facility_id: "facility-2",
+                    phone_number: "05032021021",
+                    provider: "vonage",
+                    status: "active"
+                }
+            ]
+        });
+
+        try {
+            await assert.rejects(
+                () =>
+                    repository
+                        .findActiveByPhoneNumber(
+                            "05032021021"
+                        ),
+                /multiple active facilities/
+            );
+        } finally {
+            restore();
+        }
+    }
+);

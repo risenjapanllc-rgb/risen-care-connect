@@ -157,6 +157,9 @@ const VoiceCallTransport =
 const VoiceClientTokenTransport =
     require("./VoiceClientTokenTransport");
 
+const VoiceInboundTokenTransport =
+    require("./VoiceInboundTokenTransport");
+
 const VoiceAnswerTransport =
     require("./VoiceAnswerTransport");
 
@@ -667,6 +670,16 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const voiceInboundTokenTransport =
+        new VoiceInboundTokenTransport({
+            tokenService:
+                coreRuntime.voiceInboundTokenService,
+
+            credentialTransport,
+
+            connectorIdHeader
+        });
+
     /*
      * Production supplies the Vonage signature secret
      * through server.js. Direct test/runtime construction
@@ -702,6 +715,9 @@ function createServerTrustBoundaryHttpRuntime({
             communicationLogRepository:
                 coreRuntime.voiceCommunicationLogRepository,
 
+            facilityPhoneNumberRepository:
+                coreRuntime.facilityPhoneNumberRepository,
+
             webhookSignatureVerifier:
                 vonageWebhookSignatureVerifier,
 
@@ -712,7 +728,10 @@ function createServerTrustBoundaryHttpRuntime({
                 vonageVoiceRecordingEventUrl,
 
             voiceEventUrl:
-                vonageVoiceEventUrl
+                vonageVoiceEventUrl,
+
+            inboundApplicationUser:
+                "risencare-emergency"
         });
 
     const voiceRecordingTransport =
@@ -735,7 +754,9 @@ function createServerTrustBoundaryHttpRuntime({
                 vonageWebhookSignatureVerifier,
 
             communicationEventRepository:
-                coreRuntime.voiceCommunicationEventRepository
+                coreRuntime.voiceCommunicationEventRepository,
+
+            diagnosticLogger
         });
 
     const app =
@@ -807,6 +828,9 @@ function createServerTrustBoundaryHttpRuntime({
             voiceClientTokenTransport,
             voiceClientTokenEndpointPath:
                 "/connector/voice-token",
+            voiceInboundTokenTransport,
+            voiceInboundTokenEndpointPath:
+                "/connector/voice-inbound-token",
             voiceAnswerTransport,
             voiceAnswerEndpointPath:
                 "/voice/answer",
@@ -816,6 +840,7 @@ function createServerTrustBoundaryHttpRuntime({
             voiceRecordingTransport,
             voiceRecordingEndpointPath:
                 "/voice/recording",
+            diagnosticLogger,
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",
             jsonBodyLimit,

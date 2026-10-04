@@ -331,3 +331,161 @@ test(
         );
     }
 );
+
+
+test(
+    "creates an inbound voice communication log through the narrow RPC",
+    async () => {
+        let receivedUrl =
+            null;
+
+        let receivedOptions =
+            null;
+
+        const repository =
+            createRepository({
+                fetchImpl:
+                    async (
+                        url,
+                        options
+                    ) => {
+                        receivedUrl =
+                            url;
+
+                        receivedOptions =
+                            options;
+
+                        return {
+                            ok:
+                                true,
+
+                            status:
+                                200,
+
+                            async json() {
+                                return [{
+                                    communication_log_id:
+                                        "55555555-5555-5555-5555-555555555555"
+                                }];
+                            }
+                        };
+                    }
+            });
+
+        const result =
+            await repository.createInbound({
+                facilityId:
+                    "11111111-1111-1111-1111-111111111111",
+
+                fromPhone:
+                    "819049373052",
+
+                toPhone:
+                    "05032021021",
+
+                providerCallId:
+                    "CON-INBOUND-A"
+            });
+
+        assert.deepEqual(
+            result,
+            {
+                communicationLogId:
+                    "55555555-5555-5555-5555-555555555555"
+            }
+        );
+
+        assert.equal(
+            receivedUrl,
+            "https://example.supabase.co/rest/v1/rpc/create_inbound_voice_communication_log"
+        );
+
+        assert.deepEqual(
+            JSON.parse(
+                receivedOptions.body
+            ),
+            {
+                p_facility_id:
+                    "11111111-1111-1111-1111-111111111111",
+
+                p_from_phone:
+                    "819049373052",
+
+                p_to_phone:
+                    "05032021021",
+
+                p_provider_call_id:
+                    "CON-INBOUND-A"
+            }
+        );
+    }
+);
+
+
+test(
+    "rejects incomplete inbound voice communication log input before authentication or fetch",
+    async () => {
+        let tokenCalled =
+            false;
+
+        let fetchCalled =
+            false;
+
+        const repository =
+            new SupabaseVoiceCommunicationLogRepository({
+                supabaseUrl:
+                    "https://example.supabase.co",
+
+                apiKey:
+                    "test-api-key",
+
+                accessTokenProvider: {
+                    async getAccessToken() {
+                        tokenCalled =
+                            true;
+
+                        return "token";
+                    }
+                },
+
+                fetchImpl:
+                    async () => {
+                        fetchCalled =
+                            true;
+
+                        return {
+                            ok:
+                                true
+                        };
+                    }
+            });
+
+        await assert.rejects(
+            () =>
+                repository.createInbound({
+                    facilityId:
+                        "11111111-1111-1111-1111-111111111111",
+
+                    fromPhone:
+                        "819049373052",
+
+                    toPhone:
+                        "",
+
+                    providerCallId:
+                        "CON-INBOUND-A"
+                }),
+            /input is invalid/
+        );
+
+        assert.equal(
+            tokenCalled,
+            false
+        );
+
+        assert.equal(
+            fetchCalled,
+            false
+        );
+    }
+);

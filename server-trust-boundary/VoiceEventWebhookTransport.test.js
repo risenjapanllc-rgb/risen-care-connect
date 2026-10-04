@@ -13,7 +13,8 @@ const VoiceEventWebhookTransport =
 function createTransport({
     signatureValid = true,
     verifyImpl,
-    applyImpl
+    applyImpl,
+    diagnosticLogger
 } = {}) {
     return new VoiceEventWebhookTransport({
         webhookSignatureVerifier: {
@@ -53,7 +54,9 @@ function createTransport({
                         null
                 };
             }
-        }
+        },
+
+        diagnosticLogger
     });
 }
 
@@ -507,6 +510,111 @@ test(
         assert.equal(
             result.body.resultStatus,
             "completed"
+        );
+    }
+);
+
+
+test(
+    "diagnoses a failed voice event without logging sensitive values",
+    async () => {
+        const diagnostics = [];
+
+        const transport =
+            createTransport({
+                diagnosticLogger: {
+                    info(label, entry) {
+                        diagnostics.push({
+                            label,
+                            entry
+                        });
+                    }
+                },
+
+                async applyImpl() {
+                    return {
+                        transitionStatus:
+                            "updated",
+
+                        communicationLogId:
+                            "communication-log-A",
+
+                        resultStatus:
+                            "failed",
+
+                        connectedAt:
+                            null,
+
+                        endedAt:
+                            "2026-10-03T02:10:00Z"
+                    };
+                }
+            });
+
+        const result =
+            await transport.handle({
+                headers: {
+                    authorization:
+                        "Bearer signed"
+                },
+
+                body: {
+                    conversation_uuid:
+                        "CON-DIAGNOSTIC-A",
+
+                    uuid:
+                        "CALL-DIAGNOSTIC-A",
+
+                    status:
+                        "failed",
+
+                    timestamp:
+                        "2026-10-03T02:10:00Z",
+
+                    detail:
+                        "diagnostic-detail",
+
+                    sip_code:
+                        500
+                }
+            });
+
+        assert.equal(
+            result.httpStatus,
+            200
+        );
+
+        assert.deepEqual(
+            diagnostics,
+            [
+                {
+                    label:
+                        "RISEN VOICE EVENT DIAGNOSTIC",
+
+                    entry: {
+                        authorizationPresent:
+                            true,
+
+                        status:
+                            "failed",
+
+                        detailPresent:
+                            true,
+
+                        sipCodePresent:
+                            true,
+
+                        uuidPresent:
+                            true,
+
+                        conversationUuidPresent:
+                            true,
+
+                        httpStatus:
+                            200
+                    }
+                }
+            ]
         );
     }
 );

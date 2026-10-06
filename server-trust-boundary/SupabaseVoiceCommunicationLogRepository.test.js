@@ -489,3 +489,87 @@ test(
         );
     }
 );
+
+test(
+    "creates and links a browser voice communication log when intent id is supplied",
+    async () => {
+        let receivedUrl =
+            null;
+
+        let receivedOptions =
+            null;
+
+        const repository =
+            createRepository({
+                fetchImpl:
+                    async (
+                        url,
+                        options
+                    ) => {
+                        receivedUrl =
+                            url;
+
+                        receivedOptions =
+                            options;
+
+                        return {
+                            ok:
+                                true,
+
+                            status:
+                                200,
+
+                            async json() {
+                                return [{
+                                    communication_log_id:
+                                        "55555555-5555-5555-5555-555555555555"
+                                }];
+                            }
+                        };
+                    }
+            });
+
+        const result =
+            await repository.create({
+                ...validInput(),
+
+                voiceCallIntentId:
+                    "intent-A"
+            });
+
+        assert.deepEqual(
+            result,
+            {
+                communicationLogId:
+                    "55555555-5555-5555-5555-555555555555"
+            }
+        );
+
+        assert.equal(
+            receivedUrl,
+            "https://example.supabase.co/rest/v1/rpc/create_and_link_browser_voice_communication_log"
+        );
+
+        assert.deepEqual(
+            JSON.parse(
+                receivedOptions.body
+            ),
+            {
+                p_facility_id:
+                    validInput().facilityId,
+
+                p_case_id:
+                    validInput().caseId,
+
+                p_contact_id:
+                    validInput().contactId,
+
+                p_provider_call_id:
+                    "CON-A",
+
+                p_voice_call_intent_id:
+                    "intent-A"
+            }
+        );
+    }
+);

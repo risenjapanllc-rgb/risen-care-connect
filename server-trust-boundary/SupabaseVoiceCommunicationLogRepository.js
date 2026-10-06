@@ -166,7 +166,8 @@ class SupabaseVoiceCommunicationLogRepository {
         facilityId,
         caseId,
         contactId,
-        providerCallId
+        providerCallId,
+        voiceCallIntentId = null
     } = {}) {
         const normalizedFacilityId =
             String(
@@ -186,6 +187,11 @@ class SupabaseVoiceCommunicationLogRepository {
         const normalizedProviderCallId =
             String(
                 providerCallId || ""
+            ).trim();
+
+        const normalizedVoiceCallIntentId =
+            String(
+                voiceCallIntentId || ""
             ).trim();
 
         if (
@@ -213,9 +219,33 @@ class SupabaseVoiceCommunicationLogRepository {
             );
         }
 
+        const rpcName =
+            normalizedVoiceCallIntentId
+                ? "create_and_link_browser_voice_communication_log"
+                : "create_voice_communication_log";
+
+        const rpcBody = {
+            p_facility_id:
+                normalizedFacilityId,
+
+            p_case_id:
+                normalizedCaseId,
+
+            p_contact_id:
+                normalizedContactId,
+
+            p_provider_call_id:
+                normalizedProviderCallId
+        };
+
+        if (normalizedVoiceCallIntentId) {
+            rpcBody.p_voice_call_intent_id =
+                normalizedVoiceCallIntentId;
+        }
+
         const response =
             await this.fetchImpl(
-                `${this.supabaseUrl}/rest/v1/rpc/create_voice_communication_log`,
+                `${this.supabaseUrl}/rest/v1/rpc/${rpcName}`,
                 {
                     method:
                         "POST",
@@ -232,19 +262,9 @@ class SupabaseVoiceCommunicationLogRepository {
                     },
 
                     body:
-                        JSON.stringify({
-                            p_facility_id:
-                                normalizedFacilityId,
-
-                            p_case_id:
-                                normalizedCaseId,
-
-                            p_contact_id:
-                                normalizedContactId,
-
-                            p_provider_call_id:
-                                normalizedProviderCallId
-                        })
+                        JSON.stringify(
+                            rpcBody
+                        )
                 }
             );
 

@@ -121,6 +121,69 @@ test(
 );
 
 test(
+    "downloads a recording from the Singapore Vonage recording host",
+    async () => {
+        let fetchUrl =
+            null;
+
+        const payload =
+            Buffer.from(
+                "RIFF-test-audio"
+            );
+
+        const service =
+            new VonageRecordingDownloadService({
+                createJwt() {
+                    return "test-jwt";
+                },
+
+                async fetchImpl(
+                    url
+                ) {
+                    fetchUrl =
+                        url;
+
+                    return {
+                        ok:
+                            true,
+
+                        headers:
+                            fakeHeaders({
+                                "content-length":
+                                    String(
+                                        payload.length
+                                    ),
+
+                                "content-type":
+                                    "audio/wav"
+                            }),
+
+                        async arrayBuffer() {
+                            return payload;
+                        }
+                    };
+                }
+            });
+
+        const result =
+            await service.download({
+                recordingUrl:
+                    "https://api-sg-1.nexmo.com/v1/files/recording-SG"
+            });
+
+        assert.equal(
+            fetchUrl,
+            "https://api-sg-1.nexmo.com/v1/files/recording-SG"
+        );
+
+        assert.equal(
+            result.size,
+            payload.length
+        );
+    }
+);
+
+test(
     "rejects unsafe recording URLs before authentication or fetch",
     async () => {
         let jwtCalled =

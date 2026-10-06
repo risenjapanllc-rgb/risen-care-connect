@@ -9,7 +9,8 @@ const DEFAULT_MAX_BYTES =
 
 const ALLOWED_RECORDING_HOSTS =
     new Set([
-        "api-us.nexmo.com"
+        "api-us.nexmo.com",
+        "api-sg-1.nexmo.com"
     ]);
 
 class VonageRecordingDownloadService {

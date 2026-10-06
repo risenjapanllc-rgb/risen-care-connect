@@ -172,6 +172,9 @@ const VonageWebhookSignatureVerifier =
 const VoiceRecordingWebhookTransport =
     require("./VoiceRecordingWebhookTransport");
 
+const VoiceRecordingPlaybackTransport =
+    require("./VoiceRecordingPlaybackTransport");
+
 const VoiceEventWebhookTransport =
     require("./VoiceEventWebhookTransport");
 
@@ -748,6 +751,16 @@ function createServerTrustBoundaryHttpRuntime({
             diagnosticLogger
         });
 
+    const voiceRecordingPlaybackTransport =
+        new VoiceRecordingPlaybackTransport({
+            playbackService:
+                coreRuntime.voiceRecordingPlaybackService,
+
+            credentialTransport,
+
+            connectorIdHeader
+        });
+
     const voiceEventTransport =
         new VoiceEventWebhookTransport({
             webhookSignatureVerifier:
@@ -840,6 +853,9 @@ function createServerTrustBoundaryHttpRuntime({
             voiceRecordingTransport,
             voiceRecordingEndpointPath:
                 "/voice/recording",
+            voiceRecordingPlaybackTransport,
+            voiceRecordingPlaybackEndpointPath:
+                "/connector/voice-recording-playback",
             diagnosticLogger,
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",

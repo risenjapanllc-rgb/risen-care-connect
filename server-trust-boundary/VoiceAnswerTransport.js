@@ -692,7 +692,10 @@ class VoiceAnswerTransport {
                             intent.contactId,
 
                         providerCallId:
-                            conversationUuid
+                            conversationUuid,
+
+                        voiceCallIntentId:
+                            intentId
                     });
 
                 if (

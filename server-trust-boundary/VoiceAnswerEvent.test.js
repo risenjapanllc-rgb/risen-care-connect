@@ -111,7 +111,10 @@ test(
                     "contact-A",
 
                 providerCallId:
-                    "CON-EVENT-A"
+                    "CON-EVENT-A",
+
+                voiceCallIntentId:
+                    intentId
             }
         );
 

@@ -94,6 +94,9 @@ function createServerTrustBoundaryApp({
     voiceRecordingTransport,
     voiceRecordingEndpointPath =
         "/voice/recording",
+    voiceRecordingPlaybackTransport,
+    voiceRecordingPlaybackEndpointPath =
+        "/connector/voice-recording-playback",
     diagnosticLogger,
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
@@ -1410,6 +1413,43 @@ function createServerTrustBoundaryApp({
                             body:
                                 req.body
                         });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceRecordingPlaybackTransport) {
+        app.all(
+            voiceRecordingPlaybackEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceRecordingPlaybackTransport
+                            .handle({
+                                method:
+                                    req.method,
+
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+
+                                headers:
+                                    req.headers,
+
+                                body:
+                                    req.body
+                            });
 
                     return res
                         .status(

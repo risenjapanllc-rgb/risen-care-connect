@@ -187,6 +187,12 @@ const SupabaseVoiceRecordingStore =
 const VoiceRecordingProcessingService =
     require("./VoiceRecordingProcessingService");
 
+const SupabaseVoiceRecordingPlaybackRepository =
+    require("./SupabaseVoiceRecordingPlaybackRepository");
+
+const VoiceRecordingPlaybackService =
+    require("./VoiceRecordingPlaybackService");
+
 const VoiceCallHttpAdapter =
     require("./VoiceCallHttpAdapter");
 
@@ -832,6 +838,23 @@ function createServerTrustBoundaryRuntime({
                 voiceRecordingStore
         });
 
+    const voiceRecordingPlaybackRepository =
+        new SupabaseVoiceRecordingPlaybackRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const voiceRecordingPlaybackService =
+        new VoiceRecordingPlaybackService({
+            connectorTrustService,
+            recordingRepository:
+                voiceRecordingPlaybackRepository,
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
     const voiceCallService =
         new VoiceCallService({
             connectorTrustService,
@@ -915,7 +938,8 @@ function createServerTrustBoundaryRuntime({
         facilityPhoneNumberRepository,
         voiceCommunicationLogRepository,
         voiceCommunicationEventRepository,
-        voiceRecordingProcessingService
+        voiceRecordingProcessingService,
+        voiceRecordingPlaybackService
     };
 }
 

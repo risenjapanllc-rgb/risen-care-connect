@@ -4,18 +4,65 @@ const os = require('os');
 const crypto = require('crypto');
 
 class LocalConnectorConfig {
-    constructor(options = {}) {
-        this.configPath =
-            options.configPath ||
-            process.env
-                .RISEN_LOCAL_CONNECTOR_CONFIG_PATH ||
-            path.join(
-                os.homedir(),
+    static resolveDefaultConfigPath({
+        platform = process.platform,
+        homeDirectory = os.homedir(),
+        localAppData = process.env.LOCALAPPDATA
+    } = {}) {
+        if (platform === 'darwin') {
+            return path.join(
+                homeDirectory,
                 'Library',
                 'Application Support',
                 'RISEN CARE Connector',
                 'config.json'
             );
+        }
+
+        if (platform === 'win32') {
+            const baseDirectory =
+                typeof localAppData === 'string' &&
+                localAppData.trim()
+                    ? localAppData.trim()
+                    : path.join(
+                        homeDirectory,
+                        'AppData',
+                        'Local'
+                    );
+
+            return path.join(
+                baseDirectory,
+                'RISEN CARE',
+                'Connector',
+                'config.json'
+            );
+        }
+
+        return path.join(
+            homeDirectory,
+            '.config',
+            'risen-care-connector',
+            'config.json'
+        );
+    }
+
+    constructor(options = {}) {
+        this.configPath =
+            options.configPath ||
+            process.env
+                .RISEN_LOCAL_CONNECTOR_CONFIG_PATH ||
+            LocalConnectorConfig
+                .resolveDefaultConfigPath({
+                    platform:
+                        options.platform ||
+                        process.platform,
+                    homeDirectory:
+                        options.homeDirectory ||
+                        os.homedir(),
+                    localAppData:
+                        options.localAppData ||
+                        process.env.LOCALAPPDATA
+                });
     }
 
     async ensureConfigDirectory() {

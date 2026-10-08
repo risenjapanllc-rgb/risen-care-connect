@@ -21,10 +21,6 @@ test(
                 return "https://connector.example.test/connector/source-documents";
             },
 
-            requireConnectorCredential() {
-                return "test-credential";
-            },
-
             resolveAuthorizationScheme() {
                 return "RISEN-Connector";
             },
@@ -37,6 +33,11 @@ test(
         const result =
             await syncSourceDocuments({
                 runtimeConfig,
+                credentialProvider: {
+                    async getCredential() {
+                        return "test-credential";
+                    }
+                },
                 databasePath:
                     "/tmp/test-connector.sqlite",
                 relativePath:

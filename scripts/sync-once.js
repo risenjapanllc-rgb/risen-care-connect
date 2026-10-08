@@ -43,7 +43,17 @@ const ProductionRuntimeConfig =
         "../local-connector/ProductionRuntimeConfig"
     );
 
-function commonTrustOptions(
+const {
+    createConnectorCredentialProvider
+} =
+    require(
+        "../local-connector/ConnectorCredentialProviderFactory"
+    );
+
+const connectorCredentialProvider =
+    createConnectorCredentialProvider();
+
+async function commonTrustOptions(
     runtimeConfig
 ) {
     return {
@@ -51,8 +61,8 @@ function commonTrustOptions(
             runtimeConfig
                 .resolveServerTrustBoundaryEndpoint(),
         credential:
-            runtimeConfig
-                .requireConnectorCredential(),
+            await connectorCredentialProvider
+                .getCredential(),
         authorizationScheme:
             runtimeConfig
                 .resolveAuthorizationScheme(),
@@ -69,7 +79,7 @@ async function syncFiles({
     const engine =
         await createSyncEngine({
             databasePath,
-            ...commonTrustOptions(
+            ...await commonTrustOptions(
                 runtimeConfig
             )
         });
@@ -105,7 +115,7 @@ async function syncMySql({
     const ingestionService =
         await createIngestionService({
             databasePath,
-            ...commonTrustOptions(
+            ...await commonTrustOptions(
                 runtimeConfig
             )
         });

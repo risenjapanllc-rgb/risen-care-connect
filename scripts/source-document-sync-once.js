@@ -20,10 +20,22 @@ const ProductionRuntimeConfig =
         "../local-connector/ProductionRuntimeConfig"
     );
 
+const {
+    createConnectorCredentialProvider
+} =
+    require(
+        "../local-connector/ConnectorCredentialProviderFactory"
+    );
+
+const connectorCredentialProvider =
+    createConnectorCredentialProvider();
+
 async function syncSourceDocuments({
     runtimeConfig,
     databasePath,
     relativePath,
+    credentialProvider =
+        connectorCredentialProvider,
     createSourceDocumentSyncEngine:
         createEngine =
             createSourceDocumentSyncEngine
@@ -35,8 +47,8 @@ async function syncSourceDocuments({
                 runtimeConfig
                     .resolveSourceDocumentEndpoint(),
             credential:
-                runtimeConfig
-                    .requireConnectorCredential(),
+                await credentialProvider
+                    .getCredential(),
             authorizationScheme:
                 runtimeConfig
                     .resolveAuthorizationScheme(),

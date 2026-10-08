@@ -19,9 +19,9 @@ BEGIN
             ''
         );
 
-    IF v_role <> 'facility_system' THEN
+    IF v_role <> 'connector_trust_boundary' THEN
         RAISE EXCEPTION
-            'facility_system role required'
+            'connector_trust_boundary role required'
             USING ERRCODE = '42501';
     END IF;
 

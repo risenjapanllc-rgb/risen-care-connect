@@ -59,9 +59,9 @@
 
             <div class="data-source-grid">
 
-                <a
-                    href="connection.html"
-                    class="data-source-card"
+                <div
+                    class="data-source-card data-source-card--disabled"
+                    aria-disabled="true"
                 >
                     <span class="data-source-card__step">
                         DATABASE
@@ -75,10 +75,10 @@
                         MySQLなどのデータベースを利用している場合
                     </span>
 
-                    <span class="data-source-card__action">
-                        データベースを設定 →
+                    <span class="data-source-card__status">
+                        準備中
                     </span>
-                </a>
+                </div>
 
 
                 <div
@@ -130,7 +130,6 @@
     </main>
 
     <script src="js/common.js"></script>
-    <script src="js/app.js"></script>
 
 </body>
 </html>

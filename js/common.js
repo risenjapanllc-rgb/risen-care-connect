@@ -7,34 +7,6 @@ function getCurrentPage() {
         return "home";
     }
 
-    if (path.endsWith("/connection.html")) {
-        return "connection";
-    }
-
-    if (path.endsWith("/data-source.html")) {
-        return "data-source";
-    }
-
-    if (path.endsWith("/data-settings.html")) {
-        return "data-settings";
-    }
-
-    if (path.endsWith("/table-mapping.html")) {
-        return "table-mapping";
-    }
-
-    if (path.endsWith("/mapping.html")) {
-        return "mapping";
-    }
-
-    if (path.endsWith("/validation.html")) {
-        return "validation";
-    }
-
-    if (path.endsWith("/csv-poc.html")) {
-        return "csv-poc";
-    }
-
     if (path.endsWith("/local-connector.html")) {
         return "local-connector";
     }
@@ -89,19 +61,9 @@ function renderNavigation() {
             pageName: "home"
         },
         {
-            href: "/data-source.html",
-            label: "データ接続",
-            pageName: "data-source"
-        },
-        {
-            href: "/data-settings.html",
-            label: "データ設定",
-            pageName: "data-settings"
-        },
-        {
-            href: "/validation.html",
-            label: "検証",
-            pageName: "validation"
+            href: "/local-connector.html",
+            label: "ファイル取込",
+            pageName: "local-connector"
         }
     ];
 

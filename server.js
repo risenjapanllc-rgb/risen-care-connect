@@ -148,7 +148,54 @@ app.get(
     }
 );
 
-app.use(express.static(__dirname));
+/*
+ * Public UI allowlist.
+ *
+ * リポジトリ全体を静的公開せず、
+ * Browserで必要なファイルだけを明示的に配信する。
+ */
+app.get("/", (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, "index.html")
+    );
+});
+
+app.get("/index.html", (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, "index.html")
+    );
+});
+
+app.get("/local-connector.html", (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, "local-connector.html")
+    );
+});
+
+app.get("/style.css", (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, "style.css")
+    );
+});
+
+[
+    "common.js",
+    "standard-field-mapping.js",
+    "document-type-profiles.js",
+    "semantic-projection-policy.js",
+    "local-connector-runtime-compatibility-policy.js",
+    "local-connector.js"
+].forEach(fileName => {
+    app.get(`/js/${fileName}`, (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "js",
+                fileName
+            )
+        );
+    });
+});
 
 
 // ==========================================

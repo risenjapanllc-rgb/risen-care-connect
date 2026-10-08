@@ -14,8 +14,8 @@ if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
 fi
 
 LOCAL_PORT="${RISEN_LOCAL_CONNECTOR_PORT:-4310}"
-STATE_DIR="${HOME}/Library/Application Support/RISEN CARE Connector/runtime"
-LOG_DIR="${HOME}/Library/Logs/RISEN CARE Connector"
+STATE_DIR="${RISEN_RUNTIME_STATE_DIR:-${HOME}/Library/Application Support/RISEN CARE Connector/runtime}"
+LOG_DIR="${RISEN_RUNTIME_LOG_DIR:-${HOME}/Library/Logs/RISEN CARE Connector}"
 
 LOCAL_PID_FILE="${STATE_DIR}/local.pid"
 SYNC_PID_FILE="${STATE_DIR}/sync.pid"

@@ -809,7 +809,10 @@ function showStep(stepNumber) {
     });
 }
 
-function showLocalConnectorSetup(message) {
+function showLocalConnectorSetup(
+    message,
+    buttonLabel = "このPCを接続する"
+) {
     if (localConnectorSetup) {
         localConnectorSetup.hidden = false;
     }
@@ -826,6 +829,11 @@ function showLocalConnectorSetup(message) {
             message;
     }
 
+    if (localConnectorSetupButton) {
+        localConnectorSetupButton.textContent =
+            buttonLabel;
+    }
+
     setStatus("");
 }
 
@@ -837,6 +845,51 @@ function hideLocalConnectorSetup() {
     if (localConnectorStepOne) {
         localConnectorStepOne.hidden = false;
     }
+}
+
+async function getLoopbackPermissionState() {
+    try {
+        if (
+            !navigator.permissions ||
+            typeof navigator.permissions.query !==
+                "function"
+        ) {
+            return "unknown";
+        }
+
+        const permission =
+            await navigator.permissions.query({
+                name: "loopback-network"
+            });
+
+        return permission.state || "unknown";
+    } catch (error) {
+        return "unknown";
+    }
+}
+
+async function checkLocalConnectorHealth() {
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/health`
+        );
+
+    if (!response.ok) {
+        throw new Error(
+            "Local Connector health check failed"
+        );
+    }
+
+    const result =
+        await response.json();
+
+    if (!result.success) {
+        throw new Error(
+            "Local Connector is not ready"
+        );
+    }
+
+    return result;
 }
 
 async function requestLocalConnectorAccess() {
@@ -852,24 +905,31 @@ async function requestLocalConnectorAccess() {
     }
 
     try {
-        const response =
-            await fetch(
-                `${LOCAL_CONNECTOR_BASE}/files`
-            );
-
-        if (!response.ok) {
-            throw new Error(
-                "Local Connectorへ接続できませんでした"
-            );
-        }
+        await checkLocalConnectorHealth();
 
         hideLocalConnectorSetup();
 
         await loadFiles();
     } catch (error) {
-        showLocalConnectorSetup(
-            "接続を許可できませんでした。ブラウザのサイト設定で、ローカル／ループバックネットワークへのアクセスを許可してください。"
-        );
+        const permissionState =
+            await getLoopbackPermissionState();
+
+        if (permissionState === "denied") {
+            showLocalConnectorSetup(
+                "このブラウザではLocal Connectorへのアクセスが拒否されています。サイト設定からローカル／ループバックネットワークへのアクセスを許可してください。"
+            );
+        } else if (
+            permissionState === "granted"
+        ) {
+            showLocalConnectorSetup(
+                "RISEN CARE Local Connectorに接続できません。Local Connectorが起動していることを確認してから、もう一度お試しください。",
+                "もう一度接続する"
+            );
+        } else {
+            showLocalConnectorSetup(
+                "Local Connectorに接続できませんでした。ブラウザの接続許可と、RISEN CARE Local Connectorが起動していることを確認してください。"
+            );
+        }
     } finally {
         localConnectorSetupButton.disabled =
             false;
@@ -877,40 +937,36 @@ async function requestLocalConnectorAccess() {
 }
 
 async function initializeLocalConnector() {
-    try {
-        if (
-            navigator.permissions &&
-            typeof navigator.permissions.query ===
-                "function"
-        ) {
-            const permission =
-                await navigator.permissions.query({
-                    name: "loopback-network"
-                });
+    const permissionState =
+        await getLoopbackPermissionState();
 
-            if (permission.state === "granted") {
-                hideLocalConnectorSetup();
+    if (permissionState === "granted") {
+        try {
+            await checkLocalConnectorHealth();
 
-                await loadFiles();
-                return;
-            }
+            hideLocalConnectorSetup();
 
-            if (permission.state === "denied") {
-                showLocalConnectorSetup(
-                    "このブラウザではLocal Connectorへのアクセスが拒否されています。サイト設定からローカル／ループバックネットワークへのアクセスを許可してください。"
-                );
-                return;
-            }
+            await loadFiles();
+        } catch (error) {
+            showLocalConnectorSetup(
+                "RISEN CARE Local Connectorに接続できません。Local Connectorを起動してから、もう一度お試しください。",
+                "もう一度接続する"
+            );
         }
 
-        showLocalConnectorSetup(
-            "下のボタンを押して、このPCへの接続を許可してください。"
-        );
-    } catch (error) {
-        showLocalConnectorSetup(
-            "下のボタンを押して、このPCへの接続を許可してください。"
-        );
+        return;
     }
+
+    if (permissionState === "denied") {
+        showLocalConnectorSetup(
+            "このブラウザではLocal Connectorへのアクセスが拒否されています。サイト設定からローカル／ループバックネットワークへのアクセスを許可してください。"
+        );
+        return;
+    }
+
+    showLocalConnectorSetup(
+        "下のボタンを押して、このPCへの接続を許可してください。"
+    );
 }
 
 if (localConnectorSetupButton) {

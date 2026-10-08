@@ -114,6 +114,20 @@ start_local() {
   echo "Local Connector RUNNING PID=$pid"
 }
 
+connector_credential_available() {
+  "$NODE_BIN"     -r dotenv/config     -e '
+      const value =
+        process.env.CONNECTOR_CREDENTIAL;
+
+      process.exit(
+        typeof value === "string" &&
+        value.trim() !== ""
+          ? 0
+          : 1
+      );
+    '     >/dev/null 2>&1
+}
+
 sync_loop() {
   while true; do
     if ! "$NODE_BIN" scripts/sync-once.js \
@@ -130,6 +144,11 @@ sync_loop() {
 }
 
 start_sync() {
+  if ! connector_credential_available; then
+    echo "Sync Worker WAITING FOR PROVISIONING"
+    return 0
+  fi
+
   local pid
   pid="$(read_pid "$SYNC_PID_FILE")"
 

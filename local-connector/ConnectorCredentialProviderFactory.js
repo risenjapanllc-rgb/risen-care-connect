@@ -19,12 +19,23 @@ function createConnectorCredentialProvider({
 } = {}) {
     const resolvedHelperPath =
         helperPath ||
-        path.resolve(
-            __dirname,
-            "..",
-            "native",
-            "macos",
-            "risen-keychain-helper"
+        (
+            typeof env
+                .RISEN_CONNECTOR_CREDENTIAL_HELPER_PATH ===
+                "string" &&
+            env
+                .RISEN_CONNECTOR_CREDENTIAL_HELPER_PATH
+                .trim() !== ""
+                ? env
+                    .RISEN_CONNECTOR_CREDENTIAL_HELPER_PATH
+                    .trim()
+                : path.resolve(
+                    __dirname,
+                    "..",
+                    "native",
+                    "macos",
+                    "risen-keychain-helper"
+                )
         );
 
     const credentialStore =

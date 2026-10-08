@@ -68,3 +68,31 @@ test(
         );
     }
 );
+
+test(
+    "uses helper path from environment",
+    async () => {
+        const helperPath =
+            "/tmp/test-risen-keychain-helper";
+
+        const provider =
+            createConnectorCredentialProvider({
+                env: {
+                    CONNECTOR_CREDENTIAL:
+                        "env-secret",
+                    RISEN_CONNECTOR_CREDENTIAL_HELPER_PATH:
+                        helperPath
+                }
+            });
+
+        assert.strictEqual(
+            provider.credentialStore.helperPath,
+            helperPath
+        );
+
+        assert.strictEqual(
+            await provider.getCredential(),
+            "env-secret"
+        );
+    }
+);

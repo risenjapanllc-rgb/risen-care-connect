@@ -1,15 +1,31 @@
 const fs = require('fs/promises');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 
 class LocalConnectorConfig {
     constructor(options = {}) {
         this.configPath =
             options.configPath ||
+            process.env
+                .RISEN_LOCAL_CONNECTOR_CONFIG_PATH ||
             path.join(
-                __dirname,
-                '.local-connector-config.json'
+                os.homedir(),
+                'Library',
+                'Application Support',
+                'RISEN CARE Connector',
+                'config.json'
             );
+    }
+
+    async ensureConfigDirectory() {
+        await fs.mkdir(
+            path.dirname(this.configPath),
+            {
+                recursive: true,
+                mode: 0o700
+            }
+        );
     }
 
     async getConnectorId() {
@@ -42,6 +58,8 @@ class LocalConnectorConfig {
 
         config.connectorId =
             connectorId;
+
+        await this.ensureConfigDirectory();
 
         await fs.writeFile(
             this.configPath,
@@ -103,6 +121,8 @@ class LocalConnectorConfig {
 
         config.registeredAt =
             new Date().toISOString();
+
+        await this.ensureConfigDirectory();
 
         await fs.writeFile(
             this.configPath,

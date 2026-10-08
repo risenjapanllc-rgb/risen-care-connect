@@ -8,6 +8,13 @@ const LocalConnectorRuntimeContract =
     require("./LocalConnectorRuntimeContract");
 
 const {
+    createConnectorCredentialProvider
+} =
+    require(
+        "./ConnectorCredentialProviderFactory"
+    );
+
+const {
     evaluateRuntimeCapability:
         evaluateLocalConnectorRuntimeCapability
 } =
@@ -19,6 +26,9 @@ const app = express();
 app.disable('x-powered-by');
 const service = LocalConnectorCompositionRoot.createService();
 app.locals.localConnectorService = service;
+
+const connectorCredentialProvider =
+    createConnectorCredentialProvider();
 
 let localConnectorIngestionServicePromise = null;
 let sourceDocumentIngestionServicePromise = null;
@@ -77,8 +87,8 @@ app.locals.getSourceDocumentIngestionService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -160,8 +170,8 @@ app.locals.getImportPreviewService =
                                 "/connector/semantic-record-preview"
                             ),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -248,8 +258,8 @@ app.locals.getImportExecutionService =
                                 "/connector/support-record-batch-write"
                             ),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -375,8 +385,8 @@ app.locals.getRecipientCertificateImportExecutionService =
                                 "/connector/semantic-logical-record-persistence"
                             ),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -430,8 +440,8 @@ app.locals.getSourceFieldMappingIngestionService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -486,8 +496,8 @@ app.locals.getSourceFieldInterpretationIngestionService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -593,8 +603,8 @@ app.locals.getResidentCandidateService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -648,8 +658,8 @@ app.locals.getSourceResidentLinkClient =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -680,8 +690,8 @@ app.locals.getLocalConnectorIngestionService =
                             process.env
                                 .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1558,8 +1568,8 @@ app.locals.getSourceResidentMappingClient =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1628,8 +1638,8 @@ app.locals.getSourceRecordIdentityMappingService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1681,8 +1691,8 @@ app.locals.getConfirmedDocumentTypeService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1780,8 +1790,8 @@ app.locals.getRecipientCertificateImportPreviewService =
                                 "/connector/resident-profile-query"
                             ),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1832,8 +1842,8 @@ app.locals.getResidentAdmissionDecisionService =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
@@ -1886,8 +1896,8 @@ app.locals.getResidentCreationClient =
                                 return url.toString();
                             })(),
                         credential:
-                            process.env
-                                .CONNECTOR_CREDENTIAL,
+                            await connectorCredentialProvider
+                                .getCredential(),
                         authorizationScheme:
                             process.env
                                 .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||

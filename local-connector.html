@@ -36,6 +36,44 @@
             aria-live="polite"
         ></div>
 
+        <section
+            id="localConnectorSetup"
+            class="validation-card"
+            hidden
+        >
+            <span class="page-step">
+                初回セットアップ
+            </span>
+
+            <h2>
+                このPCをRISEN CARE Connectに接続
+            </h2>
+
+            <p>
+                RISEN CARE Connectが、
+                このPC内のLocal Connectorへ接続します。
+            </p>
+
+            <p
+                id="localConnectorSetupMessage"
+                class="form-help"
+            >
+                お使いのブラウザから、このPC内のRISEN CARE Local Connectorへの
+                接続許可を求められる場合があります。
+                表示された場合は「許可」を選択してください。
+            </p>
+
+            <div class="bottom-actions">
+                <button
+                    id="localConnectorSetupButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    このPCを接続する
+                </button>
+            </div>
+        </section>
+
         <section class="csv-step is-active" data-step="1">
 
             <div class="csv-step__head">

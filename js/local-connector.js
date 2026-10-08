@@ -12,6 +12,24 @@ const folderSummary =
 const fileList =
     document.getElementById("connectorFileList");
 
+const localConnectorSetup =
+    document.getElementById("localConnectorSetup");
+
+const localConnectorSetupButton =
+    document.getElementById(
+        "localConnectorSetupButton"
+    );
+
+const localConnectorSetupMessage =
+    document.getElementById(
+        "localConnectorSetupMessage"
+    );
+
+const localConnectorStepOne =
+    document.querySelector(
+        '.csv-step[data-step="1"]'
+    );
+
 const analysisSummary =
     document.getElementById("analysisSummary");
 
@@ -789,6 +807,117 @@ function showStep(stepNumber) {
         step.hidden = !active;
         step.classList.toggle("is-active", active);
     });
+}
+
+function showLocalConnectorSetup(message) {
+    if (localConnectorSetup) {
+        localConnectorSetup.hidden = false;
+    }
+
+    if (localConnectorStepOne) {
+        localConnectorStepOne.hidden = true;
+    }
+
+    if (
+        localConnectorSetupMessage &&
+        message
+    ) {
+        localConnectorSetupMessage.textContent =
+            message;
+    }
+
+    setStatus("");
+}
+
+function hideLocalConnectorSetup() {
+    if (localConnectorSetup) {
+        localConnectorSetup.hidden = true;
+    }
+
+    if (localConnectorStepOne) {
+        localConnectorStepOne.hidden = false;
+    }
+}
+
+async function requestLocalConnectorAccess() {
+    if (!localConnectorSetupButton) {
+        return;
+    }
+
+    localConnectorSetupButton.disabled = true;
+
+    if (localConnectorSetupMessage) {
+        localConnectorSetupMessage.textContent =
+            "ブラウザの確認画面が表示されたら「許可」を選択してください。";
+    }
+
+    try {
+        const response =
+            await fetch(
+                `${LOCAL_CONNECTOR_BASE}/files`
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "Local Connectorへ接続できませんでした"
+            );
+        }
+
+        hideLocalConnectorSetup();
+
+        await loadFiles();
+    } catch (error) {
+        showLocalConnectorSetup(
+            "接続を許可できませんでした。ブラウザのサイト設定で、ローカル／ループバックネットワークへのアクセスを許可してください。"
+        );
+    } finally {
+        localConnectorSetupButton.disabled =
+            false;
+    }
+}
+
+async function initializeLocalConnector() {
+    try {
+        if (
+            navigator.permissions &&
+            typeof navigator.permissions.query ===
+                "function"
+        ) {
+            const permission =
+                await navigator.permissions.query({
+                    name: "loopback-network"
+                });
+
+            if (permission.state === "granted") {
+                hideLocalConnectorSetup();
+
+                await loadFiles();
+                return;
+            }
+
+            if (permission.state === "denied") {
+                showLocalConnectorSetup(
+                    "このブラウザではLocal Connectorへのアクセスが拒否されています。サイト設定からローカル／ループバックネットワークへのアクセスを許可してください。"
+                );
+                return;
+            }
+        }
+
+        showLocalConnectorSetup(
+            "下のボタンを押して、このPCへの接続を許可してください。"
+        );
+    } catch (error) {
+        showLocalConnectorSetup(
+            "下のボタンを押して、このPCへの接続を許可してください。"
+        );
+    }
+}
+
+if (localConnectorSetupButton) {
+    localConnectorSetupButton.addEventListener(
+        "click",
+        requestLocalConnectorAccess
+    );
 }
 
 async function loadFiles() {
@@ -7337,7 +7466,7 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
-loadFiles();
+initializeLocalConnector();
 
 function updateResidentBulkActionBar() {
     if (

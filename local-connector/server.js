@@ -707,10 +707,26 @@ const PORT = Number(
     process.env.RISEN_LOCAL_CONNECTOR_PORT || 4310
 );
 
+app.use((req, res, next) => {
+    if (
+        req.headers[
+            'access-control-request-private-network'
+        ] === 'true'
+    ) {
+        res.setHeader(
+            'Access-Control-Allow-Private-Network',
+            'true'
+        );
+    }
+
+    next();
+});
+
 app.use(cors({
     origin: [
         'http://localhost:3001',
-        'http://127.0.0.1:3001'
+        'http://127.0.0.1:3001',
+        'https://connect.risencare.jp'
     ]
 }));
 

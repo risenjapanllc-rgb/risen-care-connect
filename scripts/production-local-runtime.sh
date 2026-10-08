@@ -115,17 +115,7 @@ start_local() {
 }
 
 connector_credential_available() {
-  "$NODE_BIN"     -r dotenv/config     -e '
-      const value =
-        process.env.CONNECTOR_CREDENTIAL;
-
-      process.exit(
-        typeof value === "string" &&
-        value.trim() !== ""
-          ? 0
-          : 1
-      );
-    '     >/dev/null 2>&1
+  "$NODE_BIN"     scripts/connector-credential-available.js     >/dev/null 2>&1
 }
 
 sync_loop() {

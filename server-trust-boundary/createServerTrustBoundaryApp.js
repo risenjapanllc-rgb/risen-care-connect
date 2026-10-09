@@ -33,6 +33,12 @@ function createServerTrustBoundaryApp({
     sourceResidentLinkQueryTransport,
     sourceResidentLinkEndpointPath =
         "/connector/source-resident-links",
+    logicalSourceResidentAssociationTransport,
+    logicalSourceResidentAssociationEndpointPath =
+        "/connector/logical-source-resident-associations",
+    logicalSourceSemanticTransport,
+    logicalSourceSemanticEndpointPath =
+        "/connector/logical-source-semantic-records",
     sourceResidentMappingTransport,
     sourceResidentMappingQueryTransport,
     sourceResidentMappingEndpointPath =
@@ -387,6 +393,53 @@ function createServerTrustBoundaryApp({
                     return res
                         .status(result.httpStatus)
                         .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (
+        logicalSourceResidentAssociationTransport
+    ) {
+        if (
+            typeof logicalSourceResidentAssociationTransport.handle !==
+                "function" ||
+            typeof logicalSourceResidentAssociationTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete logicalSourceResidentAssociationTransport"
+            );
+        }
+
+        app.post(
+            logicalSourceResidentAssociationEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await logicalSourceResidentAssociationTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
                 } catch (error) {
                     return next(error);
                 }
@@ -1690,6 +1743,60 @@ function createServerTrustBoundaryApp({
                 .json(result.body);
         }
     );
+
+    if (
+        logicalSourceSemanticTransport
+    ) {
+        if (
+            typeof logicalSourceSemanticTransport.handle !==
+                "function" ||
+            typeof logicalSourceSemanticTransport.createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete logicalSourceSemanticTransport"
+            );
+        }
+
+        app.post(
+            logicalSourceSemanticEndpointPath,
+            async (
+                req,
+                res,
+                next
+            ) => {
+                try {
+                    const result =
+                        await logicalSourceSemanticTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(
+                        error
+                    );
+                }
+            }
+        );
+    }
+
 
     return app;
 }

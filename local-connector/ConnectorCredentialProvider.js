@@ -33,6 +33,24 @@ class ConnectorCredentialProvider {
     }
 
     async getCredential() {
+        try {
+            const storedCredential =
+                await this
+                    .credentialStore
+                    .read();
+
+            if (
+                typeof storedCredential ===
+                    "string" &&
+                storedCredential.trim()
+            ) {
+                return storedCredential.trim();
+            }
+        } catch {
+            // Legacy environments may still use
+            // CONNECTOR_CREDENTIAL.
+        }
+
         const environmentCredential =
             this.env
                 .CONNECTOR_CREDENTIAL;
@@ -43,25 +61,6 @@ class ConnectorCredentialProvider {
             environmentCredential.trim()
         ) {
             return environmentCredential.trim();
-        }
-
-        try {
-            const keychainCredential =
-                await this
-                    .credentialStore
-                    .read();
-
-            if (
-                typeof keychainCredential ===
-                    "string" &&
-                keychainCredential.trim()
-            ) {
-                return keychainCredential.trim();
-            }
-        } catch (error) {
-            throw new Error(
-                "connector credential is unavailable"
-            );
         }
 
         throw new Error(

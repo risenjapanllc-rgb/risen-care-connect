@@ -324,3 +324,172 @@ test(
         }
     }
 );
+
+test(
+    "saveMySqlSource persists non-secret MySQL configuration",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-mysql-config-"
+                )
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            const config =
+                new LocalConnectorConfig({
+                    configPath
+                });
+
+            const saved =
+                await config.saveMySqlSource({
+                    sourceId:
+                        "mysql-source-1",
+                    host:
+                        "192.168.1.20",
+                    port:
+                        3307,
+                    user:
+                        "reader",
+                    database:
+                        "facility",
+                    query:
+                        "SELECT * FROM residents",
+                    identityField:
+                        "resident_code",
+                    residentCodeField:
+                        "resident_code",
+                    residentNameField:
+                        "name",
+                    birthDateField:
+                        "birth_date"
+                });
+
+            assert.equal(
+                saved.sourceId,
+                "mysql-source-1"
+            );
+
+            const reloaded =
+                new LocalConnectorConfig({
+                    configPath
+                });
+
+            assert.deepEqual(
+                await reloaded.getMySqlSource(),
+                {
+                    sourceId:
+                        "mysql-source-1",
+                    host:
+                        "192.168.1.20",
+                    port:
+                        3307,
+                    user:
+                        "reader",
+                    database:
+                        "facility",
+                    query:
+                        "SELECT * FROM residents",
+                    identityField:
+                        "resident_code",
+                    residentCodeField:
+                        "resident_code",
+                    residentNameField:
+                        "name",
+                    birthDateField:
+                        "birth_date"
+                }
+            );
+
+            const raw =
+                await fs.readFile(
+                    configPath,
+                    "utf8"
+                );
+
+            assert.equal(
+                raw.includes(
+                    "password"
+                ),
+                false
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "getAllowedFolder returns null when config exists without file source",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-no-file-source-"
+                )
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            await fs.writeFile(
+                configPath,
+                JSON.stringify({
+                    connectorId:
+                        "connector-test",
+                    mysqlSource: {
+                        sourceId:
+                            "mysql-test",
+                        host:
+                            "127.0.0.1",
+                        port:
+                            3306,
+                        user:
+                            "reader",
+                        database:
+                            "care",
+                        query:
+                            "SELECT 1"
+                    }
+                }),
+                "utf8"
+            );
+
+            const config =
+                new LocalConnectorConfig({
+                    configPath
+                });
+
+            assert.equal(
+                await config.getAllowedFolder(),
+                null
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

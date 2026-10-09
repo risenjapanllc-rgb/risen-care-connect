@@ -111,6 +111,36 @@ class MySqlSourceAdapter {
         };
     }
 
+    async acquireRows(sourceReference) {
+        this.assertSourceReference(
+            sourceReference
+        );
+
+        const observation =
+            this.lastObservation;
+
+        if (
+            !observation ||
+            observation.sourceReference !==
+                sourceReference ||
+            !observation.acquisition ||
+            !Array.isArray(
+                observation.acquisition.rows
+            )
+        ) {
+            throw new Error(
+                "MySQL observation unavailable"
+            );
+        }
+
+        this.lastObservation =
+            null;
+
+        return observation
+            .acquisition
+            .rows;
+    }
+
     async acquireRaw(sourceReference) {
         this.assertSourceReference(
             sourceReference

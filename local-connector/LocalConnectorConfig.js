@@ -188,6 +188,203 @@ class LocalConnectorConfig {
         };
     }
 
+    async readConfig() {
+        try {
+            const text =
+                await fs.readFile(
+                    this.configPath,
+                    'utf8'
+                );
+
+            return JSON.parse(text);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return {};
+            }
+
+            throw error;
+        }
+    }
+
+    async writeConfig(config) {
+        await this.ensureConfigDirectory();
+
+        await fs.writeFile(
+            this.configPath,
+            JSON.stringify(
+                config,
+                null,
+                2
+            ),
+            {
+                encoding: 'utf8',
+                mode: 0o600
+            }
+        );
+    }
+
+    async saveMySqlSource({
+        sourceId,
+        host,
+        port = 3306,
+        user,
+        database,
+        query,
+        identityField,
+        residentCodeField,
+        residentNameField,
+        birthDateField
+    } = {}) {
+        const normalized = {
+            sourceId:
+                String(
+                    sourceId ||
+                    crypto.randomUUID()
+                ).trim(),
+            host:
+                String(host || "").trim(),
+            port:
+                Number(port) || 3306,
+            user:
+                String(user || "").trim(),
+            database:
+                String(database || "").trim(),
+            query:
+                String(query || "").trim(),
+            identityField:
+                String(
+                    identityField || ""
+                ).trim(),
+            residentCodeField:
+                String(
+                    residentCodeField || ""
+                ).trim(),
+            residentNameField:
+                String(
+                    residentNameField || ""
+                ).trim(),
+            birthDateField:
+                String(
+                    birthDateField || ""
+                ).trim()
+        };
+
+        if (
+            !normalized.host ||
+            !normalized.user ||
+            !normalized.database ||
+            !normalized.query
+        ) {
+            throw new Error(
+                'MySQL設定が不足しています'
+            );
+        }
+
+        if (
+            !Number.isInteger(
+                normalized.port
+            ) ||
+            normalized.port <= 0 ||
+            normalized.port > 65535
+        ) {
+            throw new Error(
+                'MySQLポートが正しくありません'
+            );
+        }
+
+        const config =
+            await this.readConfig();
+
+        config.mysqlSource =
+            normalized;
+
+        config.mysqlRegisteredAt =
+            new Date().toISOString();
+
+        await this.writeConfig(
+            config
+        );
+
+        return {
+            ...normalized,
+            registeredAt:
+                config.mysqlRegisteredAt
+        };
+    }
+
+    async getMySqlSource() {
+        const config =
+            await this.readConfig();
+
+        const source =
+            config.mysqlSource;
+
+        if (
+            !source ||
+            typeof source !== 'object'
+        ) {
+            return null;
+        }
+
+        if (
+            !source.sourceId ||
+            !source.host ||
+            !source.user ||
+            !source.database ||
+            !source.query
+        ) {
+            return null;
+        }
+
+        return {
+            sourceId:
+                String(
+                    source.sourceId
+                ),
+            host:
+                String(
+                    source.host
+                ),
+            port:
+                Number(
+                    source.port
+                ) || 3306,
+            user:
+                String(
+                    source.user
+                ),
+            database:
+                String(
+                    source.database
+                ),
+            query:
+                String(
+                    source.query
+                ),
+            identityField:
+                typeof source.identityField ===
+                    "string"
+                    ? source.identityField.trim()
+                    : "",
+            residentCodeField:
+                typeof source.residentCodeField ===
+                    "string"
+                    ? source.residentCodeField.trim()
+                    : "",
+            residentNameField:
+                typeof source.residentNameField ===
+                    "string"
+                    ? source.residentNameField.trim()
+                    : "",
+            birthDateField:
+                typeof source.birthDateField ===
+                    "string"
+                    ? source.birthDateField.trim()
+                    : ""
+        };
+    }
+
+
     async getAllowedFolder() {
         try {
             const text =
@@ -201,14 +398,13 @@ class LocalConnectorConfig {
 
             if (
                 !config.allowedFolder ||
-                typeof config.allowedFolder !== 'string'
+                typeof config.allowedFolder !== 'string' ||
+                !config.allowedFolder.trim()
             ) {
-                throw new Error(
-                    '参照フォルダ設定が正しくありません'
-                );
+                return null;
             }
 
-            return config.allowedFolder;
+            return config.allowedFolder.trim();
 
         } catch (error) {
             if (error.code === 'ENOENT') {

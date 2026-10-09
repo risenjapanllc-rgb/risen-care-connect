@@ -12,7 +12,7 @@ const ConnectorCredentialProvider =
     );
 
 test(
-    "uses environment credential when available",
+    "uses stored credential before environment credential",
     async () => {
         let keychainReadCount = 0;
 
@@ -20,41 +20,13 @@ test(
             new ConnectorCredentialProvider({
                 env: {
                     CONNECTOR_CREDENTIAL:
-                        " env-secret "
+                        "env-secret"
                 },
 
                 credentialStore: {
                     async read() {
                         keychainReadCount += 1;
-                        return "keychain-secret";
-                    }
-                }
-            });
 
-        const credential =
-            await provider.getCredential();
-
-        assert.equal(
-            credential,
-            "env-secret"
-        );
-
-        assert.equal(
-            keychainReadCount,
-            0
-        );
-    }
-);
-
-test(
-    "falls back to keychain when environment credential is absent",
-    async () => {
-        const provider =
-            new ConnectorCredentialProvider({
-                env: {},
-
-                credentialStore: {
-                    async read() {
                         return "keychain-secret";
                     }
                 }
@@ -66,6 +38,40 @@ test(
         assert.equal(
             credential,
             "keychain-secret"
+        );
+
+        assert.equal(
+            keychainReadCount,
+            1
+        );
+    }
+);
+
+test(
+    "falls back to environment credential when stored credential is unavailable",
+    async () => {
+        const provider =
+            new ConnectorCredentialProvider({
+                env: {
+                    CONNECTOR_CREDENTIAL:
+                        " env-secret "
+                },
+
+                credentialStore: {
+                    async read() {
+                        throw new Error(
+                            "credential unavailable"
+                        );
+                    }
+                }
+            });
+
+        const credential =
+            await provider.getCredential();
+
+        assert.equal(
+            credential,
+            "env-secret"
         );
     }
 );
@@ -80,7 +86,7 @@ test(
                 credentialStore: {
                     async read() {
                         throw new Error(
-                            "credential is unavailable"
+                            "credential unavailable"
                         );
                     }
                 }

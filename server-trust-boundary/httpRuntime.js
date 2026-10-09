@@ -60,6 +60,16 @@ const SourceResidentLinkHttpAdapter =
 
 const SourceResidentLinkTransport =
     require("./SourceResidentLinkTransport");
+const LogicalSourceResidentAssociationHttpAdapter =
+    require("./LogicalSourceResidentAssociationHttpAdapter");
+const LogicalSourceResidentAssociationTransport =
+    require("./LogicalSourceResidentAssociationTransport");
+
+const LogicalSourceSemanticHttpAdapter =
+    require("./LogicalSourceSemanticHttpAdapter");
+
+const LogicalSourceSemanticTransport =
+    require("./LogicalSourceSemanticTransport");
 
 const SourceResidentLinkQueryHttpAdapter =
     require("./SourceResidentLinkQueryHttpAdapter");
@@ -381,6 +391,36 @@ function createServerTrustBoundaryHttpRuntime({
         new SourceResidentLinkTransport({
             httpAdapter:
                 sourceResidentLinkHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const logicalSourceResidentAssociationHttpAdapter =
+        new LogicalSourceResidentAssociationHttpAdapter({
+            persistenceService:
+                coreRuntime
+                    .logicalSourceResidentAssociationPersistenceService
+        });
+
+    const logicalSourceResidentAssociationTransport =
+        new LogicalSourceResidentAssociationTransport({
+            httpAdapter:
+                logicalSourceResidentAssociationHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const logicalSourceSemanticHttpAdapter =
+        new LogicalSourceSemanticHttpAdapter({
+            persistenceService:
+                coreRuntime
+                    .logicalSourceSemanticPersistenceService
+        });
+
+    const logicalSourceSemanticTransport =
+        new LogicalSourceSemanticTransport({
+            httpAdapter:
+                logicalSourceSemanticHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -790,6 +830,12 @@ function createServerTrustBoundaryHttpRuntime({
                 "/connector/resident-candidates",
             sourceResidentLinkTransport,
             sourceResidentLinkQueryTransport,
+            logicalSourceResidentAssociationTransport,
+            logicalSourceResidentAssociationEndpointPath:
+                "/connector/logical-source-resident-associations",
+            logicalSourceSemanticTransport,
+            logicalSourceSemanticEndpointPath:
+                "/connector/logical-source-semantic-records",
             sourceResidentLinkEndpointPath:
                 "/connector/source-resident-links",
             sourceResidentMappingTransport,

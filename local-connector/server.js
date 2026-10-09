@@ -768,6 +768,34 @@ const allowedLocalConnectorOrigins = [
     'https://connect.risencare.jp'
 ];
 
+app.use((req, res, next) => {
+    const origin =
+        String(
+            req.headers.origin || ""
+        );
+
+    const privateNetworkRequested =
+        String(
+            req.headers[
+                "access-control-request-private-network"
+            ] || ""
+        ).toLowerCase() === "true";
+
+    if (
+        privateNetworkRequested &&
+        allowedLocalConnectorOrigins.includes(
+            origin
+        )
+    ) {
+        res.setHeader(
+            "Access-Control-Allow-Private-Network",
+            "true"
+        );
+    }
+
+    next();
+});
+
 app.use(cors({
     origin(origin, callback) {
         if (
@@ -4607,6 +4635,503 @@ app.post("/files/:fileName/ingest", async (req, res) => {
         });
     }
 });
+
+app.get(
+    "/mysql/config",
+    async (req, res) => {
+        try {
+            const LocalConnectorConfig =
+                require(
+                    "./LocalConnectorConfig"
+                );
+
+            const config =
+                await new LocalConnectorConfig()
+                    .getMySqlSource();
+
+            return res.json({
+                success: true,
+                configured:
+                    Boolean(config),
+                config:
+                    config || null
+            });
+        } catch {
+            return res.status(500).json({
+                success: false,
+                errorCode:
+                    "mysql_config_read_failed"
+            });
+        }
+    }
+);
+
+app.post(
+    "/mysql/test",
+    async (req, res) => {
+        const mysql =
+            require(
+                "mysql2/promise"
+            );
+
+        let connection;
+
+        try {
+            const config = {
+                host:
+                    String(
+                        req.body?.host || ""
+                    ).trim(),
+                port:
+                    Number(
+                        req.body?.port
+                    ) || 3306,
+                user:
+                    String(
+                        req.body?.user || ""
+                    ).trim(),
+                password:
+                    String(
+                        req.body?.password || ""
+                    ),
+                database:
+                    String(
+                        req.body?.database || ""
+                    ).trim()
+            };
+
+            if (
+                !config.host ||
+                !config.user ||
+                !config.database
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    errorCode:
+                        "mysql_config_incomplete"
+                });
+            }
+
+            connection =
+                await mysql.createConnection(
+                    config
+                );
+
+            await connection.query(
+                "SELECT 1"
+            );
+
+            const [rows] =
+                await connection.query(
+                    `
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = ?
+                    ORDER BY table_name
+                    `,
+                    [
+                        config.database
+                    ]
+                );
+
+            return res.json({
+                success: true,
+                tables:
+                    rows.map(
+                        row =>
+                            row.TABLE_NAME ||
+                            row.table_name
+                    )
+            });
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                errorCode:
+                    "mysql_connection_failed",
+                message:
+                    error?.message ||
+                    "MySQL connection failed"
+            });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch {
+                    // best effort
+                }
+            }
+        }
+    }
+);
+
+app.post(
+    "/mysql/identity-candidates",
+    async (req, res) => {
+        const mysql =
+            require(
+                "mysql2/promise"
+            );
+
+        let connection;
+
+        try {
+            const config = {
+                host:
+                    String(
+                        req.body?.host || ""
+                    ).trim(),
+                port:
+                    Number(
+                        req.body?.port
+                    ) || 3306,
+                user:
+                    String(
+                        req.body?.user || ""
+                    ).trim(),
+                password:
+                    String(
+                        req.body?.password || ""
+                    ),
+                database:
+                    String(
+                        req.body?.database || ""
+                    ).trim()
+            };
+
+            const tableName =
+                String(
+                    req.body?.table || ""
+                ).trim();
+
+            if (
+                !config.host ||
+                !config.user ||
+                !config.database ||
+                !tableName
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    errorCode:
+                        "mysql_identity_config_incomplete"
+                });
+            }
+
+            connection =
+                await mysql.createConnection(
+                    config
+                );
+
+            const [columnRows] =
+                await connection.query(
+                    `
+                    SELECT
+                        column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = ?
+                      AND table_name = ?
+                    ORDER BY ordinal_position
+                    `,
+                    [
+                        config.database,
+                        tableName
+                    ]
+                );
+
+            const columns =
+                columnRows
+                    .map(
+                        row =>
+                            row.COLUMN_NAME ||
+                            row.column_name
+                    )
+                    .filter(
+                        value =>
+                            typeof value ===
+                                "string" &&
+                            value.trim()
+                    );
+
+            if (columns.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    errorCode:
+                        "mysql_table_not_found"
+                });
+            }
+
+            const escapedTable =
+                mysql.escapeId(
+                    tableName
+                );
+
+            const candidates = [];
+
+            for (const column of columns) {
+                const escapedColumn =
+                    mysql.escapeId(
+                        column
+                    );
+
+                const [rows] =
+                    await connection.query(
+                        `
+                        SELECT
+                            COUNT(*) AS total_count,
+                            COUNT(${escapedColumn})
+                                AS non_null_count,
+                            COUNT(
+                                DISTINCT ${escapedColumn}
+                            )
+                                AS distinct_count,
+                            SUM(
+                                CASE
+                                    WHEN TRIM(
+                                        CAST(
+                                            ${escapedColumn}
+                                            AS CHAR
+                                        )
+                                    ) = ''
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            )
+                                AS blank_count
+                        FROM ${escapedTable}
+                        `
+                    );
+
+                const stats =
+                    rows &&
+                    rows[0]
+                        ? rows[0]
+                        : {};
+
+                const total =
+                    Number(
+                        stats.total_count
+                    ) || 0;
+
+                const nonNull =
+                    Number(
+                        stats.non_null_count
+                    ) || 0;
+
+                const distinct =
+                    Number(
+                        stats.distinct_count
+                    ) || 0;
+
+                const blank =
+                    Number(
+                        stats.blank_count
+                    ) || 0;
+
+                if (
+                    total > 0 &&
+                    nonNull === total &&
+                    distinct === total &&
+                    blank === 0
+                ) {
+                    candidates.push({
+                        field:
+                            column,
+                        rowCount:
+                            total,
+                        uniqueCount:
+                            distinct
+                    });
+                }
+            }
+
+            return res.json({
+                success: true,
+                table:
+                    tableName,
+                columns,
+                candidates,
+                humanConfirmationRequired:
+                    true
+            });
+        } catch {
+            return res.status(400).json({
+                success: false,
+                errorCode:
+                    "mysql_identity_analysis_failed"
+            });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch {
+                    // best effort
+                }
+            }
+        }
+    }
+);
+
+app.put(
+    "/mysql/config",
+    async (req, res) => {
+        const mysql =
+            require(
+                "mysql2/promise"
+            );
+
+        const LocalConnectorConfig =
+            require(
+                "./LocalConnectorConfig"
+            );
+
+        const NamedCredentialStore =
+            require(
+                "./NamedCredentialStore"
+            );
+
+        const {
+            resolveDefaultHelperPath
+        } = require(
+            "./ConnectorCredentialProviderFactory"
+        );
+
+        let connection;
+
+        try {
+            const source = {
+                sourceId:
+                    String(
+                        req.body?.sourceId ||
+                        ""
+                    ).trim(),
+                host:
+                    String(
+                        req.body?.host || ""
+                    ).trim(),
+                port:
+                    Number(
+                        req.body?.port
+                    ) || 3306,
+                user:
+                    String(
+                        req.body?.user || ""
+                    ).trim(),
+                database:
+                    String(
+                        req.body?.database || ""
+                    ).trim(),
+                query:
+                    String(
+                        req.body?.query || ""
+                    ).trim(),
+                identityField:
+                    String(
+                        req.body?.identityField ||
+                        ""
+                    ).trim(),
+                residentCodeField:
+                    String(
+                        req.body?.residentCodeField ||
+                        ""
+                    ).trim(),
+                residentNameField:
+                    String(
+                        req.body?.residentNameField ||
+                        ""
+                    ).trim(),
+                birthDateField:
+                    String(
+                        req.body?.birthDateField ||
+                        ""
+                    ).trim()
+            };
+
+            const password =
+                String(
+                    req.body?.password || ""
+                );
+
+            if (
+                !source.host ||
+                !source.user ||
+                !source.database ||
+                !source.query ||
+                !source.identityField ||
+                !source.residentCodeField ||
+                !source.residentNameField ||
+                !source.birthDateField ||
+                !password
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    errorCode:
+                        "mysql_config_incomplete"
+                });
+            }
+
+            connection =
+                await mysql.createConnection({
+                    host:
+                        source.host,
+                    port:
+                        source.port,
+                    user:
+                        source.user,
+                    password,
+                    database:
+                        source.database
+                });
+
+            await connection.query(
+                "SELECT 1"
+            );
+
+            const configStore =
+                new LocalConnectorConfig();
+
+            const saved =
+                await configStore
+                    .saveMySqlSource(
+                        source
+                    );
+
+            const credentialStore =
+                new NamedCredentialStore({
+                    helperPath:
+                        resolveDefaultHelperPath(),
+                    key:
+                        "mysql-password"
+                });
+
+            await credentialStore.save(
+                password
+            );
+
+            return res.json({
+                success: true,
+                config:
+                    saved
+            });
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                errorCode:
+                    "mysql_config_save_failed",
+                message:
+                    error?.message ||
+                    "MySQL config save failed"
+            });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch {
+                    // best effort
+                }
+            }
+        }
+    }
+);
+
 
 app.use((req, res) => {
     return res.status(404).json({

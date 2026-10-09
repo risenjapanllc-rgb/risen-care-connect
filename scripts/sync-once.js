@@ -13,7 +13,7 @@ const mysql =
 
 const {
     createSyncEngine,
-    createIngestionService
+    createResidentCandidateService
 } = require(
     "../local-connector/LocalConnectorCompositionRoot"
 );
@@ -33,6 +33,36 @@ const MySqlSyncEngine =
         "../local-connector/MySqlSyncEngine"
     );
 
+const MySqlLogicalRecordProjector =
+    require(
+        "../local-connector/MySqlLogicalRecordProjector"
+    );
+
+const MySqlResidentCandidateMatcher =
+    require(
+        "../local-connector/MySqlResidentCandidateMatcher"
+    );
+
+const LogicalSourceResidentAssociationHttpClient =
+    require(
+        "../local-connector/LogicalSourceResidentAssociationHttpClient"
+    );
+
+const LogicalSourceSemanticHttpClient =
+    require(
+        "../local-connector/LogicalSourceSemanticHttpClient"
+    );
+
+const MySqlResidentProfileSemanticProjector =
+    require(
+        "../local-connector/MySqlResidentProfileSemanticProjector"
+    );
+
+const SqliteMySqlSemanticStateStore =
+    require(
+        "../local-connector/SqliteMySqlSemanticStateStore"
+    );
+
 const SqliteMySqlSourceStateStore =
     require(
         "../local-connector/SqliteMySqlSourceStateStore"
@@ -48,6 +78,16 @@ const {
 } =
     require(
         "../local-connector/ConnectorCredentialProviderFactory"
+    );
+
+const LocalConnectorConfig =
+    require(
+        "../local-connector/LocalConnectorConfig"
+    );
+
+const MySqlRuntimeSourceResolver =
+    require(
+        "../local-connector/MySqlRuntimeSourceResolver"
     );
 
 const connectorCredentialProvider =
@@ -102,23 +142,156 @@ async function syncFiles({
 
 async function syncMySql({
     runtimeConfig,
-    databasePath
+    databasePath,
+    source
 }) {
-    const source =
-        runtimeConfig
-            .resolveMySqlSource();
 
     if (!source) {
         return null;
     }
 
-    const ingestionService =
-        await createIngestionService({
-            databasePath,
-            ...await commonTrustOptions(
-                runtimeConfig
-            )
+    if (
+        typeof source.birthDateField !== "string" ||
+        !source.birthDateField.trim()
+    ) {
+        const error =
+            new Error(
+                "MySQL birth date field mapping is required"
+            );
+
+        error.code =
+            "mysql_semantic_mapping_incomplete";
+
+        throw error;
+    }
+
+    const sourceAdapter =
+        new MySqlSourceAdapter({
+            sourceId:
+                source.sourceId,
+            query:
+                source.query,
+            connectionFactory:
+                async () =>
+                    mysql.createConnection({
+                        host:
+                            source.host,
+                        port:
+                            source.port,
+                        user:
+                            source.user,
+                        password:
+                            source.password,
+                        database:
+                            source.database,
+                        dateStrings:
+                            true
+                    })
         });
+
+    const trustOptions =
+        await commonTrustOptions(
+            runtimeConfig
+        );
+
+    const candidateEndpoint =
+        new URL(
+            "/connector/resident-candidates",
+            new URL(
+                trustOptions.endpoint
+            ).origin
+        ).toString();
+
+    const residentCandidateClient =
+        await createResidentCandidateService({
+            databasePath,
+            endpoint:
+                candidateEndpoint,
+            credential:
+                trustOptions.credential,
+            authorizationScheme:
+                trustOptions
+                    .authorizationScheme,
+            connectorIdHeader:
+                trustOptions
+                    .connectorIdHeader
+        });
+
+    const residentMatcher =
+        new MySqlResidentCandidateMatcher({
+            residentCandidateClient
+        });
+
+    const connectorId =
+        residentCandidateClient
+            .connectorId;
+
+    const associationEndpoint =
+        new URL(
+            "/connector/logical-source-resident-associations",
+            new URL(
+                trustOptions.endpoint
+            ).origin
+        ).toString();
+
+    const associationClient =
+        new LogicalSourceResidentAssociationHttpClient({
+            endpoint:
+                associationEndpoint,
+            connectorId,
+            credential:
+                trustOptions.credential,
+            authorizationScheme:
+                trustOptions
+                    .authorizationScheme,
+            connectorIdHeader:
+                trustOptions
+                    .connectorIdHeader,
+            fetchImpl:
+                globalThis.fetch
+        });
+
+    const semanticEndpoint =
+        new URL(
+            "/connector/logical-source-semantic-records",
+            new URL(
+                trustOptions.endpoint
+            ).origin
+        ).toString();
+
+    const semanticClient =
+        new LogicalSourceSemanticHttpClient({
+            endpoint:
+                semanticEndpoint,
+            connectorId,
+            credential:
+                trustOptions.credential,
+            authorizationScheme:
+                trustOptions
+                    .authorizationScheme,
+            connectorIdHeader:
+                trustOptions
+                    .connectorIdHeader,
+            fetchImpl:
+                globalThis.fetch
+        });
+
+    const residentProfileSemanticProjector =
+        new MySqlResidentProfileSemanticProjector();
+
+    const semanticProjector = {
+        project(input = {}) {
+            return residentProfileSemanticProjector
+                .project({
+                    ...input,
+                    birthDateField:
+                        source.birthDateField.trim()
+                });
+        }
+    };
+
+    const recordProjector =
+        new MySqlLogicalRecordProjector();
 
     const database =
         new DatabaseSync(
@@ -131,33 +304,27 @@ async function syncMySql({
                 database
             });
 
-        const sourceAdapter =
-            new MySqlSourceAdapter({
-                sourceId:
-                    source.sourceId,
-                query:
-                    source.query,
-                connectionFactory:
-                    async () =>
-                        mysql.createConnection({
-                            host:
-                                source.host,
-                            port:
-                                source.port,
-                            user:
-                                source.user,
-                            password:
-                                source.password,
-                            database:
-                                source.database
-                        })
+        const semanticStateStore =
+            new SqliteMySqlSemanticStateStore({
+                database
             });
 
         const engine =
             new MySqlSyncEngine({
                 sourceAdapter,
-                ingestionService,
-                stateStore
+                recordProjector,
+                residentMatcher,
+                associationClient,
+                semanticProjector,
+                semanticClient,
+                semanticStateStore,
+                stateStore,
+                identityField:
+                    source.identityField,
+                residentCodeField:
+                    source.residentCodeField,
+                residentNameField:
+                    source.residentNameField
             });
 
         return await engine.syncOnce(
@@ -176,17 +343,77 @@ async function main() {
         new DatabasePathResolver()
             .resolve();
 
-    const files =
-        await syncFiles({
-            runtimeConfig,
-            databasePath
-        });
+    const localConfig =
+        new LocalConnectorConfig();
+
+    process.stderr.write(
+        "sync_stage=files_config_start\n"
+    );
+
+    const allowedFolder =
+        await localConfig
+            .getAllowedFolder();
+
+    let files;
+
+    if (allowedFolder) {
+        process.stderr.write(
+            "sync_stage=files_start\n"
+        );
+
+        files =
+            await syncFiles({
+                runtimeConfig,
+                databasePath
+            });
+
+        process.stderr.write(
+            "sync_stage=files_complete\n"
+        );
+    } else {
+        files = {
+            status:
+                "skipped",
+            failed:
+                0,
+            reason:
+                "not_configured"
+        };
+
+        process.stderr.write(
+            "sync_stage=files_skipped reason=not_configured\n"
+        );
+    }
+
+    process.stderr.write(
+        "sync_stage=mysql_config_start\n"
+    );
+
+    const mysqlSource =
+        await new MySqlRuntimeSourceResolver({
+            localConfig,
+            runtimeConfig
+        }).resolve();
+
+    process.stderr.write(
+        `sync_stage=mysql_config_complete configured=${mysqlSource ? "true" : "false"}\n`
+    );
+
+    process.stderr.write(
+        "sync_stage=mysql_sync_start\n"
+    );
 
     const mysqlResult =
         await syncMySql({
             runtimeConfig,
-            databasePath
+            databasePath,
+            source:
+                mysqlSource
         });
+
+    process.stderr.write(
+        "sync_stage=mysql_sync_complete\n"
+    );
 
     const result = {
         files,
@@ -199,7 +426,10 @@ async function main() {
     );
 
     const fileSuccess =
-        files.status === "completed" &&
+        (
+            files.status === "completed" ||
+            files.status === "skipped"
+        ) &&
         files.failed === 0;
 
     const mysqlSuccess =
@@ -216,9 +446,31 @@ async function main() {
     process.exitCode = 1;
 }
 
-main().catch(() => {
+main().catch(error => {
+    const safeError = {
+        name:
+            typeof error?.name === "string"
+                ? error.name
+                : "Error",
+        code:
+            typeof error?.code === "string"
+                ? error.code
+                : null,
+        httpStatus:
+            Number.isInteger(
+                error?.httpStatus
+            )
+                ? error.httpStatus
+                : null,
+        message:
+            typeof error?.message === "string"
+                ? error.message
+                : "sync failed"
+    };
+
     process.stderr.write(
-        "sync_once_failed\n"
+        `sync_once_failed ${JSON.stringify(safeError)}\n`
     );
+
     process.exitCode = 1;
 });

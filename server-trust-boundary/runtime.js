@@ -89,6 +89,16 @@ const ConnectorResidentCandidateService =
 
 const SupabaseSourceResidentLinkPersistenceRepository =
     require("./SupabaseSourceResidentLinkPersistenceRepository");
+const SupabaseLogicalSourceResidentAssociationRepository =
+    require("./SupabaseLogicalSourceResidentAssociationRepository");
+const LogicalSourceResidentAssociationPersistenceService =
+    require("./LogicalSourceResidentAssociationPersistenceService");
+
+const SupabaseLogicalSourceSemanticRepository =
+    require("./SupabaseLogicalSourceSemanticRepository");
+
+const LogicalSourceSemanticPersistenceService =
+    require("./LogicalSourceSemanticPersistenceService");
 
 const SourceResidentLinkPersistenceService =
     require("./SourceResidentLinkPersistenceService");
@@ -618,6 +628,34 @@ function createServerTrustBoundaryRuntime({
             sourceResidentLinkPersistenceRepository
         });
 
+    const logicalSourceResidentAssociationRepository =
+        new SupabaseLogicalSourceResidentAssociationRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const logicalSourceResidentAssociationPersistenceService =
+        new LogicalSourceResidentAssociationPersistenceService({
+            connectorTrustService,
+            repository:
+                logicalSourceResidentAssociationRepository
+        });
+
+    const logicalSourceSemanticRepository =
+        new SupabaseLogicalSourceSemanticRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const logicalSourceSemanticPersistenceService =
+        new LogicalSourceSemanticPersistenceService({
+            connectorTrustService,
+            repository:
+                logicalSourceSemanticRepository
+        });
+
     const sourceResidentLinkQueryRepository =
         new SupabaseSourceResidentLinkQueryRepository({
             supabaseUrl,
@@ -913,6 +951,8 @@ function createServerTrustBoundaryRuntime({
         connectorResidentCandidateService,
         sourceResidentLinkPersistenceService,
         sourceResidentLinkQueryService,
+        logicalSourceResidentAssociationPersistenceService,
+        logicalSourceSemanticPersistenceService,
         sourceResidentMappingPersistenceService,
         sourceResidentMappingQueryService,
         sourceRecordIdentityMappingPersistenceService,

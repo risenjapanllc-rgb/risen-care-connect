@@ -7,11 +7,10 @@
 static CFStringRef service =
     CFSTR("care.risen.connector");
 
-static CFStringRef account =
-    CFSTR("connector-credential");
-
 static CFMutableDictionaryRef
-base_query(void) {
+base_query(
+    CFStringRef account
+) {
     CFMutableDictionaryRef query =
         CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -42,7 +41,9 @@ base_query(void) {
 }
 
 static int
-cmd_set(void) {
+cmd_set(
+    CFStringRef account
+) {
     char buffer[4096];
 
     if (!fgets(buffer, sizeof(buffer), stdin)) {
@@ -75,7 +76,7 @@ cmd_set(void) {
         );
 
     CFMutableDictionaryRef query =
-        base_query();
+        base_query(account);
 
     CFMutableDictionaryRef attrs =
         CFDictionaryCreateMutable(
@@ -131,9 +132,11 @@ cmd_set(void) {
 }
 
 static int
-cmd_get(void) {
+cmd_get(
+    CFStringRef account
+) {
     CFMutableDictionaryRef query =
-        base_query();
+        base_query(account);
 
     CFDictionarySetValue(
         query,
@@ -187,9 +190,11 @@ cmd_get(void) {
 }
 
 static int
-cmd_delete(void) {
+cmd_delete(
+    CFStringRef account
+) {
     CFMutableDictionaryRef query =
-        base_query();
+        base_query(account);
 
     OSStatus status =
         SecItemDelete(query);
@@ -214,26 +219,52 @@ cmd_delete(void) {
 
 int
 main(int argc, char **argv) {
-    if (argc != 2) {
+    if (
+        argc < 2 ||
+        argc > 3
+    ) {
         fprintf(
             stderr,
-            "usage: helper set|get|delete\n"
+            "usage: helper set|get|delete [key]\n"
         );
         return 64;
     }
 
+    const char *key =
+        argc == 3
+            ? argv[2]
+            : "connector-credential";
+
+    CFStringRef account =
+        CFStringCreateWithCString(
+            kCFAllocatorDefault,
+            key,
+            kCFStringEncodingUTF8
+        );
+
+    if (!account) {
+        return 64;
+    }
+
     if (strcmp(argv[1], "set") == 0) {
-        return cmd_set();
+        int result = cmd_set(account);
+        CFRelease(account);
+        return result;
     }
 
     if (strcmp(argv[1], "get") == 0) {
-        return cmd_get();
+        int result = cmd_get(account);
+        CFRelease(account);
+        return result;
     }
 
     if (strcmp(argv[1], "delete") == 0) {
-        return cmd_delete();
+        int result = cmd_delete(account);
+        CFRelease(account);
+        return result;
     }
 
     fprintf(stderr, "unknown command\n");
+    CFRelease(account);
     return 64;
 }

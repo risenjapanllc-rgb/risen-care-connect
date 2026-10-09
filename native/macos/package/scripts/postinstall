@@ -1,0 +1,44 @@
+#!/bin/bash
+set -e
+
+LABEL="care.risen.connector"
+PLIST="/Library/LaunchAgents/${LABEL}.plist"
+INSTALL_DIR="/Library/Application Support/RISEN CARE Connector"
+
+chmod 755 \
+  "${INSTALL_DIR}/runtime/node" \
+  "${INSTALL_DIR}/native/macos/risen-keychain-helper" \
+  "${INSTALL_DIR}/scripts/production-local-runtime.sh"
+
+chmod 644 \
+  "${PLIST}"
+
+CONSOLE_USER="$(
+  stat -f '%Su' /dev/console
+)"
+
+if (
+  [ -n "${CONSOLE_USER}" ] &&
+  [ "${CONSOLE_USER}" != "root" ] &&
+  [ "${CONSOLE_USER}" != "loginwindow" ]
+); then
+  CONSOLE_UID="$(
+    id -u "${CONSOLE_USER}"
+  )"
+
+  launchctl bootout \
+    "gui/${CONSOLE_UID}/${LABEL}" \
+    2>/dev/null || true
+
+  launchctl bootstrap \
+    "gui/${CONSOLE_UID}" \
+    "${PLIST}" \
+    2>/dev/null || true
+
+  launchctl kickstart \
+    -k \
+    "gui/${CONSOLE_UID}/${LABEL}" \
+    2>/dev/null || true
+fi
+
+exit 0

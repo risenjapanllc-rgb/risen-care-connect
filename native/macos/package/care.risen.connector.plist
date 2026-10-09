@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>care.risen.connector</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Application Support/RISEN CARE Connector/scripts/production-local-runtime.sh</string>
+        <string>supervise</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Library/Application Support/RISEN CARE Connector</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>RISEN_NODE_BIN</key>
+        <string>/Library/Application Support/RISEN CARE Connector/runtime/node</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/care.risen.connector.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/care.risen.connector.error.log</string>
+</dict>
+</plist>

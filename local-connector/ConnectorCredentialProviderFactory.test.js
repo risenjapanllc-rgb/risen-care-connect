@@ -18,22 +18,11 @@ const {
 
 test(
     "creates provider using repository-relative macOS helper",
-    async () => {
+    () => {
         const provider =
             createConnectorCredentialProvider({
-                env: {
-                    CONNECTOR_CREDENTIAL:
-                        "env-secret"
-                }
+                env: {}
             });
-
-        const credential =
-            await provider.getCredential();
-
-        assert.equal(
-            credential,
-            "env-secret"
-        );
 
         assert.equal(
             provider

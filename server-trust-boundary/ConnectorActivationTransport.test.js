@@ -66,8 +66,12 @@ test(
                 {
                     type:
                         "verify",
-                    token:
-                        "activation-token"
+                    token: {
+                        activationToken:
+                            "activation-token",
+                        connectorId:
+                            "connector-1"
+                    }
                 },
                 {
                     type:

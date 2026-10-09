@@ -84,9 +84,10 @@ class ConnectorActivationTransport {
             verification =
                 await this
                     .activationTokenVerifier
-                    .verify(
-                        activationToken
-                    );
+                    .verify({
+                        activationToken,
+                        connectorId
+                    });
         } catch (error) {
             return {
                 httpStatus: 401,

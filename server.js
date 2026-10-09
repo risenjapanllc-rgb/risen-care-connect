@@ -13,10 +13,155 @@ const CsvDataTypeDetector =
 const LocalConnectorConfig =
     require("./local-connector/LocalConnectorConfig");
 
+const SupabaseConnectorTrustAuthProvider =
+    require(
+        "./server-trust-boundary/SupabaseConnectorTrustAuthProvider"
+    );
+
+const SupabaseConnectorActivationHandoffRepository =
+    require(
+        "./server-trust-boundary/SupabaseConnectorActivationHandoffRepository"
+    );
+
 require("dotenv").config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
+
+const connectorActivationHandoffAuthProvider =
+    new SupabaseConnectorTrustAuthProvider({
+        supabaseUrl:
+            process.env.SUPABASE_URL,
+        apiKey:
+            process.env.SUPABASE_PUBLISHABLE_KEY,
+        email:
+            process.env.SUPABASE_CONNECTOR_TRUST_EMAIL,
+        password:
+            process.env.SUPABASE_CONNECTOR_TRUST_PASSWORD
+    });
+
+const connectorActivationHandoffRepository =
+    new SupabaseConnectorActivationHandoffRepository({
+        supabaseUrl:
+            process.env.SUPABASE_URL,
+        apiKey:
+            process.env.SUPABASE_PUBLISHABLE_KEY,
+        authProvider:
+            connectorActivationHandoffAuthProvider
+    });
+
+
+async function verifyFacilitySystemRequest(req) {
+    const authorization =
+        String(
+            req.headers.authorization || ""
+        ).trim();
+
+    const match =
+        authorization.match(
+            /^Bearer\s+(.+)$/i
+        );
+
+    if (!match) {
+        return {
+            status:
+                "unauthenticated"
+        };
+    }
+
+    const accessToken =
+        String(match[1] || "").trim();
+
+    const supabaseUrl =
+        String(
+            process.env.SUPABASE_URL || ""
+        )
+            .trim()
+            .replace(/\/$/, "");
+
+    const publishableKey =
+        String(
+            process.env.SUPABASE_PUBLISHABLE_KEY || ""
+        ).trim();
+
+    if (
+        !supabaseUrl ||
+        !publishableKey
+    ) {
+        return {
+            status:
+                "configuration_error"
+        };
+    }
+
+    let response;
+
+    try {
+        response =
+            await fetch(
+                `${supabaseUrl}/auth/v1/user`,
+                {
+                    method: "GET",
+                    headers: {
+                        apikey:
+                            publishableKey,
+                        Authorization:
+                            `Bearer ${accessToken}`
+                    }
+                }
+            );
+    } catch (error) {
+        return {
+            status:
+                "verification_unavailable"
+        };
+    }
+
+    if (!response.ok) {
+        return {
+            status:
+                "unauthenticated"
+        };
+    }
+
+    let user;
+
+    try {
+        user =
+            await response.json();
+    } catch (error) {
+        return {
+            status:
+                "verification_unavailable"
+        };
+    }
+
+    const authRole =
+        String(
+            user?.role || ""
+        ).trim();
+
+    const risenCareRole =
+        String(
+            user?.app_metadata?.risencare_role || ""
+        ).trim();
+
+    if (
+        authRole !== "authenticated" ||
+        risenCareRole !== "facility_system"
+    ) {
+        return {
+            status:
+                "forbidden"
+        };
+    }
+
+    return {
+        status:
+            "authenticated",
+        accessToken
+    };
+}
 
 
 // ==========================================
@@ -171,6 +316,341 @@ app.get("/local-connector.html", (req, res) => {
         path.join(__dirname, "local-connector.html")
     );
 });
+
+app.get(
+    "/connect",
+    (req, res) => {
+        res.setHeader(
+            "Cache-Control",
+            "no-store"
+        );
+
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "connector-activation-bridge.html"
+            )
+        );
+    }
+);
+
+app.get(
+    "/connector-activation-bridge",
+    (req, res) => {
+        res.setHeader(
+            "Cache-Control",
+            "no-store"
+        );
+
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "connector-activation-bridge.html"
+            )
+        );
+    }
+);
+
+app.post(
+    "/api/connector-activation-handoffs",
+    async (req, res) => {
+
+        const authentication =
+            await verifyFacilitySystemRequest(
+                req
+            );
+
+
+        if (
+            authentication.status ===
+            "unauthenticated"
+        ) {
+            return res.status(401).json({
+                success: false,
+                errorCode:
+                    "facility_system_authentication_required"
+            });
+        }
+
+        if (
+            authentication.status ===
+            "forbidden"
+        ) {
+            return res.status(403).json({
+                success: false,
+                errorCode:
+                    "facility_system_role_required"
+            });
+        }
+
+        if (
+            authentication.status !==
+            "authenticated"
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "facility_system_authentication_unavailable"
+            });
+        }
+
+        const activationToken =
+            String(
+                req.body?.activationToken || ""
+            ).trim();
+
+        const connectorId =
+            String(
+                req.body?.connectorId || ""
+            ).trim();
+
+        const activationTokenValid =
+            /^ract_[0-9a-f]{64}$/
+                .test(activationToken);
+
+        const connectorIdValid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+                .test(connectorId);
+
+
+        if (
+            !activationTokenValid ||
+            !connectorIdValid
+        ) {
+            return res.status(400).json({
+                success: false,
+                errorCode:
+                    "invalid_activation_handoff"
+            });
+        }
+
+        const handoffId =
+            crypto.randomBytes(32)
+                .toString("hex");
+
+        try {
+            await connectorActivationHandoffRepository
+                .create({
+                    handoffId,
+                    connectorId,
+                    activationToken,
+                    facilitySystemAccessToken:
+                        authentication.accessToken,
+                    ttlSeconds:
+                        120
+                });
+        } catch (error) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "activation_handoff_persistence_unavailable"
+            });
+        }
+
+        res.setHeader(
+            "Cache-Control",
+            "no-store"
+        );
+
+        return res.status(201).json({
+            success: true,
+            handoffId,
+            expiresInSeconds: 120
+        });
+    }
+);
+
+app.get(
+    "/connector-activation-bridge/complete",
+    async (req, res) => {
+        const handoffId =
+            String(
+                req.query?.handoffId || ""
+            ).trim();
+
+        if (
+            !/^[0-9a-f]{64}$/
+                .test(handoffId)
+        ) {
+            return res
+                .status(400)
+                .send(
+                    "Invalid activation handoff"
+                );
+        }
+
+        let entry;
+
+        try {
+            entry =
+                await connectorActivationHandoffRepository
+                    .consume({
+                        handoffId
+                    });
+        } catch (error) {
+            return res
+                .status(503)
+                .send(
+                    "Activation handoff service unavailable"
+                );
+        }
+
+        if (
+            !entry ||
+            entry.status !== "consumed"
+        ) {
+            return res
+                .status(404)
+                .send(
+                    "Activation handoff expired or already used"
+                );
+        }
+
+        res.setHeader(
+            "Cache-Control",
+            "no-store"
+        );
+
+        res.setHeader(
+            "Referrer-Policy",
+            "no-referrer"
+        );
+
+        const activationTokenJson =
+            JSON.stringify(
+                entry.activationToken
+            );
+
+        const connectorIdJson =
+            JSON.stringify(
+                entry.connectorId
+            );
+
+        return res
+            .type("html")
+            .send(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>RISEN CARE PC接続</title>
+</head>
+<body>
+<main>
+<h1>RISEN CARE</h1>
+<p id="status">
+このPCの接続を確認しています…
+</p>
+</main>
+
+<script>
+(async function () {
+  const status =
+    document.getElementById("status");
+
+  const activationToken =
+    ${activationTokenJson};
+
+  const expectedConnectorId =
+    ${connectorIdJson};
+
+  try {
+    const identityResponse =
+      await fetch(
+        "http://127.0.0.1:4310/identity",
+        {
+          method: "GET",
+          cache: "no-store",
+          mode: "cors",
+          targetAddressSpace:
+            "loopback"
+        }
+      );
+
+    if (!identityResponse.ok) {
+      throw new Error(
+        "Local Connectorへ接続できません。"
+      );
+    }
+
+    const identity =
+      await identityResponse.json();
+
+    const localConnectorId =
+      identity &&
+      typeof identity.connectorId ===
+        "string"
+        ? identity.connectorId.trim()
+        : "";
+
+    if (!localConnectorId) {
+      throw new Error(
+        "Connector IDを取得できません。"
+      );
+    }
+
+    if (
+      localConnectorId !==
+        expectedConnectorId
+    ) {
+      throw new Error(
+        "この接続情報は別のPC用です。"
+      );
+    }
+
+    status.textContent =
+      "このPCへ接続情報を保存しています…";
+
+    const activationResponse =
+      await fetch(
+        "http://127.0.0.1:4310/activate",
+        {
+          method: "POST",
+          cache: "no-store",
+          mode: "cors",
+          targetAddressSpace:
+            "loopback",
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+          body:
+            JSON.stringify({
+              activationToken:
+                activationToken
+            })
+        }
+      );
+
+    const activation =
+      await activationResponse.json();
+
+    if (
+      !activationResponse.ok ||
+      !activation ||
+      activation.success !== true
+    ) {
+      throw new Error(
+        "このPCを接続できませんでした。"
+      );
+    }
+
+    status.textContent =
+      "このPCの接続が完了しました。";
+
+  } catch (error) {
+    status.textContent =
+      error && error.message
+        ? error.message
+        : "このPCを接続できませんでした。";
+  }
+})();
+</script>
+</body>
+</html>`);
+    }
+);
 
 app.get("/style.css", (req, res) => {
     return res.sendFile(

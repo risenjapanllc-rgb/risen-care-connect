@@ -14,6 +14,9 @@ const {
         "./ConnectorCredentialProviderFactory"
     );
 
+const ConnectorActivationClient =
+    require("./ConnectorActivationClient");
+
 const {
     evaluateRuntimeCapability:
         evaluateLocalConnectorRuntimeCapability
@@ -29,6 +32,48 @@ app.locals.localConnectorService = service;
 
 const connectorCredentialProvider =
     createConnectorCredentialProvider();
+
+const resolveConnectorActivationEndpoint =
+    () => {
+        const explicit =
+            process.env
+                .RISEN_CONNECTOR_ACTIVATION_ENDPOINT;
+
+        if (
+            typeof explicit === "string" &&
+            explicit.trim()
+        ) {
+            return explicit.trim();
+        }
+
+        const base =
+            process.env
+                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+        if (base) {
+            const url =
+                new URL(base);
+
+            url.pathname =
+                "/connector/activate";
+
+            url.search =
+                "";
+
+            url.hash =
+                "";
+
+            return url.toString();
+        }
+
+        return "http://127.0.0.1:8787/connector/activate";
+    };
+
+const connectorActivationClient =
+    new ConnectorActivationClient({
+        endpoint:
+            resolveConnectorActivationEndpoint()
+    });
 
 let localConnectorIngestionServicePromise = null;
 let sourceDocumentIngestionServicePromise = null;
@@ -717,27 +762,29 @@ const PORT = Number(
     process.env.RISEN_LOCAL_CONNECTOR_PORT || 4310
 );
 
-app.use((req, res, next) => {
-    if (
-        req.headers[
-            'access-control-request-private-network'
-        ] === 'true'
-    ) {
-        res.setHeader(
-            'Access-Control-Allow-Private-Network',
-            'true'
-        );
-    }
-
-    next();
-});
+const allowedLocalConnectorOrigins = [
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'https://connect.risencare.jp'
+];
 
 app.use(cors({
-    origin: [
-        'http://localhost:3001',
-        'http://127.0.0.1:3001',
-        'https://connect.risencare.jp'
-    ]
+    origin(origin, callback) {
+        if (
+            !origin ||
+            allowedLocalConnectorOrigins
+                .includes(origin)
+        ) {
+            return callback(null, true);
+        }
+
+
+        return callback(
+            new Error(
+                'Local Connector CORS origin is not allowed'
+            )
+        );
+    }
 }));
 
 app.use(express.json({
@@ -789,6 +836,84 @@ app.get('/identity', async (req, res) => {
         });
     }
 });
+
+app.post(
+    "/activate",
+    async (req, res) => {
+        try {
+            const activationToken =
+                String(
+                    req.body?.activationToken ||
+                    ""
+                ).trim();
+
+            if (!activationToken) {
+                return res.status(400).json({
+                    success:
+                        false,
+
+                    errorCode:
+                        "activation_token_required"
+                });
+            }
+
+            const connectorId =
+                await service.getConnectorId();
+
+            const result =
+                await connectorActivationClient
+                    .activate({
+                        activationToken,
+                        connectorId
+                    });
+
+            await connectorCredentialProvider
+                .credentialStore
+                .save(
+                    result.credential
+                );
+
+            return res.status(200).json({
+                success:
+                    true,
+
+                status:
+                    "activated",
+
+                connectorId
+            });
+        } catch (error) {
+            console.error(
+                "Local Connector activation failed:",
+                error?.code ||
+                error?.message ||
+                "unknown"
+            );
+
+            if (
+                error?.code ===
+                    "connector_activation_unauthorized"
+            ) {
+                return res.status(401).json({
+                    success:
+                        false,
+
+                    errorCode:
+                        "connector_activation_unauthorized"
+                });
+            }
+
+            return res.status(503).json({
+                success:
+                    false,
+
+                errorCode:
+                    error?.code ||
+                    "connector_activation_unavailable"
+            });
+        }
+    }
+);
 
 app.get('/health', (req, res) => {
     return res.json({

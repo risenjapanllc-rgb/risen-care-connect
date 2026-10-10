@@ -17,6 +17,8 @@
 
     <key>EnvironmentVariables</key>
     <dict>
+        <key>RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT</key>
+        <string>https://voice.risencare.jp/connector/ingest</string>
         <key>RISEN_NODE_BIN</key>
         <string>/Library/Application Support/RISEN CARE Connector/runtime/node</string>
     </dict>

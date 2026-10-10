@@ -543,3 +543,149 @@ test(
         }
     }
 );
+
+test(
+    "ensureDefaultAllowedFolder creates and registers the default inbox",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-default-inbox-"
+                )
+            );
+
+        const homeDirectory =
+            path.join(
+                directory,
+                "home"
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            const config =
+                new LocalConnectorConfig({
+                    configPath,
+                    homeDirectory,
+                    platform:
+                        "darwin"
+                });
+
+            const result =
+                await config
+                    .ensureDefaultAllowedFolder();
+
+            const expected =
+                path.join(
+                    homeDirectory,
+                    "Documents",
+                    "RISEN CARE connect",
+                    "inbox"
+                );
+
+            assert.equal(
+                result,
+                expected
+            );
+
+            assert.equal(
+                await config.getAllowedFolder(),
+                expected
+            );
+
+            const stats =
+                await fs.stat(expected);
+
+            assert.equal(
+                stats.isDirectory(),
+                true
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "ensureDefaultAllowedFolder preserves an existing allowed folder",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-existing-inbox-"
+                )
+            );
+
+        const existing =
+            path.join(
+                directory,
+                "existing"
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            await fs.mkdir(
+                existing,
+                {
+                    recursive: true
+                }
+            );
+
+            const config =
+                new LocalConnectorConfig({
+                    configPath,
+                    homeDirectory:
+                        path.join(
+                            directory,
+                            "home"
+                        ),
+                    platform:
+                        "darwin"
+                });
+
+            await config
+                .saveAllowedFolder(
+                    existing
+                );
+
+            const result =
+                await config
+                    .ensureDefaultAllowedFolder();
+
+            assert.equal(
+                result,
+                existing
+            );
+
+            assert.equal(
+                await config.getAllowedFolder(),
+                existing
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

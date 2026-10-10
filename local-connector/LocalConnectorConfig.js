@@ -409,6 +409,31 @@ class LocalConnectorConfig {
 
 
     async ensureDefaultAllowedFolder() {
+        let config = {};
+
+        try {
+            const text =
+                await fs.readFile(
+                    this.configPath,
+                    'utf8'
+                );
+
+            config =
+                JSON.parse(text);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                throw error;
+            }
+        }
+
+        if (
+            typeof config.allowedFolder ===
+                'string' &&
+            config.allowedFolder.trim()
+        ) {
+            return config.allowedFolder.trim();
+        }
+
         const defaultFolder =
             LocalConnectorConfig
                 .resolveDefaultInboxPath({

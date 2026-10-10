@@ -46,7 +46,32 @@ class LocalConnectorConfig {
         );
     }
 
+    static resolveDefaultInboxPath({
+        platform = process.platform,
+        homeDirectory = os.homedir()
+    } = {}) {
+        const pathModule =
+            platform === 'win32'
+                ? path.win32
+                : path;
+
+        return pathModule.join(
+            homeDirectory,
+            'Documents',
+            'RISEN CARE connect',
+            'inbox'
+        );
+    }
+
     constructor(options = {}) {
+        this.platform =
+            options.platform ||
+            process.platform;
+
+        this.homeDirectory =
+            options.homeDirectory ||
+            os.homedir();
+
         this.configPath =
             options.configPath ||
             process.env
@@ -54,11 +79,9 @@ class LocalConnectorConfig {
             LocalConnectorConfig
                 .resolveDefaultConfigPath({
                     platform:
-                        options.platform ||
-                        process.platform,
+                        this.platform,
                     homeDirectory:
-                        options.homeDirectory ||
-                        os.homedir(),
+                        this.homeDirectory,
                     localAppData:
                         options.localAppData ||
                         process.env.LOCALAPPDATA
@@ -385,6 +408,31 @@ class LocalConnectorConfig {
     }
 
 
+    async ensureDefaultAllowedFolder() {
+        const defaultFolder =
+            LocalConnectorConfig
+                .resolveDefaultInboxPath({
+                    platform:
+                        this.platform,
+                    homeDirectory:
+                        this.homeDirectory
+                });
+
+        await fs.mkdir(
+            defaultFolder,
+            {
+                recursive: true,
+                mode: 0o700
+            }
+        );
+
+        await this.saveAllowedFolder(
+            defaultFolder
+        );
+
+        return defaultFolder;
+    }
+
     async getAllowedFolder() {
         try {
             const text =
@@ -401,14 +449,16 @@ class LocalConnectorConfig {
                 typeof config.allowedFolder !== 'string' ||
                 !config.allowedFolder.trim()
             ) {
-                return null;
+                return await this
+                    .ensureDefaultAllowedFolder();
             }
 
             return config.allowedFolder.trim();
 
         } catch (error) {
             if (error.code === 'ENOENT') {
-                return null;
+                return await this
+                    .ensureDefaultAllowedFolder();
             }
 
             throw error;

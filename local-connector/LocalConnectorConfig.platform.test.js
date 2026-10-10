@@ -74,3 +74,45 @@ test(
         );
     }
 );
+
+test(
+    "uses the standard RISEN CARE inbox on macOS",
+    () => {
+        assert.strictEqual(
+            LocalConnectorConfig
+                .resolveDefaultInboxPath({
+                    platform:
+                        "darwin",
+                    homeDirectory:
+                        "/Users/example"
+                }),
+            path.join(
+                "/Users/example",
+                "Documents",
+                "RISEN CARE connect",
+                "inbox"
+            )
+        );
+    }
+);
+
+test(
+    "uses the standard RISEN CARE inbox on Windows",
+    () => {
+        assert.strictEqual(
+            LocalConnectorConfig
+                .resolveDefaultInboxPath({
+                    platform:
+                        "win32",
+                    homeDirectory:
+                        "C:\\Users\\example"
+                }),
+            path.win32.join(
+                "C:\\Users\\example",
+                "Documents",
+                "RISEN CARE connect",
+                "inbox"
+            )
+        );
+    }
+);

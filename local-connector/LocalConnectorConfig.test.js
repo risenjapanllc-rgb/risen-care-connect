@@ -433,14 +433,20 @@ test(
 );
 
 test(
-    "getAllowedFolder returns null when config exists without file source",
+    "getAllowedFolder creates and registers the default inbox when no file source exists",
     async () => {
         const directory =
             await fs.mkdtemp(
                 path.join(
                     os.tmpdir(),
-                    "risen-no-file-source-"
+                    "risen-default-inbox-"
                 )
+            );
+
+        const homeDirectory =
+            path.join(
+                directory,
+                "home"
             );
 
         const configPath =
@@ -475,12 +481,56 @@ test(
 
             const config =
                 new LocalConnectorConfig({
-                    configPath
+                    configPath,
+                    platform:
+                        "darwin",
+                    homeDirectory
                 });
+
+            const expectedFolder =
+                path.join(
+                    homeDirectory,
+                    "Documents",
+                    "RISEN CARE connect",
+                    "inbox"
+                );
 
             assert.equal(
                 await config.getAllowedFolder(),
-                null
+                expectedFolder
+            );
+
+            const stats =
+                await fs.stat(
+                    expectedFolder
+                );
+
+            assert.equal(
+                stats.isDirectory(),
+                true
+            );
+
+            const saved =
+                JSON.parse(
+                    await fs.readFile(
+                        configPath,
+                        "utf8"
+                    )
+                );
+
+            assert.equal(
+                saved.allowedFolder,
+                expectedFolder
+            );
+
+            assert.equal(
+                saved.connectorId,
+                "connector-test"
+            );
+
+            assert.equal(
+                saved.mysqlSource.sourceId,
+                "mysql-test"
             );
         } finally {
             await fs.rm(

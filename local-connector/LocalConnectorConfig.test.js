@@ -689,3 +689,183 @@ test(
         }
     }
 );
+
+test(
+    "getAllowedFolder creates and registers the default RISEN CARE inbox when unset",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-default-inbox-"
+                )
+            );
+
+        const homeDirectory =
+            path.join(
+                directory,
+                "home"
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            await fs.mkdir(
+                homeDirectory,
+                {
+                    recursive: true
+                }
+            );
+
+            await fs.writeFile(
+                configPath,
+                JSON.stringify({
+                    connectorId:
+                        "connector-test"
+                }),
+                "utf8"
+            );
+
+            const config =
+                new LocalConnectorConfig({
+                    configPath,
+                    homeDirectory
+                });
+
+            const expected =
+                path.join(
+                    homeDirectory,
+                    "Documents",
+                    "RISEN CARE connect",
+                    "inbox"
+                );
+
+            assert.equal(
+                await config.getAllowedFolder(),
+                expected
+            );
+
+            const stats =
+                await fs.stat(expected);
+
+            assert.equal(
+                stats.isDirectory(),
+                true
+            );
+
+            const saved =
+                JSON.parse(
+                    await fs.readFile(
+                        configPath,
+                        "utf8"
+                    )
+                );
+
+            assert.equal(
+                saved.allowedFolder,
+                expected
+            );
+
+            assert.equal(
+                saved.connectorId,
+                "connector-test"
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);
+
+test(
+    "getAllowedFolder keeps an existing allowedFolder instead of replacing it with the default inbox",
+    async () => {
+        const directory =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "risen-existing-inbox-"
+                )
+            );
+
+        const homeDirectory =
+            path.join(
+                directory,
+                "home"
+            );
+
+        const existingFolder =
+            path.join(
+                directory,
+                "existing"
+            );
+
+        const configPath =
+            path.join(
+                directory,
+                "config.json"
+            );
+
+        try {
+            await fs.mkdir(
+                existingFolder,
+                {
+                    recursive: true
+                }
+            );
+
+            await fs.writeFile(
+                configPath,
+                JSON.stringify({
+                    connectorId:
+                        "connector-test",
+                    allowedFolder:
+                        existingFolder
+                }),
+                "utf8"
+            );
+
+            const config =
+                new LocalConnectorConfig({
+                    configPath,
+                    homeDirectory
+                });
+
+            assert.equal(
+                await config.getAllowedFolder(),
+                existingFolder
+            );
+
+            await assert.rejects(
+                fs.stat(
+                    path.join(
+                        homeDirectory,
+                        "Documents",
+                        "RISEN CARE connect",
+                        "inbox"
+                    )
+                ),
+                error =>
+                    error &&
+                    error.code === "ENOENT"
+            );
+        } finally {
+            await fs.rm(
+                directory,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

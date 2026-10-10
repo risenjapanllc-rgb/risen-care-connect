@@ -116,3 +116,22 @@ test(
         );
     }
 );
+
+test(
+    "uses Documents RISEN CARE connect inbox as default import folder",
+    () => {
+        assert.strictEqual(
+            LocalConnectorConfig
+                .resolveDefaultInboxPath({
+                    homeDirectory:
+                        "/Users/example"
+                }),
+            path.join(
+                "/Users/example",
+                "Documents",
+                "RISEN CARE connect",
+                "inbox"
+            )
+        );
+    }
+);

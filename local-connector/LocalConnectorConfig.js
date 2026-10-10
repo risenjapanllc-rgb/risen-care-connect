@@ -63,6 +63,17 @@ class LocalConnectorConfig {
         );
     }
 
+    static resolveDefaultAllowedFolderPath({
+        platform = process.platform,
+        homeDirectory = os.homedir()
+    } = {}) {
+        return LocalConnectorConfig
+            .resolveDefaultInboxPath({
+                platform,
+                homeDirectory
+            });
+    }
+
     constructor(options = {}) {
         this.platform =
             options.platform ||
@@ -459,35 +470,8 @@ class LocalConnectorConfig {
     }
 
     async getAllowedFolder() {
-        try {
-            const text =
-                await fs.readFile(
-                    this.configPath,
-                    'utf8'
-                );
-
-            const config =
-                JSON.parse(text);
-
-            if (
-                !config.allowedFolder ||
-                typeof config.allowedFolder !== 'string' ||
-                !config.allowedFolder.trim()
-            ) {
-                return await this
-                    .ensureDefaultAllowedFolder();
-            }
-
-            return config.allowedFolder.trim();
-
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                return await this
-                    .ensureDefaultAllowedFolder();
-            }
-
-            throw error;
-        }
+        return await this
+            .ensureDefaultAllowedFolder();
     }
 }
 

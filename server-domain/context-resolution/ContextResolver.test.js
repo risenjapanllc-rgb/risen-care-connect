@@ -355,3 +355,118 @@ test(
         );
     }
 );
+
+test(
+    "context resolver returns row semantic results separately from column candidates",
+    () => {
+        const result =
+            resolveSubjectContext({
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:15",
+                        headerLabel:
+                            "気温"
+                    }
+                ],
+
+                semanticEvidence: [
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:15",
+                        headerLabel:
+                            "気温",
+                        sampleValues: [
+                            "23.8",
+                            "24.1"
+                        ]
+                    }
+                ],
+
+                sourceFields: [
+                    {
+                        sourceEntityKey:
+                            "sheet:0:row:2",
+                        rowIndex: 2,
+                        fields: {
+                            行動:
+                                "健康管理",
+                            種類:
+                                "体温",
+                            データ1:
+                                "36.5",
+                            データ2:
+                                "廊下",
+                            気温:
+                                "23.8",
+                            状態:
+                                "1"
+                        }
+                    }
+                ]
+            });
+
+        const columnCandidate =
+            result.contextualCandidates
+                .find(item =>
+                    item.sourceFieldKey ===
+                    "sheet:0:column:15"
+                );
+
+        assert.ok(
+            columnCandidate
+        );
+
+        assert.equal(
+            columnCandidate
+                .candidate
+                .fieldName,
+            "temperature"
+        );
+
+        assert.ok(
+            Array.isArray(
+                result.rowSemanticResults
+            )
+        );
+
+        assert.equal(
+            result.rowSemanticResults.length,
+            1
+        );
+
+        assert.equal(
+            result.rowSemanticResults[0]
+                .rowType,
+            "health_temperature"
+        );
+
+        const bodyTemperature =
+            result.rowSemanticResults[0]
+                .interpretations
+                .find(item =>
+                    item.sourceFieldName ===
+                    "データ1"
+                );
+
+        assert.ok(
+            bodyTemperature
+        );
+
+        assert.equal(
+            bodyTemperature
+                .semanticMeaning,
+            "support_record.body_temperature"
+        );
+
+        assert.equal(
+            result.contextualCandidates
+                .some(item =>
+                    item.candidate
+                        ?.fieldName ===
+                    "body_temperature"
+                ),
+            false
+        );
+    }
+);

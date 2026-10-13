@@ -5,6 +5,11 @@ const SemanticEvidenceResolver =
         "../semantic-resolution/SemanticEvidenceResolver"
     );
 
+const RowSemanticResolver =
+    require(
+        "../row-semantic/RowSemanticResolver"
+    );
+
 function normalizeObservedLabel(value) {
     return String(value || "")
         .trim()
@@ -25,7 +30,11 @@ function resolveSubjectContext({
             ? sourceFields
             : [];
 
-    void sourceRecords;
+    const rowSemanticResults =
+        RowSemanticResolver.resolve({
+            sourceFields:
+                sourceRecords
+        });
 
     const labels = new Set(
         fieldDefinitions
@@ -322,6 +331,7 @@ function resolveSubjectContext({
         evidence,
         ambiguousFields,
         contextualCandidates,
+        rowSemanticResults,
         humanConfirmationRequired: true
     };
 }

@@ -1134,7 +1134,7 @@ function badgeFor(item) {
                     semantic-badge-review
                 "
             >
-                ○ 原本保持
+                ○ 複数候補
             </span>
         `;
     }
@@ -1146,7 +1146,7 @@ function badgeFor(item) {
                 semantic-badge-review
             "
         >
-            ○ 原本保持
+            ○ 未解決
         </span>
     `;
 }
@@ -1637,7 +1637,7 @@ function renderMeaningEditor(item) {
         return `
             <div>
                 <strong>
-                    複数候補のため原本保持
+                    複数候補（原本保持）
                 </strong>
 
                 ${renderSemanticEvidence(
@@ -1732,7 +1732,7 @@ function renderMeaningEditor(item) {
             "
         >
             <strong>
-                原本のまま保持
+                未解決（原本保持）
             </strong>
 
             ${renderSemanticEvidence(

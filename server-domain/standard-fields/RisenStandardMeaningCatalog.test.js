@@ -132,3 +132,71 @@ test(
         );
     }
 );
+
+test(
+    "row semantic support record meanings exist in the standard catalog",
+    () => {
+        const expected = [
+            [
+                "body_temperature",
+                "体温"
+            ],
+            [
+                "systolic_blood_pressure",
+                "収縮期血圧"
+            ],
+            [
+                "diastolic_blood_pressure",
+                "拡張期血圧"
+            ],
+            [
+                "pulse_rate",
+                "脈拍"
+            ],
+            [
+                "meal_intake_ratio",
+                "食事摂取割合"
+            ],
+            [
+                "record_location",
+                "記録場所"
+            ],
+            [
+                "urine_amount_category",
+                "尿量区分"
+            ],
+            [
+                "stool_amount_category",
+                "便量区分"
+            ],
+            [
+                "sleep_state",
+                "睡眠状態"
+            ]
+        ];
+
+        for (
+            const [
+                fieldName,
+                displayName
+            ]
+            of expected
+        ) {
+            const meaning =
+                findStandardMeaning(
+                    "support_record",
+                    fieldName
+                );
+
+            assert.ok(
+                meaning,
+                fieldName
+            );
+
+            assert.equal(
+                meaning.displayName,
+                displayName
+            );
+        }
+    }
+);

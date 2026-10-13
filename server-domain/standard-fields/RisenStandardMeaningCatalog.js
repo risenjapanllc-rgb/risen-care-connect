@@ -575,6 +575,90 @@ const STANDARD_MEANINGS = Object.freeze([
     }),
     Object.freeze({
         entityName: "support_record",
+        fieldName: "body_temperature",
+        displayName: "体温",
+        synonyms: Object.freeze([
+            "体温",
+            "body_temperature"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "systolic_blood_pressure",
+        displayName: "収縮期血圧",
+        synonyms: Object.freeze([
+            "収縮期血圧",
+            "最高血圧",
+            "systolic_blood_pressure"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "diastolic_blood_pressure",
+        displayName: "拡張期血圧",
+        synonyms: Object.freeze([
+            "拡張期血圧",
+            "最低血圧",
+            "diastolic_blood_pressure"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "pulse_rate",
+        displayName: "脈拍",
+        synonyms: Object.freeze([
+            "脈拍",
+            "pulse_rate"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "meal_intake_ratio",
+        displayName: "食事摂取割合",
+        synonyms: Object.freeze([
+            "食事摂取割合",
+            "食事摂取率",
+            "meal_intake_ratio"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "record_location",
+        displayName: "記録場所",
+        synonyms: Object.freeze([
+            "記録場所",
+            "record_location"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "urine_amount_category",
+        displayName: "尿量区分",
+        synonyms: Object.freeze([
+            "尿量区分",
+            "urine_amount_category"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "stool_amount_category",
+        displayName: "便量区分",
+        synonyms: Object.freeze([
+            "便量区分",
+            "stool_amount_category"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "sleep_state",
+        displayName: "睡眠状態",
+        synonyms: Object.freeze([
+            "睡眠状態",
+            "sleep_state"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
         fieldName: "extension_value",
         displayName: "その他・拡張情報",
         synonyms: Object.freeze([

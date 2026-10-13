@@ -1715,105 +1715,17 @@ function renderMeaningEditor(item) {
                 職員がMeaningを決める必要はありません。
             </p>
 
-            <details
-                class="semantic-meaning-selection"
+            <p
+                class="form-help"
                 style="
-                    max-width: 520px;
-                    margin-top: 12px;
+                    margin: 10px 0 0;
+                    font-weight: 600;
                 "
             >
-                <summary
-                    style="
-                        cursor: pointer;
-                        font-weight: 700;
-                    "
-                >
-                    管理者向け：判定を変更
-                </summary>
-
-                <div
-                    style="
-                        margin-top: 12px;
-                    "
-                >
-                <label
-                    class="form-help"
-                    style="
-                        display: block;
-                        margin-bottom: 5px;
-                    "
-                >
-                    分類
-                </label>
-
-                <select
-                    class="semantic-entity-input"
-                    style="
-                        width: 100%;
-                        min-height: 44px;
-                    "
-                >
-                    <option value="">
-                        分類を選択してください
-                    </option>
-
-                    ${entityOptions}
-                </select>
-
-                <label
-                    class="form-help"
-                    style="
-                        display: block;
-                        margin-top: 10px;
-                        margin-bottom: 5px;
-                    "
-                >
-                    Meaning
-                </label>
-
-                <select
-                    class="semantic-meaning-input"
-                    style="
-                        width: 100%;
-                        min-height: 44px;
-                    "
-                    disabled
-                >
-                    <option value="">
-                        先に分類を選択してください
-                    </option>
-                </select>
-
-                <div
-                    style="
-                        margin-top: 10px;
-                    "
-                >
-                    <button
-                        class="
-                            primary-button
-                            semantic-confirm-meaning-button
-                        "
-                        type="button"
-                        style="
-                            width: auto;
-                            min-width: 180px;
-                            white-space: nowrap;
-                        "
-                        data-source-field-key="${escapeHtml(
-                            review.sourceFieldKey
-                        )}"
-                        ${
-                            semanticCurrentTemplateId
-                                ? ""
-                                : "disabled"
-                        }
-                    >
-                        このMeaningで確定
-                    </button>
-                </div>
-                </div>
-            </details>
+                未解決Semanticとして原本とEvidenceを保持しています。
+                追加の文脈・コード体系・Semantic Authorityが得られた時に、
+                RISENが再判定します。
+            </p>
         </div>
     `;
 }

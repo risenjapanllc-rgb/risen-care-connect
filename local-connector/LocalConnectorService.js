@@ -12,6 +12,8 @@ const DocumentSemanticExtractor = require('./DocumentSemanticExtractor');
 const SourceMeaningInterpreter = require('./SourceMeaningInterpreter');
 const SourceFieldExtractor = require('./SourceFieldExtractor');
 const SemanticEvidenceBuilder = require('./SemanticEvidenceBuilder');
+const RowSemanticResolver =
+    require('../server-domain/row-semantic/RowSemanticResolver');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -65,6 +67,10 @@ class LocalConnectorService {
         this.semanticEvidenceBuilder =
             options.semanticEvidenceBuilder ||
             new SemanticEvidenceBuilder();
+
+        this.rowSemanticResolver =
+            options.rowSemanticResolver ||
+            RowSemanticResolver;
 
         this.sourceDocumentRegistry =
             options.sourceDocumentRegistry ||
@@ -556,6 +562,17 @@ class LocalConnectorService {
                         standardDocument.documentType
                 });
 
+        const rowSemanticResults =
+            this.rowSemanticResolver.resolve({
+                sourceFields:
+                    interpretedSourceFields
+            });
+
+        const rowSemanticSummary =
+            this.summarizeRowSemanticResults(
+                rowSemanticResults
+            );
+
         return {
             ...standardDocument,
             extracted: {
@@ -564,7 +581,8 @@ class LocalConnectorService {
                 sourceEntities,
                 sourceFields:
                     interpretedSourceFields,
-                semanticEvidence
+                semanticEvidence,
+                rowSemanticSummary
             }
         };
     }
@@ -787,6 +805,17 @@ class LocalConnectorService {
                         standardDocument.documentType
                 });
 
+        const rowSemanticResults =
+            this.rowSemanticResolver.resolve({
+                sourceFields:
+                    interpretedSourceFields
+            });
+
+        const rowSemanticSummary =
+            this.summarizeRowSemanticResults(
+                rowSemanticResults
+            );
+
         return {
             ...standardDocument,
             extracted: {
@@ -795,7 +824,8 @@ class LocalConnectorService {
                 sourceEntities,
                 sourceFields:
                     interpretedSourceFields,
-                semanticEvidence
+                semanticEvidence,
+                rowSemanticSummary
             }
         };
     }
@@ -914,6 +944,91 @@ class LocalConnectorService {
                 new Date().toISOString(),
             files
         };
+    }
+
+    summarizeRowSemanticResults(
+        rowSemanticResults = []
+    ) {
+        const summaryByMeaning =
+            new Map();
+
+        for (
+            const row
+            of (
+                Array.isArray(
+                    rowSemanticResults
+                )
+                    ? rowSemanticResults
+                    : []
+            )
+        ) {
+            const interpretations =
+                Array.isArray(
+                    row?.interpretations
+                )
+                    ? row.interpretations
+                    : [];
+
+            for (
+                const interpretation
+                of interpretations
+            ) {
+                const semanticMeaning =
+                    typeof interpretation
+                        ?.semanticMeaning ===
+                        'string'
+                        ? interpretation
+                            .semanticMeaning
+                            .trim()
+                        : '';
+
+                if (!semanticMeaning) {
+                    continue;
+                }
+
+                const displayName =
+                    typeof interpretation
+                        ?.displayName ===
+                        'string' &&
+                    interpretation
+                        .displayName
+                        .trim()
+                        ? interpretation
+                            .displayName
+                            .trim()
+                        : semanticMeaning;
+
+                const existing =
+                    summaryByMeaning.get(
+                        semanticMeaning
+                    );
+
+                if (existing) {
+                    existing.count += 1;
+                    continue;
+                }
+
+                summaryByMeaning.set(
+                    semanticMeaning,
+                    {
+                        semanticMeaning,
+                        displayName,
+                        count: 1
+                    }
+                );
+            }
+        }
+
+        return [
+            ...summaryByMeaning.values()
+        ].sort(
+            (a, b) =>
+                b.count - a.count ||
+                a.displayName.localeCompare(
+                    b.displayName,
+                    'ja'
+                )
+        );
     }
 }
 

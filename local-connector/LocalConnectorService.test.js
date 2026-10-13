@@ -1197,3 +1197,215 @@ test(
         );
     }
 );
+
+test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () => {
+  let receivedSourceFields = null;
+
+  const service = new LocalConnectorService({
+    csvIntakeInspector: {
+      async inspect() {
+        return {
+          rows: [
+            ["種類", "行動", "データ1", "データ2"],
+            ["体温", "健康管理", "36.5", "廊下"],
+            ["体温", "健康管理", "36.6", "居室"]
+          ],
+          headerCandidate: {
+            rowIndex: 0,
+            columnCount: 4,
+            confidence: "candidate"
+          }
+        };
+      }
+    },
+
+    sourceFieldExtractor: {
+      extractExcelRows() {
+        return [
+          {
+            sourceEntityKey: "sheet:0:row:2",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            rowIndex: 2,
+            fields: {
+              "種類": "体温",
+              "行動": "健康管理",
+              "データ1": "36.5",
+              "データ2": "廊下"
+            }
+          },
+          {
+            sourceEntityKey: "sheet:0:row:3",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            rowIndex: 3,
+            fields: {
+              "種類": "体温",
+              "行動": "健康管理",
+              "データ1": "36.6",
+              "データ2": "居室"
+            }
+          }
+        ];
+      },
+
+      extractSourceEntities() {
+        return [];
+      },
+
+      extractFieldDefinitions() {
+        return [
+          {
+            sourceFieldKey: "sheet:0:column:0",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 0,
+            headerLabel: "種類"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:1",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 1,
+            headerLabel: "行動"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:2",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 2,
+            headerLabel: "データ1"
+          },
+          {
+            sourceFieldKey: "sheet:0:column:3",
+            sheetIndex: 0,
+            sheetName: "CSV",
+            columnIndex: 3,
+            headerLabel: "データ2"
+          }
+        ];
+      }
+    },
+
+    rowSemanticResolver: {
+      resolve({ sourceFields }) {
+        receivedSourceFields =
+          sourceFields;
+
+        return [
+          {
+            sourceEntityKey:
+              "sheet:0:row:2",
+            interpretations: [
+              {
+                semanticMeaning:
+                  "support_record.body_temperature",
+                displayName:
+                  "体温"
+              },
+              {
+                semanticMeaning:
+                  "support_record.record_location",
+                displayName:
+                  "記録場所"
+              }
+            ]
+          },
+          {
+            sourceEntityKey:
+              "sheet:0:row:3",
+            interpretations: [
+              {
+                semanticMeaning:
+                  "support_record.body_temperature",
+                displayName:
+                  "体温"
+              },
+              {
+                semanticMeaning:
+                  "support_record.record_location",
+                displayName:
+                  "記録場所"
+              }
+            ]
+          }
+        ];
+      }
+    }
+  });
+
+  service._resolveRegisteredFileDetails =
+    async () => ({
+      filePath:
+        "/test/row-semantic.csv",
+      fileName:
+        "row-semantic.csv",
+      relativePath:
+        "row-semantic.csv",
+      extension:
+        ".csv",
+      size:
+        123,
+      updatedAt:
+        "2026-10-13T00:00:00.000Z"
+    });
+
+  const result =
+    await service.normalizeRegisteredCsv(
+      "row-semantic.csv"
+    );
+
+  assert.ok(
+    Array.isArray(
+      receivedSourceFields
+    )
+  );
+
+  assert.strictEqual(
+    receivedSourceFields.length,
+    2
+  );
+
+  assert.strictEqual(
+    result.extracted.rowSemanticSummary.length,
+    2
+  );
+
+  const bodyTemperature =
+    result.extracted.rowSemanticSummary
+      .find(item =>
+        item.semanticMeaning ===
+          "support_record.body_temperature"
+      );
+
+  const recordLocation =
+    result.extracted.rowSemanticSummary
+      .find(item =>
+        item.semanticMeaning ===
+          "support_record.record_location"
+      );
+
+  assert.deepStrictEqual(
+    bodyTemperature,
+    {
+      semanticMeaning:
+        "support_record.body_temperature",
+      displayName:
+        "体温",
+      count:
+        2
+    }
+  );
+
+  assert.deepStrictEqual(
+    recordLocation,
+    {
+      semanticMeaning:
+        "support_record.record_location",
+      displayName:
+        "記録場所",
+      count:
+        2
+    }
+  );
+});

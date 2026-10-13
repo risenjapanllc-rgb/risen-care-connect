@@ -19,6 +19,91 @@ function normalizeObservedLabel(value) {
         .toLowerCase();
 }
 
+function summarizeRowSemanticResults(
+    rowSemanticResults = []
+) {
+    const summaryByMeaning =
+        new Map();
+
+    for (
+        const row
+        of (
+            Array.isArray(
+                rowSemanticResults
+            )
+                ? rowSemanticResults
+                : []
+        )
+    ) {
+        const interpretations =
+            Array.isArray(
+                row?.interpretations
+            )
+                ? row.interpretations
+                : [];
+
+        for (
+            const interpretation
+            of interpretations
+        ) {
+            const semanticMeaning =
+                typeof interpretation
+                    ?.semanticMeaning ===
+                    "string"
+                    ? interpretation
+                        .semanticMeaning
+                        .trim()
+                    : "";
+
+            if (!semanticMeaning) {
+                continue;
+            }
+
+            const displayName =
+                typeof interpretation
+                    ?.displayName ===
+                    "string" &&
+                interpretation
+                    .displayName
+                    .trim()
+                    ? interpretation
+                        .displayName
+                        .trim()
+                    : semanticMeaning;
+
+            const existing =
+                summaryByMeaning.get(
+                    semanticMeaning
+                );
+
+            if (existing) {
+                existing.count += 1;
+                continue;
+            }
+
+            summaryByMeaning.set(
+                semanticMeaning,
+                {
+                    semanticMeaning,
+                    displayName,
+                    count: 1
+                }
+            );
+        }
+    }
+
+    return [
+        ...summaryByMeaning.values()
+    ].sort(
+        (a, b) =>
+            b.count - a.count ||
+            a.displayName.localeCompare(
+                b.displayName,
+                "ja"
+            )
+    );
+}
+
 function resolveSubjectContext({
     fieldDefinitions = [],
     confirmedDocumentType = null,
@@ -35,6 +120,11 @@ function resolveSubjectContext({
             sourceFields:
                 sourceRecords
         });
+
+    const rowSemanticSummary =
+        summarizeRowSemanticResults(
+            rowSemanticResults
+        );
 
     const labels = new Set(
         fieldDefinitions
@@ -331,7 +421,7 @@ function resolveSubjectContext({
         evidence,
         ambiguousFields,
         contextualCandidates,
-        rowSemanticResults,
+        rowSemanticSummary,
         humanConfirmationRequired: true
     };
 }

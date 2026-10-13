@@ -5,6 +5,7 @@ const LOCAL_CONNECTOR_BASE =
 
 let semanticStandardFields = [];
 let semanticResolvedFields = [];
+let semanticRowSummary = [];
 let semanticCurrentFilter = "all";
 let semanticPersistedMappings = new Map();
 let semanticCurrentAnalysis = null;
@@ -32,6 +33,16 @@ const statusElement =
 const summaryPanel =
     document.getElementById(
         "semanticSummaryPanel"
+    );
+
+const rowSummaryPanel =
+    document.getElementById(
+        "semanticRowSummaryPanel"
+    );
+
+const rowSummaryElement =
+    document.getElementById(
+        "semanticRowSummary"
     );
 
 const fieldsPanel =
@@ -273,6 +284,8 @@ async function loadContextCandidates(
     semanticContextCandidates =
         new Map();
 
+    semanticRowSummary = [];
+
     const semanticEvidence =
         Array.isArray(
             analysis?.extracted
@@ -281,16 +294,6 @@ async function loadContextCandidates(
             ? analysis
                 .extracted
                 .semanticEvidence
-            : [];
-
-    const sourceFields =
-        Array.isArray(
-            analysis?.extracted
-                ?.sourceFields
-        )
-            ? analysis
-                .extracted
-                .sourceFields
             : [];
 
     const response =
@@ -313,8 +316,7 @@ async function loadContextCandidates(
                             ? analysis
                                 .documentType
                             : null,
-                    semanticEvidence,
-                    sourceFields
+                    semanticEvidence
                 })
             }
         );
@@ -341,6 +343,16 @@ async function loadContextCandidates(
             ? result
                 .context
                 .contextualCandidates
+            : [];
+
+    semanticRowSummary =
+        Array.isArray(
+            analysis?.extracted
+                ?.rowSemanticSummary
+        )
+            ? analysis
+                .extracted
+                .rowSemanticSummary
             : [];
 
     for (
@@ -794,6 +806,58 @@ function resolveFields(
     );
 }
 
+function renderRowSemanticSummary() {
+    if (
+        !rowSummaryPanel ||
+        !rowSummaryElement
+    ) {
+        return;
+    }
+
+    const summary =
+        semanticRowSummary;
+
+    if (summary.length === 0) {
+        rowSummaryElement.innerHTML =
+            "";
+
+        rowSummaryPanel.hidden =
+            true;
+
+        return;
+    }
+
+    rowSummaryElement.innerHTML =
+        summary
+            .map(item => `
+                <div
+                    class="semantic-summary-card"
+                    title="${escapeHtml(
+                        item.semanticMeaning
+                    )}"
+                >
+                    <span>
+                        ${escapeHtml(
+                            item.displayName
+                        )}
+                    </span>
+
+                    <strong
+                        class="semantic-summary-number"
+                    >
+                        ${item.count
+                            .toLocaleString(
+                                "ja-JP"
+                            )}件
+                    </strong>
+                </div>
+            `)
+            .join("");
+
+    rowSummaryPanel.hidden =
+        false;
+}
+
 function renderSummary() {
     const ReviewModel =
         window.RisenSemanticReviewModel;
@@ -880,6 +944,8 @@ function renderSummary() {
 
     summaryPanel.hidden =
         false;
+
+    renderRowSemanticSummary();
 
     updateHighConfidenceButton();
 }

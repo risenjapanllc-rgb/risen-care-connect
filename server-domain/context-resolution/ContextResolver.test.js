@@ -357,7 +357,7 @@ test(
 );
 
 test(
-    "context resolver returns row semantic results separately from column candidates",
+    "context resolver returns row semantic summary separately from column candidates",
     () => {
         const result =
             resolveSubjectContext({
@@ -426,27 +426,20 @@ test(
 
         assert.ok(
             Array.isArray(
-                result.rowSemanticResults
+                result.rowSemanticSummary
             )
         );
 
         assert.equal(
-            result.rowSemanticResults.length,
-            1
-        );
-
-        assert.equal(
-            result.rowSemanticResults[0]
-                .rowType,
-            "health_temperature"
+            result.rowSemanticSummary.length,
+            2
         );
 
         const bodyTemperature =
-            result.rowSemanticResults[0]
-                .interpretations
+            result.rowSemanticSummary
                 .find(item =>
-                    item.sourceFieldName ===
-                    "データ1"
+                    item.semanticMeaning ===
+                    "support_record.body_temperature"
                 );
 
         assert.ok(
@@ -454,9 +447,13 @@ test(
         );
 
         assert.equal(
-            bodyTemperature
-                .semanticMeaning,
-            "support_record.body_temperature"
+            bodyTemperature.displayName,
+            "体温"
+        );
+
+        assert.equal(
+            bodyTemperature.count,
+            1
         );
 
         assert.equal(

@@ -2526,7 +2526,27 @@ async function registerSemanticTemplate() {
     );
 
     try {
-        await ensureCurrentSourceDocumentRegistered();
+        let sourceDocumentRegistered =
+            false;
+
+        let sourceDocumentWarning =
+            "";
+
+        try {
+            await ensureCurrentSourceDocumentRegistered();
+
+            sourceDocumentRegistered =
+                true;
+        } catch (error) {
+            console.warn(
+                "Source document registration deferred:",
+                error
+            );
+
+            sourceDocumentWarning =
+                error?.message ||
+                "原本ファイルの登録を保留しました";
+        }
 
         const canonicalStructure =
             buildCanonicalStructure(
@@ -2707,47 +2727,66 @@ async function registerSemanticTemplate() {
         const analysis =
             semanticCurrentAnalysis;
 
-        const bindingResult =
-            await postSemanticRegistration(
-                "/source-document-template-bindings",
-                "sourceDocumentTemplateBinding",
-                {
-                    sourceDocumentKey:
-                        analysis
-                            .sourceDocumentKey,
+        let sourceDocumentBound =
+            false;
 
-                    sourceUpdatedAt:
-                        new Date(
-                            analysis
-                                .sourceUpdatedAt
-                        ).toISOString(),
+        if (sourceDocumentRegistered) {
+            try {
+                const bindingResult =
+                    await postSemanticRegistration(
+                        "/source-document-template-bindings",
+                        "sourceDocumentTemplateBinding",
+                        {
+                            sourceDocumentKey:
+                                analysis
+                                    .sourceDocumentKey,
 
-                    sourceSize:
-                        analysis
-                            .sourceSize,
+                            sourceUpdatedAt:
+                                new Date(
+                                    analysis
+                                        .sourceUpdatedAt
+                                ).toISOString(),
 
-                    templateId,
+                            sourceSize:
+                                analysis
+                                    .sourceSize,
 
-                    matchMethod:
-                        "confirmed_by_human",
+                            templateId,
 
-                    matchConfidence:
-                        "high",
+                            matchMethod:
+                                "confirmed_by_human",
 
-                    confirmedByHuman:
-                        true,
+                            matchConfidence:
+                                "high",
 
-                    confirmedAt
+                            confirmedByHuman:
+                                true,
+
+                            confirmedAt
+                        }
+                    );
+
+                if (
+                    bindingResult.status ===
+                    "conflict"
+                ) {
+                    throw new Error(
+                        "原本と書式テンプレートの既存関連付けと競合しています"
+                    );
                 }
-            );
 
-        if (
-            bindingResult.status ===
-            "conflict"
-        ) {
-            throw new Error(
-                "原本と書式テンプレートの既存関連付けと競合しています"
-            );
+                sourceDocumentBound =
+                    true;
+            } catch (error) {
+                console.warn(
+                    "Source document binding deferred:",
+                    error
+                );
+
+                sourceDocumentWarning =
+                    error?.message ||
+                    "原本と書式の紐付けを保留しました";
+            }
         }
 
         semanticResolvedFields =
@@ -2779,11 +2818,18 @@ async function registerSemanticTemplate() {
         registerButton.textContent =
             "書式登録済み ✓";
 
+        const sourceStatusText =
+            sourceDocumentBound
+                ? "原本紐付け済み"
+                : "原本紐付け保留";
+
         registerButton.title =
-            `Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件`;
+            `Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件、${sourceStatusText}`;
 
         setStatus(
-            `書式を登録しました。Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件。`,
+            sourceDocumentBound
+                ? `書式を登録しました。Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件。原本紐付け済み。`
+                : `書式を登録しました。Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件。原本紐付けは保留しています。${sourceDocumentWarning ? ` ${sourceDocumentWarning}` : ""}`,
             "success"
         );
     } catch (error) {

@@ -60,6 +60,42 @@ const SupabaseSourceFieldMappingPersistenceRepository =
 const SourceFieldMappingIngestionService =
     require("./SourceFieldMappingIngestionService");
 
+const SourceTemplateExactPayloadValidator =
+    require("./SourceTemplateExactPayloadValidator");
+
+const SupabaseSourceTemplateExactPersistenceRepository =
+    require("./SupabaseSourceTemplateExactPersistenceRepository");
+
+const SourceTemplateExactIngestionService =
+    require("./SourceTemplateExactIngestionService");
+
+const SourceTemplateFieldsPayloadValidator =
+    require("./SourceTemplateFieldsPayloadValidator");
+
+const SupabaseSourceTemplateFieldsPersistenceRepository =
+    require("./SupabaseSourceTemplateFieldsPersistenceRepository");
+
+const SourceTemplateFieldsIngestionService =
+    require("./SourceTemplateFieldsIngestionService");
+
+const SourceTemplateSemanticAuthorityPayloadValidator =
+    require("./SourceTemplateSemanticAuthorityPayloadValidator");
+
+const SupabaseSourceTemplateSemanticAuthorityPersistenceRepository =
+    require("./SupabaseSourceTemplateSemanticAuthorityPersistenceRepository");
+
+const SourceTemplateSemanticAuthorityIngestionService =
+    require("./SourceTemplateSemanticAuthorityIngestionService");
+
+const SourceDocumentTemplateBindingPayloadValidator =
+    require("./SourceDocumentTemplateBindingPayloadValidator");
+
+const SupabaseSourceDocumentTemplateBindingPersistenceRepository =
+    require("./SupabaseSourceDocumentTemplateBindingPersistenceRepository");
+
+const SourceDocumentTemplateBindingIngestionService =
+    require("./SourceDocumentTemplateBindingIngestionService");
+
 const SupabaseSourceFieldMappingQueryRepository =
     require("./SupabaseSourceFieldMappingQueryRepository");
 
@@ -557,6 +593,80 @@ function createServerTrustBoundaryRuntime({
             sourceFieldMappingPersistenceRepository
         });
 
+    const sourceTemplateExactPayloadValidator =
+        new SourceTemplateExactPayloadValidator();
+
+    const sourceTemplateExactPersistenceRepository =
+        new SupabaseSourceTemplateExactPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceTemplateExactIngestionService =
+        new SourceTemplateExactIngestionService({
+            connectorTrustService,
+            sourceTemplateExactPayloadValidator,
+            sourceTemplateExactPersistenceRepository
+        });
+
+    const sourceTemplateFieldsPayloadValidator =
+        new SourceTemplateFieldsPayloadValidator();
+
+    const sourceTemplateFieldsPersistenceRepository =
+        new SupabaseSourceTemplateFieldsPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceTemplateFieldsIngestionService =
+        new SourceTemplateFieldsIngestionService({
+            connectorTrustService,
+            payloadValidator:
+                sourceTemplateFieldsPayloadValidator,
+            persistenceRepository:
+                sourceTemplateFieldsPersistenceRepository
+        });
+
+    const sourceTemplateSemanticAuthorityPayloadValidator =
+        new SourceTemplateSemanticAuthorityPayloadValidator();
+
+    const sourceTemplateSemanticAuthorityPersistenceRepository =
+        new SupabaseSourceTemplateSemanticAuthorityPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceTemplateSemanticAuthorityIngestionService =
+        new SourceTemplateSemanticAuthorityIngestionService({
+            connectorTrustService,
+            payloadValidator:
+                sourceTemplateSemanticAuthorityPayloadValidator,
+            persistenceRepository:
+                sourceTemplateSemanticAuthorityPersistenceRepository
+        });
+
+    const sourceDocumentTemplateBindingPayloadValidator =
+        new SourceDocumentTemplateBindingPayloadValidator();
+
+    const sourceDocumentTemplateBindingPersistenceRepository =
+        new SupabaseSourceDocumentTemplateBindingPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceDocumentTemplateBindingIngestionService =
+        new SourceDocumentTemplateBindingIngestionService({
+            connectorTrustService,
+            payloadValidator:
+                sourceDocumentTemplateBindingPayloadValidator,
+            persistenceRepository:
+                sourceDocumentTemplateBindingPersistenceRepository
+        });
+
     const sourceFieldMappingQueryRepository =
         new SupabaseSourceFieldMappingQueryRepository({
             supabaseUrl,
@@ -946,6 +1056,10 @@ function createServerTrustBoundaryRuntime({
         sourceDocumentIngestionService,
         sourceFieldMappingIngestionService,
         sourceFieldMappingQueryService,
+        sourceTemplateExactIngestionService,
+        sourceTemplateFieldsIngestionService,
+        sourceTemplateSemanticAuthorityIngestionService,
+        sourceDocumentTemplateBindingIngestionService,
         sourceFieldInterpretationIngestionService,
         sourceFieldInterpretationQueryService,
         connectorResidentCandidateService,

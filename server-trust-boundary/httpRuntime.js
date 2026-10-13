@@ -31,6 +31,30 @@ const SourceFieldMappingHttpAdapter =
 const SourceFieldMappingTransport =
     require("./SourceFieldMappingTransport");
 
+const SourceTemplateExactHttpAdapter =
+    require("./SourceTemplateExactHttpAdapter");
+
+const SourceTemplateExactTransport =
+    require("./SourceTemplateExactTransport");
+
+const SourceTemplateFieldsHttpAdapter =
+    require("./SourceTemplateFieldsHttpAdapter");
+
+const SourceTemplateFieldsTransport =
+    require("./SourceTemplateFieldsTransport");
+
+const SourceTemplateSemanticAuthorityHttpAdapter =
+    require("./SourceTemplateSemanticAuthorityHttpAdapter");
+
+const SourceTemplateSemanticAuthorityTransport =
+    require("./SourceTemplateSemanticAuthorityTransport");
+
+const SourceDocumentTemplateBindingHttpAdapter =
+    require("./SourceDocumentTemplateBindingHttpAdapter");
+
+const SourceDocumentTemplateBindingTransport =
+    require("./SourceDocumentTemplateBindingTransport");
+
 const SourceFieldMappingQueryHttpAdapter =
     require("./SourceFieldMappingQueryHttpAdapter");
 
@@ -316,6 +340,67 @@ function createServerTrustBoundaryHttpRuntime({
         new SourceFieldMappingTransport({
             httpAdapter:
                 sourceFieldMappingHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceTemplateExactHttpAdapter =
+        new SourceTemplateExactHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .sourceTemplateExactIngestionService,
+            diagnosticLogger
+        });
+
+    const sourceTemplateExactTransport =
+        new SourceTemplateExactTransport({
+            httpAdapter:
+                sourceTemplateExactHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceTemplateFieldsHttpAdapter =
+        new SourceTemplateFieldsHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .sourceTemplateFieldsIngestionService
+        });
+
+    const sourceTemplateFieldsTransport =
+        new SourceTemplateFieldsTransport({
+            httpAdapter:
+                sourceTemplateFieldsHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceTemplateSemanticAuthorityHttpAdapter =
+        new SourceTemplateSemanticAuthorityHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .sourceTemplateSemanticAuthorityIngestionService
+        });
+
+    const sourceTemplateSemanticAuthorityTransport =
+        new SourceTemplateSemanticAuthorityTransport({
+            httpAdapter:
+                sourceTemplateSemanticAuthorityHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const sourceDocumentTemplateBindingHttpAdapter =
+        new SourceDocumentTemplateBindingHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .sourceDocumentTemplateBindingIngestionService
+        });
+
+    const sourceDocumentTemplateBindingTransport =
+        new SourceDocumentTemplateBindingTransport({
+            httpAdapter:
+                sourceDocumentTemplateBindingHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -823,6 +908,18 @@ function createServerTrustBoundaryHttpRuntime({
             sourceFieldMappingQueryTransport,
             sourceFieldMappingEndpointPath:
                 "/connector/source-field-mappings",
+            sourceTemplateExactTransport,
+            sourceTemplateExactEndpointPath:
+                "/connector/source-templates/exact",
+            sourceTemplateFieldsTransport,
+            sourceTemplateFieldsEndpointPath:
+                "/connector/source-template-fields/exact",
+            sourceTemplateSemanticAuthorityTransport,
+            sourceTemplateSemanticAuthorityEndpointPath:
+                "/connector/source-template-semantic-authority",
+            sourceDocumentTemplateBindingTransport,
+            sourceDocumentTemplateBindingEndpointPath:
+                "/connector/source-document-template-bindings",
             sourceFieldInterpretationTransport,
             sourceFieldInterpretationQueryTransport,
             connectorResidentCandidateTransport,

@@ -282,6 +282,9 @@ async function createSourceDocumentIngestionService({
     });
 }
 
+const SemanticRegistrationHttpClient =
+    require("./SemanticRegistrationHttpClient");
+
 async function createSourceFieldMappingIngestionService({
     databasePath,
     configPath,
@@ -308,6 +311,38 @@ async function createSourceFieldMappingIngestionService({
         credential,
         authorizationScheme,
         connectorIdHeader,
+        fetchImpl
+    });
+}
+
+async function createSemanticRegistrationClient({
+    databasePath,
+    configPath,
+    serverTrustBoundaryEndpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    timeoutMs = 60000,
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    return new SemanticRegistrationHttpClient({
+        serverTrustBoundaryEndpoint,
+        connectorId,
+        credential,
+        authorizationScheme,
+        connectorIdHeader,
+        timeoutMs,
         fetchImpl
     });
 }
@@ -1259,6 +1294,7 @@ module.exports = {
     createIngestionService,
     createSourceDocumentIngestionService,
     createSourceFieldMappingIngestionService,
+    createSemanticRegistrationClient,
     createSourceFieldInterpretationIngestionService,
     createResidentCandidateService,
     createSourceResidentCandidateResolver,

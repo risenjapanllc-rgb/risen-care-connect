@@ -508,6 +508,33 @@ app.locals.getSourceFieldMappingIngestionService =
         return await sourceFieldMappingIngestionServicePromise;
     };
 
+app.locals.getSemanticRegistrationClient =
+    async () => {
+        return await LocalConnectorCompositionRoot
+            .createSemanticRegistrationClient({
+                serverTrustBoundaryEndpoint:
+                    process.env
+                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+
+                credential:
+                    await connectorCredentialProvider
+                        .getCredential(),
+
+                authorizationScheme:
+                    process.env
+                        .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                    "RISEN-Connector",
+
+                connectorIdHeader:
+                    process.env
+                        .RISEN_CONNECTOR_ID_HEADER ||
+                    "x-risen-connector-id",
+
+                timeoutMs:
+                    60000
+            });
+    };
+
 app.locals.getSourceFieldInterpretationIngestionService =
     async () => {
         if (!sourceFieldInterpretationIngestionServicePromise) {
@@ -1453,6 +1480,242 @@ app.post(
         }
     }
 );
+
+function registerSemanticRegistrationProxyRoute({
+    path,
+    envelopeName,
+    clientMethod
+}) {
+    app.post(
+        path,
+        async (req, res) => {
+            try {
+                const input =
+                    req.body &&
+                    typeof req.body === "object" &&
+                    !Array.isArray(req.body)
+                        ? req.body
+                        : {};
+
+                const payload =
+                    input[envelopeName] &&
+                    typeof input[envelopeName] ===
+                        "object" &&
+                    !Array.isArray(
+                        input[envelopeName]
+                    )
+                        ? input[envelopeName]
+                        : null;
+
+                if (!payload) {
+                    return res
+                        .status(422)
+                        .json({
+                            success: false,
+                            message:
+                                "Semantic登録の送信内容が不正です"
+                        });
+                }
+
+                const client =
+                    await app.locals
+                        .getSemanticRegistrationClient();
+
+                const result =
+                    await client[
+                        clientMethod
+                    ](
+                        payload
+                    );
+
+                if (
+                    [
+                        "created",
+                        "unchanged",
+                        "conflict"
+                    ].includes(
+                        result?.status
+                    )
+                ) {
+                    return res
+                        .status(200)
+                        .json({
+                            success: true,
+                            ...result
+                        });
+                }
+
+                return res
+                    .status(503)
+                    .json({
+                        success: false,
+                        message:
+                            "Server Trust Boundaryから不正な応答を受信しました"
+                    });
+            } catch (error) {
+                if (
+                    error?.code ===
+                    "connector_trust_denied"
+                ) {
+                    return res
+                        .status(401)
+                        .json({
+                            success: false,
+                            message:
+                                "Connector認証に失敗しました"
+                        });
+                }
+
+                if (
+                    error?.httpStatus === 422
+                ) {
+                    return res
+                        .status(422)
+                        .json({
+                            success: false,
+                            message:
+                                "Semantic登録内容が不正です"
+                        });
+                }
+
+                return res
+                    .status(503)
+                    .json({
+                        success: false,
+                        message:
+                            error?.message ||
+                            "Semantic登録に失敗しました"
+                    });
+            }
+        }
+    );
+}
+
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/source-templates/exact",
+    envelopeName:
+        "sourceTemplateExact",
+    clientMethod:
+        "getOrCreateExact"
+});
+
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/source-template-fields/exact",
+    envelopeName:
+        "sourceTemplateFields",
+    clientMethod:
+        "registerFields"
+});
+
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/source-template-semantic-authority",
+    envelopeName:
+        "sourceTemplateSemanticAuthority",
+    clientMethod:
+        "confirmAuthority"
+});
+
+
+app.get(
+    "/source-template-semantic-authority",
+    async (req, res) => {
+        try {
+            const templateId =
+                typeof req.query?.templateId ===
+                    "string"
+                    ? req.query.templateId.trim()
+                    : "";
+
+            if (!templateId) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "Template IDが必要です"
+                    });
+            }
+
+            const client =
+                await app.locals
+                    .getSemanticRegistrationClient();
+
+            const result =
+                await client.listAuthority(
+                    templateId
+                );
+
+            if (
+                result?.status !== "found" ||
+                !Array.isArray(
+                    result.mappings
+                )
+            ) {
+                return res
+                    .status(503)
+                    .json({
+                        success: false,
+                        message:
+                            "Semantic Authorityの取得に失敗しました"
+                    });
+            }
+
+            return res
+                .status(200)
+                .json({
+                    success: true,
+                    mappings:
+                        result.mappings
+                });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res
+                    .status(401)
+                    .json({
+                        success: false,
+                        message:
+                            "Connector認証に失敗しました"
+                    });
+            }
+
+            if (
+                error?.httpStatus === 422
+            ) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "Template IDが不正です"
+                    });
+            }
+
+            return res
+                .status(503)
+                .json({
+                    success: false,
+                    message:
+                        error?.message ||
+                        "Semantic Authorityの取得に失敗しました"
+                });
+        }
+    }
+);
+
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/source-document-template-bindings",
+    envelopeName:
+        "sourceDocumentTemplateBinding",
+    clientMethod:
+        "bindDocument"
+});
 
 app.get(
     "/source-field-interpretations",

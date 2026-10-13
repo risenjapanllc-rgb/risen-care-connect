@@ -272,6 +272,20 @@ app.get(
     }
 );
 
+
+app.get(
+    "/js/semantic-registration.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "js",
+                "semantic-registration.js"
+            )
+        );
+    }
+);
+
 /*
  * Browserへ公開するVonage Client SDK。
  * node_modules全体のURLへ直接依存せず、
@@ -316,6 +330,18 @@ app.get("/local-connector.html", (req, res) => {
         path.join(__dirname, "local-connector.html")
     );
 });
+
+app.get(
+    "/semantic-registration.html",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "semantic-registration.html"
+            )
+        );
+    }
+);
 
 app.get(
     "/connect",

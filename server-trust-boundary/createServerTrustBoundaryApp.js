@@ -22,6 +22,18 @@ function createServerTrustBoundaryApp({
     sourceFieldMappingQueryTransport,
     sourceFieldMappingEndpointPath =
         "/connector/source-field-mappings",
+    sourceTemplateExactTransport,
+    sourceTemplateExactEndpointPath =
+        "/connector/source-templates/exact",
+    sourceTemplateFieldsTransport,
+    sourceTemplateFieldsEndpointPath =
+        "/connector/source-template-fields/exact",
+    sourceTemplateSemanticAuthorityTransport,
+    sourceTemplateSemanticAuthorityEndpointPath =
+        "/connector/source-template-semantic-authority",
+    sourceDocumentTemplateBindingTransport,
+    sourceDocumentTemplateBindingEndpointPath =
+        "/connector/source-document-template-bindings",
     sourceFieldInterpretationTransport,
     sourceFieldInterpretationQueryTransport,
     sourceFieldInterpretationEndpointPath =
@@ -287,6 +299,156 @@ function createServerTrustBoundaryApp({
                 }
             );
         }
+    }
+
+    if (sourceTemplateExactTransport) {
+        if (
+            typeof sourceTemplateExactTransport.handle !==
+                "function" ||
+            typeof sourceTemplateExactTransport
+                .createErrorResponse !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete sourceTemplateExactTransport"
+            );
+        }
+
+        app.post(
+            sourceTemplateExactEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceTemplateExactTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceTemplateFieldsTransport) {
+        app.post(
+            sourceTemplateFieldsEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceTemplateFieldsTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceTemplateSemanticAuthorityTransport) {
+        app.all(
+            sourceTemplateSemanticAuthorityEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceTemplateSemanticAuthorityTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body,
+                                query:
+                                    req.query
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceDocumentTemplateBindingTransport) {
+        app.post(
+            sourceDocumentTemplateBindingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceDocumentTemplateBindingTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
     }
 
     if (sourceFieldInterpretationTransport) {

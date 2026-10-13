@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Semantic登録 | RISEN CARE Connect</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/style.css">
+
+    <style>
+        .semantic-registration-page {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 32px 20px 64px;
+        }
+
+        .semantic-registration-header {
+            margin-bottom: 28px;
+        }
+
+        .semantic-registration-header h1 {
+            margin-bottom: 8px;
+        }
+
+        .semantic-registration-lead {
+            max-width: 780px;
+            line-height: 1.8;
+        }
+
+        .semantic-panel {
+            background: #fff;
+            border: 1px solid #e4e7ec;
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .semantic-file-grid {
+            display: grid;
+            grid-template-columns:
+                minmax(0, 1fr)
+                auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .semantic-file-grid select {
+            width: 100%;
+            min-height: 44px;
+        }
+
+        .semantic-primary-button,
+        .semantic-secondary-button {
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .semantic-primary-button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .semantic-summary {
+            display: grid;
+            grid-template-columns:
+                repeat(5, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .semantic-summary-card {
+            border: 1px solid #e4e7ec;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .semantic-summary-number {
+            display: block;
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .semantic-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .semantic-filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .semantic-filter-button {
+            border: 1px solid #d0d5dd;
+            background: #fff;
+            border-radius: 999px;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+
+        .semantic-filter-button.is-active {
+            font-weight: 700;
+            border-color: #344054;
+        }
+
+        .semantic-table-wrap {
+            overflow-x: auto;
+        }
+
+        .semantic-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .semantic-table th,
+        .semantic-table td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #eaecf0;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .semantic-table th {
+            white-space: nowrap;
+        }
+
+        .semantic-source-key {
+            font-size: 12px;
+            color: #667085;
+            margin-top: 4px;
+        }
+
+        .semantic-meaning {
+            font-family:
+                ui-monospace,
+                SFMono-Regular,
+                Menlo,
+                Monaco,
+                Consolas,
+                monospace;
+            font-size: 13px;
+        }
+
+        .semantic-badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: 12px;
+            white-space: nowrap;
+            background: #f2f4f7;
+        }
+
+        .semantic-badge-exact {
+            background: #ecfdf3;
+        }
+
+        .semantic-badge-alias {
+            background: #eff8ff;
+        }
+
+        .semantic-badge-review {
+            background: #fffaeb;
+        }
+
+        .semantic-status {
+            margin-top: 12px;
+            min-height: 24px;
+        }
+
+        .semantic-empty {
+            padding: 42px 12px;
+            text-align: center;
+            color: #667085;
+        }
+
+        .semantic-registration-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+
+        @media (max-width: 760px) {
+            .semantic-file-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .semantic-summary {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .semantic-meaning-editor {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .semantic-meaning {
+            font-size: 15px;
+            line-height: 1.4;
+        }
+
+        .semantic-confirm-meaning-button {
+            width: auto;
+            min-width: 76px;
+            height: 34px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .semantic-confirm-meaning-button:disabled {
+            cursor: default;
+            opacity: 0.55;
+        }
+
+        .semantic-meaning-input {
+            width: 220px;
+            max-width: 100%;
+            height: 34px;
+            padding: 0 10px;
+            font-size: 14px;
+        }
+
+        #semanticConfirmHighConfidenceButton {
+            min-height: 34px;
+            padding: 0 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+
+        /* ===== refined semantic registration UI ===== */
+
+        :root {
+            --semantic-text: #1f2937;
+            --semantic-muted: #64748b;
+            --semantic-border: #e2e8f0;
+            --semantic-soft: #f8fafc;
+            --semantic-action: #334155;
+            --semantic-action-hover: #1e293b;
+            --semantic-accent: #475569;
+        }
+
+        /* 行内アクションは右端へ */
+        .semantic-meaning-editor {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+
+        .semantic-meaning {
+            margin-right: auto;
+            color: var(--semantic-text);
+            font-size: 14px;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        /* Meaning手入力 */
+        .semantic-meaning-input {
+            width: 190px;
+            max-width: 48%;
+            height: 30px;
+            box-sizing: border-box;
+            padding: 0 9px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            color: var(--semantic-text);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .semantic-meaning-input:focus {
+            border-color: #94a3b8;
+            box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.14);
+        }
+
+        /* 各行の確定 */
+        .semantic-confirm-meaning-button {
+            flex: 0 0 auto;
+            width: 58px;
+            min-width: 58px;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1;
+            box-shadow: none;
+            cursor: pointer;
+            transition:
+                background 120ms ease,
+                border-color 120ms ease,
+                color 120ms ease;
+        }
+
+        .semantic-confirm-meaning-button:hover:not(:disabled) {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            color: #0f172a;
+        }
+
+        .semantic-confirm-meaning-button:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
+
+        /* 「項目を確認」も主張を抑える */
+        #semanticAnalyzeButton {
+            width: auto !important;
+            min-width: 92px !important;
+            height: 34px !important;
+            padding: 0 14px !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            background: #334155 !important;
+            color: #ffffff !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            line-height: 1 !important;
+            box-shadow: none !important;
+        }
+
+        #semanticAnalyzeButton:hover:not(:disabled) {
+            background: #1e293b !important;
+        }
+
+        /* 一括確定だけ少し主役にする */
+        #semanticConfirmHighConfidenceButton {
+            width: auto !important;
+            min-height: 32px !important;
+            padding: 0 12px !important;
+            border: 1px solid #334155 !important;
+            border-radius: 7px !important;
+            background: #334155 !important;
+            color: #ffffff !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+        }
+
+        #semanticConfirmHighConfidenceButton:hover:not(:disabled) {
+            background: #1e293b !important;
+        }
+
+        /* フィルタはボタン感を弱める */
+        .semantic-filter-button {
+            min-height: 30px !important;
+            padding: 0 11px !important;
+            border: 1px solid var(--semantic-border) !important;
+            border-radius: 999px !important;
+            background: #ffffff !important;
+            color: #64748b !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            box-shadow: none !important;
+        }
+
+        .semantic-filter-button.is-active {
+            border-color: #cbd5e1 !important;
+            background: #f1f5f9 !important;
+            color: #334155 !important;
+        }
+
+        /* 登録ボタンも青ベタをやめる */
+        #semanticRegisterButton {
+            width: auto !important;
+            min-height: 34px !important;
+            padding: 0 14px !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            background: #ffffff !important;
+            color: #334155 !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+        }
+
+        /* セレクトと項目確認の高さを揃える */
+        #semanticFileSelect {
+            min-height: 36px !important;
+            font-size: 14px !important;
+            border-color: #cbd5e1 !important;
+            border-radius: 8px !important;
+        }
+
+
+        /* ===== refined navy primary actions ===== */
+
+        #semanticAnalyzeButton,
+        #semanticConfirmHighConfidenceButton {
+            background: #17345C !important;
+            border-color: #17345C !important;
+            color: #ffffff !important;
+            box-shadow:
+                0 1px 2px rgba(15, 23, 42, 0.08) !important;
+        }
+
+        #semanticAnalyzeButton:hover:not(:disabled),
+        #semanticConfirmHighConfidenceButton:hover:not(:disabled) {
+            background: #102847 !important;
+            border-color: #102847 !important;
+        }
+
+        #semanticAnalyzeButton {
+            min-width: 94px !important;
+            height: 34px !important;
+            border-radius: 8px !important;
+        }
+
+        #semanticConfirmHighConfidenceButton {
+            min-height: 32px !important;
+            border-radius: 8px !important;
+        }
+
+
+        /* ===== RISEN navy action buttons ===== */
+
+        :root {
+            --risen-navy: #1f4ea3;
+            --risen-navy-hover: #183f86;
+            --risen-navy-soft: #8ea3c7;
+            --risen-navy-soft-bg: #dbe5f4;
+        }
+
+        /* 項目を確認 */
+        #semanticAnalyzeButton {
+            width: auto !important;
+            min-width: 112px !important;
+            height: 42px !important;
+            padding: 0 18px !important;
+            border: 1px solid var(--risen-navy) !important;
+            border-radius: 12px !important;
+            background: var(--risen-navy) !important;
+            color: #ffffff !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            line-height: 1 !important;
+            box-shadow: 0 6px 18px rgba(31, 78, 163, 0.16) !important;
+        }
+
+        #semanticAnalyzeButton:hover:not(:disabled) {
+            background: var(--risen-navy-hover) !important;
+            border-color: var(--risen-navy-hover) !important;
+        }
+
+        /* 高信頼候補を一括確定 */
+        #semanticConfirmHighConfidenceButton {
+            width: auto !important;
+            min-height: 38px !important;
+            padding: 0 16px !important;
+            border: 1px solid var(--risen-navy) !important;
+            border-radius: 12px !important;
+            background: var(--risen-navy) !important;
+            color: #ffffff !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            box-shadow: 0 6px 18px rgba(31, 78, 163, 0.16) !important;
+        }
+
+        #semanticConfirmHighConfidenceButton:hover:not(:disabled) {
+            background: var(--risen-navy-hover) !important;
+            border-color: var(--risen-navy-hover) !important;
+        }
+
+        /* disabledでもグレーにしない */
+        #semanticAnalyzeButton:disabled,
+        #semanticConfirmHighConfidenceButton:disabled {
+            background: var(--risen-navy-soft) !important;
+            border-color: var(--risen-navy-soft) !important;
+            color: #ffffff !important;
+            opacity: 1 !important;
+            box-shadow: none !important;
+            cursor: default !important;
+        }
+
+</style>
+</head>
+
+<body>
+    <main class="semantic-registration-page">
+        <header class="semantic-registration-header">
+            <p>RISEN CARE Connect</p>
+            <h1>Semantic登録</h1>
+            <p class="semantic-registration-lead">
+                CSV・Excel・Wordの項目だけを確認し、
+                「この項目がRISEN CAREでは何を意味するか」を
+                データ取込の前に整理します。
+            </p>
+        </header>
+
+        <section class="semantic-panel">
+            <h2>1. 書類を選択</h2>
+
+            <div class="semantic-file-grid">
+                <label>
+                    <span>Local Connectorの書類</span>
+                    <select
+                        id="semanticFileSelect"
+                        disabled
+                    >
+                        <option value="">
+                            読み込み中...
+                        </option>
+                    </select>
+                </label>
+
+                <button
+                    id="semanticAnalyzeButton"
+                    class="semantic-primary-button"
+                    type="button"
+                    disabled
+                >
+                    項目を確認
+                </button>
+            </div>
+
+            <div
+                id="semanticStatus"
+                class="semantic-status"
+                aria-live="polite"
+            ></div>
+        </section>
+
+        <section
+            id="semanticSummaryPanel"
+            class="semantic-panel"
+            hidden
+        >
+            <h2>2. Semantic解析結果</h2>
+
+            <div class="semantic-summary">
+                <div class="semantic-summary-card">
+                    <span>検出項目</span>
+                    <strong
+                        id="semanticTotalCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+
+                <div class="semantic-summary-card">
+                    <span>登録済み</span>
+                    <strong
+                        id="semanticRegisteredCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+
+                <div class="semantic-summary-card">
+                    <span>完全一致</span>
+                    <strong
+                        id="semanticExactCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+
+                <div class="semantic-summary-card">
+                    <span>同義語一致</span>
+                    <strong
+                        id="semanticAliasCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+
+                <div class="semantic-summary-card">
+                    <span>要確認</span>
+                    <strong
+                        id="semanticReviewCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+            </div>
+        </section>
+
+        <section
+            id="semanticFieldsPanel"
+            class="semantic-panel"
+            hidden
+        >
+            <div class="semantic-toolbar">
+                <h2>3. 項目の意味</h2>
+
+                <div class="semantic-filter-group">
+                    <button
+                        id="semanticConfirmHighConfidenceButton"
+                        type="button"
+                        class="semantic-filter-button"
+                        disabled
+                    >
+                        高信頼候補を一括確定
+                    </button>
+                    <button
+                        type="button"
+                        class="semantic-filter-button is-active"
+                        data-semantic-filter="all"
+                    >
+                        すべて
+                    </button>
+
+                    <button
+                        type="button"
+                        class="semantic-filter-button"
+                        data-semantic-filter="review"
+                    >
+                        要確認だけ
+                    </button>
+                </div>
+            </div>
+
+            <div class="semantic-table-wrap">
+                <table class="semantic-table">
+                    <thead>
+                        <tr>
+                            <th>原本項目</th>
+                            <th>判定</th>
+                            <th>RISEN CARE Meaning</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="semanticFieldsBody"></tbody>
+                </table>
+            </div>
+
+            <div
+                id="semanticEmptyState"
+                class="semantic-empty"
+                hidden
+            >
+                表示する項目がありません。
+            </div>
+
+            <div class="semantic-registration-footer">
+                <button
+                    id="semanticRegisterButton"
+                    class="semantic-primary-button"
+                    type="button"
+                    disabled
+                    title="この書式をSemanticテンプレートとして登録します"
+                >
+                    書式を登録
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/semantic-registration.js"></script>
+</body>
+</html>

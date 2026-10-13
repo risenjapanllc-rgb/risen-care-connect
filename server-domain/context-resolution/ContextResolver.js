@@ -1,5 +1,10 @@
 "use strict";
 
+const SemanticEvidenceResolver =
+    require(
+        "../semantic-resolution/SemanticEvidenceResolver"
+    );
+
 function normalizeObservedLabel(value) {
     return String(value || "")
         .trim()
@@ -204,317 +209,34 @@ function resolveSubjectContext({
         });
     }
 
-    const evidenceBySourceFieldKey =
-        new Map(
-            (
-                Array.isArray(
-                    semanticEvidence
-                )
-                    ? semanticEvidence
-                    : []
-            )
-                .filter(item =>
-                    typeof item
-                        ?.sourceFieldKey ===
-                        "string" &&
-                    item.sourceFieldKey
-                        .trim()
-                )
-                .map(item => [
-                    item.sourceFieldKey
-                        .trim(),
-                    item
-                ])
-        );
-
-    const addContextualCandidate = ({
-        field,
-        entityName,
-        fieldName,
-        displayName,
-        reason
-    }) => {
-        if (!field) {
-            return;
-        }
-
-        const sourceFieldKey =
-            typeof field
-                ?.sourceFieldKey ===
-                "string"
-                ? field
-                    .sourceFieldKey
-                    .trim()
-                : "";
-
-        if (!sourceFieldKey) {
-            return;
-        }
-
-        if (
-            contextualCandidates.some(
-                item =>
-                    item.sourceFieldKey ===
-                    sourceFieldKey
-            )
-        ) {
-            return;
-        }
-
-        const sourceEvidence =
-            evidenceBySourceFieldKey.get(
-                sourceFieldKey
-            );
-
-        const sampleValues =
-            Array.isArray(
-                sourceEvidence
-                    ?.sampleValues
-            )
-                ? sourceEvidence
-                    .sampleValues
-                    .map(value =>
-                        String(
-                            value ?? ""
-                        ).trim()
-                    )
-                    .filter(Boolean)
-                : [];
-
-        if (
-            sampleValues.length === 0
-        ) {
-            return;
-        }
-
-        contextualCandidates.push({
-            sourceFieldKey,
-            headerLabel:
-                field.headerLabel || null,
-
-            candidate: {
-                entityName,
-                fieldName,
-                displayName
-            },
-
-            status:
-                "contextual_candidate",
-
-            reason,
-
-            evidence: [{
-                type:
-                    "source_sample_values",
-                values:
-                    sampleValues
-                        .slice(0, 5)
-            }],
-
-            humanConfirmationRequired:
-                true
-        });
-    };
+    const semanticEvidenceCandidates =
+        SemanticEvidenceResolver
+            .resolve({
+                fieldDefinitions,
+                semanticEvidence
+            });
 
     for (
-        const field
-        of fieldDefinitions
+        const candidate
+        of semanticEvidenceCandidates
     ) {
-        const label =
-            normalizeObservedLabel(
-                field?.headerLabel
-            );
-
-        if (label === "気温") {
-            const sourceEvidence =
-                evidenceBySourceFieldKey
-                    .get(
-                        field
-                            ?.sourceFieldKey
-                    );
-
-            const values =
-                Array.isArray(
-                    sourceEvidence
-                        ?.sampleValues
-                )
-                    ? sourceEvidence
-                        .sampleValues
-                    : [];
-
-            const numericCount =
-                values.filter(value =>
-                    /^-?\d+(?:\.\d+)?$/
-                        .test(
-                            String(
-                                value ?? ""
-                            ).trim()
-                        )
-                ).length;
-
-            if (
-                values.length > 0 &&
-                numericCount ===
-                    values.length
-            ) {
-                addContextualCandidate({
-                    field,
-                    entityName:
-                        "support_record",
-                    fieldName:
-                        "temperature",
-                    displayName:
-                        "記録時気温",
-                    reason:
-                        "temperature_label_and_numeric_source_values"
-                });
-            }
+        if (
+            contextualCandidates.some(
+                existing =>
+                    existing
+                        .sourceFieldKey ===
+                    candidate
+                        .sourceFieldKey
+            )
+        ) {
+            continue;
         }
 
-        if (label === "天気") {
-            const sourceEvidence =
-                evidenceBySourceFieldKey
-                    .get(
-                        field
-                            ?.sourceFieldKey
-                    );
-
-            const values =
-                Array.isArray(
-                    sourceEvidence
-                        ?.sampleValues
-                )
-                    ? sourceEvidence
-                        .sampleValues
-                        .map(value =>
-                            String(
-                                value ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                    : [];
-
-            const weatherValues =
-                new Set([
-                    "晴",
-                    "曇",
-                    "雨",
-                    "雪",
-                    "晴れ",
-                    "曇り"
-                ]);
-
-            if (
-                values.some(value =>
-                    weatherValues.has(
-                        value
-                    )
-                )
-            ) {
-                addContextualCandidate({
-                    field,
-                    entityName:
-                        "support_record",
-                    fieldName:
-                        "weather",
-                    displayName:
-                        "記録時天候",
-                    reason:
-                        "weather_label_and_weather_source_values"
-                });
-            }
-        }
-
-        if (label === "在園状態") {
-            const sourceEvidence =
-                evidenceBySourceFieldKey
-                    .get(
-                        field
-                            ?.sourceFieldKey
-                    );
-
-            const values =
-                Array.isArray(
-                    sourceEvidence
-                        ?.sampleValues
-                )
-                    ? sourceEvidence
-                        .sampleValues
-                        .map(value =>
-                            String(
-                                value ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                    : [];
-
-            const presenceValues =
-                new Set([
-                    "在中",
-                    "不在"
-                ]);
-
-            if (
-                values.some(value =>
-                    presenceValues.has(
-                        value
-                    )
-                )
-            ) {
-                addContextualCandidate({
-                    field,
-                    entityName:
-                        "support_record",
-                    fieldName:
-                        "presence_status",
-                    displayName:
-                        "在園状態",
-                    reason:
-                        "presence_label_and_presence_source_values"
-                });
-            }
-        }
-
-        if (label === "行動") {
-            const sourceEvidence =
-                evidenceBySourceFieldKey
-                    .get(
-                        field
-                            ?.sourceFieldKey
-                    );
-
-            const values =
-                Array.isArray(
-                    sourceEvidence
-                        ?.sampleValues
-                )
-                    ? sourceEvidence
-                        .sampleValues
-                        .map(value =>
-                            String(
-                                value ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                    : [];
-
-            if (
-                values.length > 0
-            ) {
-                addContextualCandidate({
-                    field,
-                    entityName:
-                        "support_record",
-                    fieldName:
-                        "activity",
-                    displayName:
-                        "行動内容",
-                    reason:
-                        "activity_label_and_source_values"
-                });
-            }
-        }
+        contextualCandidates.push(
+            candidate
+        );
     }
+
 
     const userCodeField =
         fieldDefinitions.find(field =>

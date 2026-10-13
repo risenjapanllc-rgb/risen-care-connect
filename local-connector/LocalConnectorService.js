@@ -998,6 +998,15 @@ class LocalConnectorService {
                             .trim()
                         : semanticMeaning;
 
+                const sourceFieldName =
+                    typeof interpretation
+                        ?.sourceFieldName ===
+                        'string'
+                        ? interpretation
+                            .sourceFieldName
+                            .trim()
+                        : '';
+
                 const existing =
                     summaryByMeaning.get(
                         semanticMeaning
@@ -1005,7 +1014,31 @@ class LocalConnectorService {
 
                 if (existing) {
                     existing.count += 1;
+
+                    if (sourceFieldName) {
+                        existing.sourceFieldCounts.set(
+                            sourceFieldName,
+                            (
+                                existing
+                                    .sourceFieldCounts
+                                    .get(
+                                        sourceFieldName
+                                    ) || 0
+                            ) + 1
+                        );
+                    }
+
                     continue;
+                }
+
+                const sourceFieldCounts =
+                    new Map();
+
+                if (sourceFieldName) {
+                    sourceFieldCounts.set(
+                        sourceFieldName,
+                        1
+                    );
                 }
 
                 summaryByMeaning.set(
@@ -1013,7 +1046,8 @@ class LocalConnectorService {
                     {
                         semanticMeaning,
                         displayName,
-                        count: 1
+                        count: 1,
+                        sourceFieldCounts
                     }
                 );
             }
@@ -1021,14 +1055,46 @@ class LocalConnectorService {
 
         return [
             ...summaryByMeaning.values()
-        ].sort(
-            (a, b) =>
-                b.count - a.count ||
-                a.displayName.localeCompare(
-                    b.displayName,
-                    'ja'
-                )
-        );
+        ]
+            .map(item => ({
+                semanticMeaning:
+                    item.semanticMeaning,
+                displayName:
+                    item.displayName,
+                count:
+                    item.count,
+                sourceFields: [
+                    ...item
+                        .sourceFieldCounts
+                        .entries()
+                ]
+                    .map(
+                        ([
+                            sourceFieldName,
+                            count
+                        ]) => ({
+                            sourceFieldName,
+                            count
+                        })
+                    )
+                    .sort(
+                        (a, b) =>
+                            b.count - a.count ||
+                            a.sourceFieldName
+                                .localeCompare(
+                                    b.sourceFieldName,
+                                    'ja'
+                                )
+                    )
+            }))
+            .sort(
+                (a, b) =>
+                    b.count - a.count ||
+                    a.displayName.localeCompare(
+                        b.displayName,
+                        'ja'
+                    )
+            );
     }
 }
 

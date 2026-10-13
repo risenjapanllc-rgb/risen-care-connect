@@ -1298,12 +1298,16 @@ test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () 
               "sheet:0:row:2",
             interpretations: [
               {
+                sourceFieldName:
+                  "データ1",
                 semanticMeaning:
                   "support_record.body_temperature",
                 displayName:
                   "体温"
               },
               {
+                sourceFieldName:
+                  "データ2",
                 semanticMeaning:
                   "support_record.record_location",
                 displayName:
@@ -1316,12 +1320,16 @@ test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () 
               "sheet:0:row:3",
             interpretations: [
               {
+                sourceFieldName:
+                  "データ1",
                 semanticMeaning:
                   "support_record.body_temperature",
                 displayName:
                   "体温"
               },
               {
+                sourceFieldName:
+                  "データ2",
                 semanticMeaning:
                   "support_record.record_location",
                 displayName:
@@ -1393,7 +1401,15 @@ test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () 
       displayName:
         "体温",
       count:
-        2
+        2,
+      sourceFields: [
+        {
+          sourceFieldName:
+            "データ1",
+          count:
+            2
+        }
+      ]
     }
   );
 
@@ -1405,7 +1421,15 @@ test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () 
       displayName:
         "記録場所",
       count:
-        2
+        2,
+      sourceFields: [
+        {
+          sourceFieldName:
+            "データ2",
+          count:
+            2
+        }
+      ]
     }
   );
 });

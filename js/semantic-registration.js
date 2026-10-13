@@ -950,6 +950,84 @@ function renderSummary() {
     updateHighConfidenceButton();
 }
 
+function getRowSemanticItemsForField(item) {
+    const sourceFieldName =
+        typeof item?.label === "string"
+            ? item.label.trim()
+            : "";
+
+    if (!sourceFieldName) {
+        return [];
+    }
+
+    return semanticRowSummary
+        .map(summaryItem => {
+            const sourceFields =
+                Array.isArray(
+                    summaryItem?.sourceFields
+                )
+                    ? summaryItem.sourceFields
+                    : [];
+
+            const sourceField =
+                sourceFields.find(field =>
+                    String(
+                        field?.sourceFieldName ||
+                        ""
+                    ).trim() ===
+                    sourceFieldName
+                );
+
+            const count =
+                Number(
+                    sourceField?.count
+                );
+
+            if (
+                !sourceField ||
+                !Number.isFinite(count) ||
+                count <= 0
+            ) {
+                return null;
+            }
+
+            return {
+                semanticMeaning:
+                    summaryItem
+                        .semanticMeaning,
+                displayName:
+                    summaryItem
+                        .displayName ||
+                    summaryItem
+                        .semanticMeaning,
+                count
+            };
+        })
+        .filter(Boolean)
+        .sort(
+            (a, b) =>
+                b.count - a.count ||
+                String(
+                    a.displayName || ""
+                ).localeCompare(
+                    String(
+                        b.displayName || ""
+                    ),
+                    "ja"
+                )
+        );
+}
+
+
+function hasRowSemanticForField(item) {
+    return (
+        getRowSemanticItemsForField(
+            item
+        ).length > 0
+    );
+}
+
+
 function badgeFor(item) {
     if (item.status === "registered") {
         return `
@@ -976,6 +1054,23 @@ function badgeFor(item) {
                 "
             >
                 ✓ RISEN判定済み
+            </span>
+        `;
+    }
+
+    if (
+        hasRowSemanticForField(
+            item
+        )
+    ) {
+        return `
+            <span
+                class="
+                    semantic-badge
+                    semantic-badge-exact
+                "
+            >
+                ✓ 行Semantic判定あり
             </span>
         `;
     }
@@ -1274,6 +1369,83 @@ function renderSemanticEvidence(
 
 
 function renderMeaningEditor(item) {
+    const rowSemanticItems =
+        getRowSemanticItemsForField(
+            item
+        );
+
+    if (
+        rowSemanticItems.length > 0 &&
+        item.status !== "registered" &&
+        item.status !== "exact" &&
+        item.status !== "alias"
+    ) {
+        const rows =
+            rowSemanticItems
+                .map(rowItem => `
+                    <div
+                        style="
+                            margin-top: 10px;
+                            padding-top: 10px;
+                            border-top:
+                                1px solid
+                                rgba(15, 23, 42, 0.08);
+                        "
+                    >
+                        <strong>
+                            ${escapeHtml(
+                                rowItem.displayName
+                            )}
+                        </strong>
+
+                        <div
+                            class="semantic-source-key"
+                            style="margin-top: 4px;"
+                        >
+                            ${escapeHtml(
+                                rowItem.semanticMeaning
+                            )}
+                        </div>
+
+                        <div
+                            class="form-help"
+                            style="margin-top: 4px;"
+                        >
+                            ${rowItem.count
+                                .toLocaleString(
+                                    "ja-JP"
+                                )}件
+                        </div>
+                    </div>
+                `)
+                .join("");
+
+        return `
+            <div>
+                <strong>
+                    行ごとにRISENが判定
+                </strong>
+
+                <p
+                    class="form-help"
+                    style="
+                        margin:
+                            8px 0 0;
+                    "
+                >
+                    この項目は記録内容によって
+                    意味が変わります。
+                    RISENが各行の文脈から
+                    Semanticコードを自動判定します。
+                    判定できない値は
+                    原本のまま保持します。
+                </p>
+
+                ${rows}
+            </div>
+        `;
+    }
+
     const ReviewModel =
         window.RisenSemanticReviewModel;
 

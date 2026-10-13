@@ -574,6 +574,42 @@ const STANDARD_MEANINGS = Object.freeze([
         ])
     }),
     Object.freeze({
+        entityName: "support_record",
+        fieldName: "extension_value",
+        displayName: "その他・拡張情報",
+        synonyms: Object.freeze([
+            "その他1",
+            "その他2",
+            "その他3",
+            "extension_value"
+        ])
+    }),
+    Object.freeze({
+        entityName: "source_record",
+        fieldName: "record_id",
+        displayName: "原本レコードID",
+        synonyms: Object.freeze([
+            "source_record_id"
+        ])
+    }),
+    Object.freeze({
+        entityName: "source_record",
+        fieldName: "revision_flag",
+        displayName: "原本修正フラグ",
+        synonyms: Object.freeze([
+            "source_revision_flag"
+        ])
+    }),
+    Object.freeze({
+        entityName: "source_record",
+        fieldName: "detail_key",
+        displayName: "原本詳細キー",
+        synonyms: Object.freeze([
+            "詳細KEY",
+            "source_detail_key"
+        ])
+    }),
+    Object.freeze({
         entityName: "recipient_certificate",
         fieldName: "certificate_number",
         displayName: "受給者証番号",

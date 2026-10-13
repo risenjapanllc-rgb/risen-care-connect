@@ -17,8 +17,16 @@ function normalizeObservedLabel(value) {
 function resolveSubjectContext({
     fieldDefinitions = [],
     confirmedDocumentType = null,
-    semanticEvidence = []
+    semanticEvidence = [],
+    sourceFields = []
 } = {}) {
+    const sourceRecords =
+        Array.isArray(sourceFields)
+            ? sourceFields
+            : [];
+
+    void sourceRecords;
+
     const labels = new Set(
         fieldDefinitions
             .map(field => normalizeObservedLabel(field?.headerLabel))

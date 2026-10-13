@@ -26,6 +26,9 @@ const RULES = Object.freeze([
                     "all_numeric"
             }),
 
+        resolutionPolicy:
+            "automatic",
+
         reason:
             "label_and_numeric_source_values_support_temperature"
     }),
@@ -65,6 +68,9 @@ const RULES = Object.freeze([
                     ])
             }),
 
+        resolutionPolicy:
+            "automatic",
+
         reason:
             "label_and_weather_source_values_support_weather"
     }),
@@ -100,9 +106,117 @@ const RULES = Object.freeze([
                     ])
             }),
 
+        resolutionPolicy:
+            "automatic",
+
         reason:
             "label_and_presence_source_values_support_presence_status"
     }),
+
+    Object.freeze({
+        id:
+            "source_record.record_id",
+
+        sourceLabels:
+            Object.freeze([
+                "ID"
+            ]),
+
+        semanticTarget:
+            Object.freeze({
+                entityName:
+                    "source_record",
+                fieldName:
+                    "record_id",
+                displayName:
+                    "原本レコードID"
+            }),
+
+        evidencePolicy:
+            Object.freeze({
+                type:
+                    "all_of",
+
+                policies:
+                    Object.freeze([
+                        Object.freeze({
+                            type:
+                                "all_integer"
+                        }),
+
+                        Object.freeze({
+                            type:
+                                "minimum_sample_count",
+                            minimum:
+                                3
+                        }),
+
+                        Object.freeze({
+                            type:
+                                "neighboring_fields_include_at_least",
+
+                            values:
+                                Object.freeze([
+                                    "日時",
+                                    "氏名",
+                                    "処遇内容",
+                                    "記入者",
+                                    "種類"
+                                ]),
+
+                            minimum:
+                                4
+                        })
+                    ])
+            }),
+
+        resolutionPolicy:
+            "automatic",
+
+        reason:
+            "id_label_integer_values_and_record_context_support_source_record_id"
+    }),
+
+    Object.freeze({
+        id:
+            "source_record.revision_flag",
+
+        sourceLabels:
+            Object.freeze([
+                "修正"
+            ]),
+
+        semanticTarget:
+            Object.freeze({
+                entityName:
+                    "source_record",
+                fieldName:
+                    "revision_flag",
+                displayName:
+                    "原本修正フラグ"
+            }),
+
+        evidencePolicy:
+            Object.freeze({
+                type:
+                    "all_in_set",
+
+                values:
+                    Object.freeze([
+                        "0",
+                        "1",
+                        "0.0",
+                        "1.0"
+                    ])
+            }),
+
+        resolutionPolicy:
+            "automatic",
+
+        reason:
+            "label_and_binary_source_values_support_revision_flag"
+    }),
+
 
     Object.freeze({
         id:
@@ -128,6 +242,9 @@ const RULES = Object.freeze([
                 type:
                     "has_samples"
             }),
+
+        resolutionPolicy:
+            "automatic",
 
         reason:
             "label_and_source_values_support_activity"

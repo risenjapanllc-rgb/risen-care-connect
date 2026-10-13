@@ -283,6 +283,16 @@ async function loadContextCandidates(
                 .semanticEvidence
             : [];
 
+    const sourceFields =
+        Array.isArray(
+            analysis?.extracted
+                ?.sourceFields
+        )
+            ? analysis
+                .extracted
+                .sourceFields
+            : [];
+
     const response =
         await fetch(
             "/api/context-resolution",
@@ -303,7 +313,8 @@ async function loadContextCandidates(
                             ? analysis
                                 .documentType
                             : null,
-                    semanticEvidence
+                    semanticEvidence,
+                    sourceFields
                 })
             }
         );
@@ -410,7 +421,13 @@ async function loadContextCandidates(
                 humanConfirmationRequired:
                     candidate
                         ?.humanConfirmationRequired ===
-                    true
+                    true,
+
+                resolutionStatus:
+                    typeof candidate?.status ===
+                        "string"
+                        ? candidate.status.trim()
+                        : null
             }
         );
     }
@@ -645,7 +662,11 @@ function resolveFields(
                             sourceFieldKey,
                             label,
                             status:
-                                "context",
+                                contextualCandidate
+                                    .resolutionStatus ===
+                                "automatic_candidate"
+                                    ? "exact"
+                                    : "context",
                             semanticMeaning,
                             displayName:
                                 contextualCandidate
@@ -903,7 +924,7 @@ function badgeFor(item) {
                     semantic-badge-review
                 "
             >
-                ○ RISEN候補
+                ○ RISEN推定
             </span>
         `;
     }
@@ -918,7 +939,7 @@ function badgeFor(item) {
                     semantic-badge-review
                 "
             >
-                △ 複数候補
+                ○ 原本保持
             </span>
         `;
     }
@@ -930,7 +951,7 @@ function badgeFor(item) {
                 semantic-badge-review
             "
         >
-            △ 要確認
+            ○ 原本保持
         </span>
     `;
 }
@@ -1344,7 +1365,7 @@ function renderMeaningEditor(item) {
         return `
             <div>
                 <strong>
-                    複数の意味候補があります
+                    複数候補のため原本保持
                 </strong>
 
                 ${renderSemanticEvidence(
@@ -1368,10 +1389,78 @@ function renderMeaningEditor(item) {
         `;
     }
 
+    const activeEntityNames =
+        new Set(
+            semanticResolvedFields
+                .map(item => {
+                    const meaning =
+                        String(
+                            item?.semanticMeaning ||
+                            ""
+                        ).trim();
+
+                    const separator =
+                        meaning.indexOf(".");
+
+                    return separator > 0
+                        ? meaning.slice(
+                            0,
+                            separator
+                        )
+                        : "";
+                })
+                .filter(Boolean)
+        );
+
+    const relevantStandardFields =
+        activeEntityNames.size > 0
+            ? semanticStandardFields.filter(
+                field =>
+                    activeEntityNames.has(
+                        String(
+                            field?.entity_name ||
+                            ""
+                        ).trim()
+                    )
+            )
+            : semanticStandardFields;
+
+    const entityOptions =
+        [
+            ...new Set(
+                relevantStandardFields
+                    .map(field =>
+                        String(
+                            field?.entity_name ||
+                            ""
+                        ).trim()
+                    )
+                    .filter(Boolean)
+            )
+        ]
+            .sort()
+            .map(entityName => `
+                <option
+                    value="${escapeHtml(
+                        entityName
+                    )}"
+                >
+                    ${escapeHtml(
+                        entityName
+                    )}
+                </option>
+            `)
+            .join("");
+
     return `
-        <div>
+        <div
+            class="
+                semantic-meaning-editor
+                semantic-review-hold
+            "
+        >
             <strong>
-                RISENで意味をまだ特定できません
+                原本のまま保持
             </strong>
 
             ${renderSemanticEvidence(
@@ -1380,13 +1469,113 @@ function renderMeaningEditor(item) {
 
             <p
                 class="form-help"
-                style="margin-top: 10px;"
+                style="
+                    margin: 10px 0 0;
+                "
             >
-                原本の値と周辺項目を
-                判断材料として保持します。
-                Meaningコードを人が手入力する
-                必要はありません。
+                RISENが原本情報をそのまま保持します。
+                職員がMeaningを決める必要はありません。
             </p>
+
+            <details
+                class="semantic-meaning-selection"
+                style="
+                    max-width: 520px;
+                    margin-top: 12px;
+                "
+            >
+                <summary
+                    style="
+                        cursor: pointer;
+                        font-weight: 700;
+                    "
+                >
+                    管理者向け：判定を変更
+                </summary>
+
+                <div
+                    style="
+                        margin-top: 12px;
+                    "
+                >
+                <label
+                    class="form-help"
+                    style="
+                        display: block;
+                        margin-bottom: 5px;
+                    "
+                >
+                    分類
+                </label>
+
+                <select
+                    class="semantic-entity-input"
+                    style="
+                        width: 100%;
+                        min-height: 44px;
+                    "
+                >
+                    <option value="">
+                        分類を選択してください
+                    </option>
+
+                    ${entityOptions}
+                </select>
+
+                <label
+                    class="form-help"
+                    style="
+                        display: block;
+                        margin-top: 10px;
+                        margin-bottom: 5px;
+                    "
+                >
+                    Meaning
+                </label>
+
+                <select
+                    class="semantic-meaning-input"
+                    style="
+                        width: 100%;
+                        min-height: 44px;
+                    "
+                    disabled
+                >
+                    <option value="">
+                        先に分類を選択してください
+                    </option>
+                </select>
+
+                <div
+                    style="
+                        margin-top: 10px;
+                    "
+                >
+                    <button
+                        class="
+                            primary-button
+                            semantic-confirm-meaning-button
+                        "
+                        type="button"
+                        style="
+                            width: auto;
+                            min-width: 180px;
+                            white-space: nowrap;
+                        "
+                        data-source-field-key="${escapeHtml(
+                            review.sourceFieldKey
+                        )}"
+                        ${
+                            semanticCurrentTemplateId
+                                ? ""
+                                : "disabled"
+                        }
+                    >
+                        このMeaningで確定
+                    </button>
+                </div>
+                </div>
+            </details>
         </div>
     `;
 }
@@ -1466,6 +1655,125 @@ async function confirmReviewCandidate(
 }
 
 
+function updateMeaningOptions(
+    entitySelect
+) {
+    const editor =
+        entitySelect.closest(
+            ".semantic-meaning-editor"
+        );
+
+    const meaningSelect =
+        editor?.querySelector(
+            ".semantic-meaning-input"
+        );
+
+    if (!meaningSelect) {
+        return;
+    }
+
+    const entityName =
+        String(
+            entitySelect.value ||
+            ""
+        ).trim();
+
+    meaningSelect.innerHTML = "";
+
+    const placeholder =
+        document.createElement(
+            "option"
+        );
+
+    placeholder.value = "";
+
+    if (!entityName) {
+        placeholder.textContent =
+            "先に分類を選択してください";
+
+        meaningSelect.appendChild(
+            placeholder
+        );
+
+        meaningSelect.disabled =
+            true;
+
+        return;
+    }
+
+    placeholder.textContent =
+        "Meaningを選択してください";
+
+    meaningSelect.appendChild(
+        placeholder
+    );
+
+    const fields =
+        semanticStandardFields
+            .filter(field =>
+                String(
+                    field?.entity_name ||
+                    ""
+                ).trim() ===
+                entityName
+            )
+            .sort(
+                (a, b) =>
+                    String(
+                        a?.display_name ||
+                        a?.field_name ||
+                        ""
+                    ).localeCompare(
+                        String(
+                            b?.display_name ||
+                            b?.field_name ||
+                            ""
+                        ),
+                        "ja"
+                    )
+            );
+
+    for (const field of fields) {
+        const fieldName =
+            String(
+                field?.field_name ||
+                ""
+            ).trim();
+
+        if (!fieldName) {
+            continue;
+        }
+
+        const semanticMeaning =
+            `${entityName}.${fieldName}`;
+
+        const displayName =
+            String(
+                field?.display_name ||
+                semanticMeaning
+            ).trim();
+
+        const option =
+            document.createElement(
+                "option"
+            );
+
+        option.value =
+            semanticMeaning;
+
+        option.textContent =
+            `${displayName} — ${semanticMeaning}`;
+
+        meaningSelect.appendChild(
+            option
+        );
+    }
+
+    meaningSelect.disabled =
+        false;
+}
+
+
 async function confirmSemanticMeaning(
     button
 ) {
@@ -1514,6 +1822,14 @@ async function confirmSemanticMeaning(
             input?.value ||
             ""
         ).trim();
+
+    if (!semanticMeaning) {
+        setStatus(
+            "標準Meaningを選択してください。",
+            "error"
+        );
+        return;
+    }
 
     button.disabled = true;
     button.textContent = "保存中...";
@@ -1700,6 +2016,20 @@ function renderFields() {
                 () =>
                     confirmReviewCandidate(
                         button
+                    )
+            );
+        });
+
+    fieldsBody
+        .querySelectorAll(
+            ".semantic-entity-input"
+        )
+        .forEach(select => {
+            select.addEventListener(
+                "change",
+                () =>
+                    updateMeaningOptions(
+                        select
                     )
             );
         });

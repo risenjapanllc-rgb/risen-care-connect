@@ -181,3 +181,358 @@ test(
         );
     }
 );
+
+test(
+    "automatic catalog rules return automatic candidates without human confirmation",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "気温"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            sampleValues: [
+                                "23.8",
+                                "24.1"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            1
+        );
+
+        assert.equal(
+            result[0].status,
+            "automatic_candidate"
+        );
+
+        assert.equal(
+            result[0].humanConfirmationRequired,
+            false
+        );
+    }
+);
+
+
+test(
+    "externally supplied review rules remain contextual candidates",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "field:a",
+                            headerLabel:
+                                "独自項目"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "field:a",
+                            sampleValues: [
+                                "値あり"
+                            ]
+                        }
+                    ],
+
+                    rules: [
+                        {
+                            id:
+                                "test.review",
+                            sourceLabels: [
+                                "独自項目"
+                            ],
+                            semanticTarget: {
+                                entityName:
+                                    "test",
+                                fieldName:
+                                    "review",
+                                displayName:
+                                    "独自意味"
+                            },
+                            evidencePolicy: {
+                                type:
+                                    "has_samples"
+                            },
+                            resolutionPolicy:
+                                "review"
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            1
+        );
+
+        assert.equal(
+            result[0].status,
+            "contextual_candidate"
+        );
+
+        assert.equal(
+            result[0].humanConfirmationRequired,
+            true
+        );
+    }
+);
+
+test(
+    "修正 with binary source values resolves automatically as source revision flag",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "修正"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            sampleValues: [
+                                "0.0",
+                                "1.0"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            1
+        );
+
+        assert.equal(
+            result[0].status,
+            "automatic_candidate"
+        );
+
+        assert.equal(
+            result[0].humanConfirmationRequired,
+            false
+        );
+
+        assert.equal(
+            result[0].candidate.entityName,
+            "source_record"
+        );
+
+        assert.equal(
+            result[0].candidate.fieldName,
+            "revision_flag"
+        );
+    }
+);
+
+test(
+    "修正 with an unexpected source value does not resolve automatically",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:23",
+                            headerLabel:
+                                "修正"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:23",
+                            sampleValues: [
+                                "0.0",
+                                "1.0",
+                                "999"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            0
+        );
+    }
+);
+
+test(
+    "ID with integer values and record context resolves automatically as source record id",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "ID"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+
+                            sampleValues: [
+                                "4163476",
+                                "4163477",
+                                "4163478",
+                                "4163479",
+                                "4163480"
+                            ],
+
+                            neighboringFields: [
+                                "日時",
+                                "氏名",
+                                "処遇内容",
+                                "記入者",
+                                "種類",
+                                "データ2",
+                                "気温",
+                                "天気"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            1
+        );
+
+        assert.equal(
+            result[0].status,
+            "automatic_candidate"
+        );
+
+        assert.equal(
+            result[0].humanConfirmationRequired,
+            false
+        );
+
+        assert.equal(
+            result[0].candidate.entityName,
+            "source_record"
+        );
+
+        assert.equal(
+            result[0].candidate.fieldName,
+            "record_id"
+        );
+    }
+);
+
+test(
+    "generic ID without sufficient record context does not resolve as source record id",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "ID"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+
+                            sampleValues: [
+                                "1001",
+                                "1002",
+                                "1003"
+                            ],
+
+                            neighboringFields: [
+                                "氏名",
+                                "住所"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            0
+        );
+    }
+);
+
+test(
+    "ID with non integer values does not resolve as source record id",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "ID"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+
+                            sampleValues: [
+                                "ABC001",
+                                "ABC002",
+                                "ABC003"
+                            ],
+
+                            neighboringFields: [
+                                "日時",
+                                "氏名",
+                                "処遇内容",
+                                "記入者",
+                                "種類"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            0
+        );
+    }
+);

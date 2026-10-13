@@ -498,6 +498,40 @@
             cursor: default !important;
         }
 
+
+        /* ===== decision-free semantic UI ===== */
+
+        .semantic-review-hold {
+            display: block !important;
+            width: 100%;
+        }
+
+        .semantic-review-hold
+        .semantic-review-evidence {
+            max-width: 680px;
+        }
+
+        .semantic-review-hold
+        .semantic-meaning-selection {
+            max-width: 520px;
+            margin-top: 8px !important;
+        }
+
+        .semantic-review-hold
+        .semantic-meaning-selection > summary {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 500 !important;
+        }
+
+        .semantic-confirm-review-candidate-button {
+            display: none !important;
+        }
+
+        .semantic-review-hold strong {
+            color: #334155;
+        }
+
 </style>
 </head>
 
@@ -505,11 +539,12 @@
     <main class="semantic-registration-page">
         <header class="semantic-registration-header">
             <p>RISEN CARE Connect</p>
-            <h1>Semantic登録</h1>
+            <h1>Semantic自動整理</h1>
             <p class="semantic-registration-lead">
-                CSV・Excel・Wordの項目だけを確認し、
-                「この項目がRISEN CAREでは何を意味するか」を
-                データ取込の前に整理します。
+                RISENがCSV・Excel・Wordの項目と原本内容を読み取り、
+                RISEN CAREで扱える意味へ自動的に整理します。
+                判断できない情報も捨てずに原本のまま保持します。
+                職員がMeaningを選ぶ必要はありません。
             </p>
         </header>
 
@@ -579,7 +614,7 @@
                 </div>
 
                 <div class="semantic-summary-card">
-                    <span>RISEN候補</span>
+                    <span>RISEN推定</span>
                     <strong
                         id="semanticAliasCount"
                         class="semantic-summary-number"
@@ -587,7 +622,7 @@
                 </div>
 
                 <div class="semantic-summary-card">
-                    <span>要確認</span>
+                    <span>原本保持</span>
                     <strong
                         id="semanticReviewCount"
                         class="semantic-summary-number"
@@ -602,13 +637,14 @@
             hidden
         >
             <div class="semantic-toolbar">
-                <h2>3. 項目の意味</h2>
+                <h2>3. RISENの整理結果</h2>
 
                 <div class="semantic-filter-group">
                     <button
                         id="semanticConfirmHighConfidenceButton"
                         type="button"
                         class="semantic-filter-button"
+                        hidden
                         disabled
                     >
                         高信頼候補を一括確定
@@ -626,7 +662,7 @@
                         class="semantic-filter-button"
                         data-semantic-filter="review"
                     >
-                        要確認だけ
+                        原本保持だけ
                     </button>
                 </div>
             </div>
@@ -636,7 +672,7 @@
                     <thead>
                         <tr>
                             <th>原本項目</th>
-                            <th>判定</th>
+                            <th>RISEN整理</th>
                             <th>RISEN CARE Meaning</th>
                         </tr>
                     </thead>
@@ -661,7 +697,7 @@
                     disabled
                     title="この書式をSemanticテンプレートとして登録します"
                 >
-                    書式を登録
+                    整理結果を保存
                 </button>
             </div>
         </section>

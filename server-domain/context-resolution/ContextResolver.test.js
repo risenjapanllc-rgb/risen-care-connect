@@ -288,3 +288,70 @@ test(
         );
     }
 );
+
+test(
+    "context resolver accepts row source fields without changing existing semantic resolution",
+    () => {
+        const result =
+            resolveSubjectContext({
+                fieldDefinitions: [
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:15",
+                        headerLabel:
+                            "気温"
+                    }
+                ],
+
+                semanticEvidence: [
+                    {
+                        sourceFieldKey:
+                            "sheet:0:column:15",
+                        headerLabel:
+                            "気温",
+                        sampleValues: [
+                            "23.8",
+                            "24.1"
+                        ]
+                    }
+                ],
+
+                sourceFields: [
+                    {
+                        sourceEntityKey:
+                            "sheet:0:row:2",
+                        sheetIndex: 0,
+                        sheetName: "CSV",
+                        rowIndex: 2,
+                        fields: {
+                            種類:
+                                "バイタル",
+                            データ1:
+                                "36.5",
+                            気温:
+                                "23.8"
+                        }
+                    }
+                ]
+            });
+
+        const candidate =
+            result.contextualCandidates
+                .find(item =>
+                    item.sourceFieldKey ===
+                    "sheet:0:column:15"
+                );
+
+        assert.ok(candidate);
+
+        assert.equal(
+            candidate.candidate.entityName,
+            "support_record"
+        );
+
+        assert.equal(
+            candidate.candidate.fieldName,
+            "temperature"
+        );
+    }
+);

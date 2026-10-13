@@ -1492,10 +1492,16 @@ app.post("/api/context-resolution", (req, res) => {
                 ? req.body.semanticEvidence
                 : [];
 
+        const sourceFields =
+            Array.isArray(req.body?.sourceFields)
+                ? req.body.sourceFields
+                : [];
+
         const result = resolveSubjectContext({
             fieldDefinitions,
             confirmedDocumentType,
-            semanticEvidence
+            semanticEvidence,
+            sourceFields
         });
 
         return res.json({

@@ -26,13 +26,26 @@ function normalizeValues(values) {
         .filter(Boolean);
 }
 
+function normalizeLabels(values) {
+    return normalizeValues(values)
+        .map(normalizeLabel)
+        .filter(Boolean);
+}
+
 function evidenceMatches(
     policy,
-    sampleValues
+    sourceEvidence
 ) {
-    const values =
+    const sampleValues =
         normalizeValues(
-            sampleValues
+            sourceEvidence
+                ?.sampleValues
+        );
+
+    const neighboringFields =
+        normalizeLabels(
+            sourceEvidence
+                ?.neighboringFields
         );
 
     if (!policy) {
@@ -41,10 +54,51 @@ function evidenceMatches(
 
     if (
         policy.type ===
+        "all_of"
+    ) {
+        const policies =
+            Array.isArray(
+                policy.policies
+            )
+                ? policy.policies
+                : [];
+
+        return (
+            policies.length > 0 &&
+            policies.every(
+                childPolicy =>
+                    evidenceMatches(
+                        childPolicy,
+                        sourceEvidence
+                    )
+            )
+        );
+    }
+
+    if (
+        policy.type ===
         "has_samples"
     ) {
         return (
-            values.length > 0
+            sampleValues.length > 0
+        );
+    }
+
+    if (
+        policy.type ===
+        "minimum_sample_count"
+    ) {
+        const minimum =
+            Number.isInteger(
+                policy.minimum
+            ) &&
+            policy.minimum > 0
+                ? policy.minimum
+                : 1;
+
+        return (
+            sampleValues.length >=
+            minimum
         );
     }
 
@@ -53,9 +107,22 @@ function evidenceMatches(
         "all_numeric"
     ) {
         return (
-            values.length > 0 &&
-            values.every(value =>
+            sampleValues.length > 0 &&
+            sampleValues.every(value =>
                 /^-?\d+(?:\.\d+)?$/
+                    .test(value)
+            )
+        );
+    }
+
+    if (
+        policy.type ===
+        "all_integer"
+    ) {
+        return (
+            sampleValues.length > 0 &&
+            sampleValues.every(value =>
+                /^\d+$/
                     .test(value)
             )
         );
@@ -72,9 +139,63 @@ function evidenceMatches(
                 )
             );
 
-        return values.some(
+        return sampleValues.some(
             value =>
                 allowed.has(value)
+        );
+    }
+
+    if (
+        policy.type ===
+        "all_in_set"
+    ) {
+        const allowed =
+            new Set(
+                normalizeValues(
+                    policy.values
+                )
+            );
+
+        return (
+            sampleValues.length > 0 &&
+            sampleValues.every(
+                value =>
+                    allowed.has(value)
+            )
+        );
+    }
+
+    if (
+        policy.type ===
+        "neighboring_fields_include_at_least"
+    ) {
+        const expected =
+            new Set(
+                normalizeLabels(
+                    policy.values
+                )
+            );
+
+        const minimum =
+            Number.isInteger(
+                policy.minimum
+            ) &&
+            policy.minimum > 0
+                ? policy.minimum
+                : 1;
+
+        const matches =
+            new Set(
+                neighboringFields.filter(
+                    field =>
+                        expected.has(
+                            field
+                        )
+                )
+            );
+
+        return (
+            matches.size >= minimum
         );
     }
 
@@ -188,7 +309,7 @@ class SemanticEvidenceResolver {
                     !evidenceMatches(
                         rule
                             ?.evidencePolicy,
-                        sampleValues
+                        sourceEvidence
                     )
                 ) {
                     continue;
@@ -229,7 +350,11 @@ class SemanticEvidenceResolver {
                     },
 
                     status:
-                        "contextual_candidate",
+                        rule
+                            ?.resolutionPolicy ===
+                            "automatic"
+                            ? "automatic_candidate"
+                            : "contextual_candidate",
 
                     reason:
                         rule.reason ||
@@ -248,7 +373,11 @@ class SemanticEvidenceResolver {
                     }],
 
                     humanConfirmationRequired:
-                        true
+                        rule
+                            ?.resolutionPolicy ===
+                            "automatic"
+                            ? false
+                            : true
                 });
 
                 break;

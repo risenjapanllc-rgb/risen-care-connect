@@ -937,10 +937,44 @@ function renderSummary() {
     ).textContent =
         summary.candidate;
 
+    const rowSemanticFieldCount =
+        semanticResolvedFields
+            .filter(item =>
+                item.status !== "registered" &&
+                item.status !== "exact" &&
+                item.status !== "alias" &&
+                hasRowSemanticForField(item)
+            )
+            .length;
+
+    const unresolvedCount =
+        semanticResolvedFields
+            .filter(item => {
+                if (
+                    item.status === "registered" ||
+                    item.status === "exact" ||
+                    item.status === "alias" ||
+                    item.status === "context" ||
+                    item.status === "ambiguous"
+                ) {
+                    return false;
+                }
+
+                return !hasRowSemanticForField(
+                    item
+                );
+            })
+            .length;
+
+    document.getElementById(
+        "semanticRowFieldCount"
+    ).textContent =
+        rowSemanticFieldCount;
+
     document.getElementById(
         "semanticReviewCount"
     ).textContent =
-        summary.review;
+        unresolvedCount;
 
     summaryPanel.hidden =
         false;
@@ -2092,12 +2126,20 @@ function renderFields() {
             item => {
                 if (
                     semanticCurrentFilter ===
-                    "review"
+                    "unresolved"
                 ) {
-                    return (
-                        item.status !== "registered" &&
-                        item.status !== "exact" &&
-                        item.status !== "alias"
+                    if (
+                        item.status === "registered" ||
+                        item.status === "exact" ||
+                        item.status === "alias" ||
+                        item.status === "context" ||
+                        item.status === "ambiguous"
+                    ) {
+                        return false;
+                    }
+
+                    return !hasRowSemanticForField(
+                        item
                     );
                 }
 

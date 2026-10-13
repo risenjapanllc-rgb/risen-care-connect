@@ -151,7 +151,7 @@ class SemanticReviewModel {
                 item?.semanticMeaning
             );
 
-        let state = "review";
+        let state = "unresolved";
 
         if (
             item?.status === "registered"
@@ -255,6 +255,8 @@ class SemanticReviewModel {
             registered: 0,
             resolved: 0,
             candidate: 0,
+            conflict: 0,
+            unresolved: 0,
             review: 0
         };
 
@@ -285,6 +287,16 @@ class SemanticReviewModel {
                 continue;
             }
 
+            if (
+                item?.status ===
+                    "ambiguous"
+            ) {
+                result.conflict += 1;
+                result.review += 1;
+                continue;
+            }
+
+            result.unresolved += 1;
             result.review += 1;
         }
 

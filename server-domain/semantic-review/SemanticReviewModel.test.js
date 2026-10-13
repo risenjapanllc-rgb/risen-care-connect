@@ -48,6 +48,8 @@ test(
                 registered: 1,
                 resolved: 2,
                 candidate: 1,
+                conflict: 1,
+                unresolved: 1,
                 review: 2
             }
         );
@@ -112,6 +114,76 @@ test(
             [
                 "23.8",
                 "23.7"
+            ]
+        );
+    }
+);
+
+test(
+    "Semantic Review item exposes unresolved as the preserved original state",
+    () => {
+        const review =
+            SemanticReviewModel
+                .toReviewItem({
+                    item: {
+                        sourceFieldKey:
+                            "sheet:0:column:24",
+                        label:
+                            "状態",
+                        status:
+                            "review",
+                        semanticMeaning:
+                            null,
+                        displayName:
+                            null,
+                        candidates: []
+                    },
+
+                    standardFields: [],
+
+                    analysis: {
+                        extracted: {
+                            semanticEvidence: [
+                                {
+                                    sourceFieldKey:
+                                        "sheet:0:column:24",
+                                    sampleValues: [
+                                        "1",
+                                        "3",
+                                        "503",
+                                        "501",
+                                        "0"
+                                    ],
+                                    neighboringFields: [
+                                        "日時",
+                                        "氏名",
+                                        "種類",
+                                        "行動"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                });
+
+        assert.equal(
+            review.state,
+            "unresolved"
+        );
+
+        assert.equal(
+            review.semanticMeaning,
+            ""
+        );
+
+        assert.deepEqual(
+            review.evidence.sampleValues,
+            [
+                "1",
+                "3",
+                "503",
+                "501",
+                "0"
             ]
         );
     }

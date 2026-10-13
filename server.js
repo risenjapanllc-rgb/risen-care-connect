@@ -259,6 +259,20 @@ app.get(
 );
 
 app.get(
+    "/js/semantic-review-model.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "server-domain",
+                "semantic-review",
+                "SemanticReviewModel.js"
+            )
+        );
+    }
+);
+
+app.get(
     "/js/semantic-projection-resolver.js",
     (req, res) => {
         return res.sendFile(
@@ -1473,9 +1487,15 @@ app.post("/api/context-resolution", (req, res) => {
                 ? req.body.confirmedDocumentType.trim()
                 : null;
 
+        const semanticEvidence =
+            Array.isArray(req.body?.semanticEvidence)
+                ? req.body.semanticEvidence
+                : [];
+
         const result = resolveSubjectContext({
             fieldDefinitions,
-            confirmedDocumentType
+            confirmedDocumentType,
+            semanticEvidence
         });
 
         return res.json({

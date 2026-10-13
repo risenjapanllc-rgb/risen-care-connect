@@ -539,6 +539,41 @@ const STANDARD_MEANINGS = Object.freeze([
         synonyms: Object.freeze(["登録日時", "作成日時", "created_at"])
     }),
     Object.freeze({
+        entityName: "support_record",
+        fieldName: "temperature",
+        displayName: "記録時気温",
+        synonyms: Object.freeze([
+            "記録時気温",
+            "temperature"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "weather",
+        displayName: "記録時天候",
+        synonyms: Object.freeze([
+            "記録時天候",
+            "weather"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "presence_status",
+        displayName: "在園状態",
+        synonyms: Object.freeze([
+            "presence_status"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
+        fieldName: "activity",
+        displayName: "行動内容",
+        synonyms: Object.freeze([
+            "行動内容",
+            "activity"
+        ])
+    }),
+    Object.freeze({
         entityName: "recipient_certificate",
         fieldName: "certificate_number",
         displayName: "受給者証番号",

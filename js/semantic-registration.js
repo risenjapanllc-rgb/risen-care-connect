@@ -8,6 +8,9 @@ let semanticResolvedFields = [];
 let semanticCurrentFilter = "all";
 let semanticPersistedMappings = new Map();
 let semanticCurrentAnalysis = null;
+
+let semanticContextCandidates =
+    new Map();
 let semanticCurrentFieldDefinitions = [];
 let semanticCurrentTemplateId = null;
 
@@ -263,6 +266,157 @@ function renderFileOptions(files) {
     );
 }
 
+async function loadContextCandidates(
+    analysis,
+    fieldDefinitions
+) {
+    semanticContextCandidates =
+        new Map();
+
+    const semanticEvidence =
+        Array.isArray(
+            analysis?.extracted
+                ?.semanticEvidence
+        )
+            ? analysis
+                .extracted
+                .semanticEvidence
+            : [];
+
+    const response =
+        await fetch(
+            "/api/context-resolution",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+                body: JSON.stringify({
+                    fieldDefinitions,
+                    confirmedDocumentType:
+                        typeof analysis
+                            ?.documentType ===
+                            "string" &&
+                        analysis.documentType !==
+                            "unknown"
+                            ? analysis
+                                .documentType
+                            : null,
+                    semanticEvidence
+                })
+            }
+        );
+
+    const result =
+        await response.json();
+
+    if (
+        !response.ok ||
+        !result ||
+        typeof result !== "object"
+    ) {
+        throw new Error(
+            result?.message ||
+            "文脈解析に失敗しました"
+        );
+    }
+
+    const contextualCandidates =
+        Array.isArray(
+            result?.context
+                ?.contextualCandidates
+        )
+            ? result
+                .context
+                .contextualCandidates
+            : [];
+
+    for (
+        const candidate
+        of contextualCandidates
+    ) {
+        const sourceFieldKey =
+            typeof candidate
+                ?.sourceFieldKey ===
+                "string"
+                ? candidate
+                    .sourceFieldKey
+                    .trim()
+                : "";
+
+        const entityName =
+            typeof candidate
+                ?.candidate
+                ?.entityName ===
+                "string"
+                ? candidate
+                    .candidate
+                    .entityName
+                    .trim()
+                : "";
+
+        const fieldName =
+            typeof candidate
+                ?.candidate
+                ?.fieldName ===
+                "string"
+                ? candidate
+                    .candidate
+                    .fieldName
+                    .trim()
+                : "";
+
+        if (
+            !sourceFieldKey ||
+            !entityName ||
+            !fieldName
+        ) {
+            continue;
+        }
+
+        semanticContextCandidates.set(
+            sourceFieldKey,
+            {
+                semanticMeaning:
+                    `${entityName}.${fieldName}`,
+
+                displayName:
+                    typeof candidate
+                        ?.candidate
+                        ?.displayName ===
+                        "string"
+                        ? candidate
+                            .candidate
+                            .displayName
+                            .trim()
+                        : `${entityName}.${fieldName}`,
+
+                reason:
+                    typeof candidate
+                        ?.reason ===
+                        "string"
+                        ? candidate
+                            .reason
+                        : null,
+
+                evidence:
+                    Array.isArray(
+                        candidate?.evidence
+                    )
+                        ? candidate.evidence
+                        : [],
+
+                humanConfirmationRequired:
+                    candidate
+                        ?.humanConfirmationRequired ===
+                    true
+            }
+        );
+    }
+}
+
+
 function findMeaningCandidates(label) {
     const normalized =
         normalizeSemanticLabel(
@@ -363,6 +517,14 @@ function findMeaningCandidates(label) {
 function resolveFields(
     fieldDefinitions
 ) {
+    const SignalAdapter =
+        window
+            .RisenSemanticCandidateSignalAdapter;
+
+    const CandidateResolver =
+        window
+            .RisenSemanticCandidateResolver;
+
     return fieldDefinitions.map(
         (field, index) => {
             const label =
@@ -389,28 +551,206 @@ function resolveFields(
                         "registered",
                     semanticMeaning:
                         persistedMeaning,
+                    displayName:
+                        null,
                     candidates: []
                 };
             }
 
-            const candidates =
+            const standardCandidates =
                 findMeaningCandidates(
                     label
                 );
 
+            const contextualCandidate =
+                semanticContextCandidates.get(
+                    sourceFieldKey
+                ) || null;
+
+            const suggestedMeaning =
+                standardCandidates.length === 1
+                    ? standardCandidates[0]
+                        .semanticMeaning
+                    : null;
+
+            const contextualMeaning =
+                contextualCandidate
+                    ?.semanticMeaning ||
+                null;
+
             if (
-                candidates.length === 1
+                SignalAdapter &&
+                CandidateResolver
+            ) {
+                const signals =
+                    SignalAdapter
+                        .fromSourceFieldCandidates({
+                            sourceFieldKey,
+                            suggestedMeaning,
+                            contextualMeaning,
+                            contextualMeaningAllowed:
+                                Boolean(
+                                    contextualMeaning
+                                )
+                        });
+
+                const resolved =
+                    new CandidateResolver()
+                        .resolve(
+                            signals
+                        );
+
+                if (
+                    resolved.status ===
+                        "candidate" &&
+                    resolved
+                        .candidates
+                        .length === 1
+                ) {
+                    const semanticMeaning =
+                        resolved
+                            .candidates[0]
+                            .semanticTarget;
+
+                    const standardMatch =
+                        standardCandidates.find(
+                            candidate =>
+                                candidate
+                                    .semanticMeaning ===
+                                semanticMeaning
+                        );
+
+                    if (standardMatch) {
+                        return {
+                            sourceFieldKey,
+                            label,
+                            status:
+                                standardMatch
+                                    .matchType,
+                            semanticMeaning,
+                            displayName:
+                                null,
+                            candidates:
+                                standardCandidates
+                        };
+                    }
+
+                    if (
+                        contextualCandidate &&
+                        contextualCandidate
+                            .semanticMeaning ===
+                        semanticMeaning
+                    ) {
+                        return {
+                            sourceFieldKey,
+                            label,
+                            status:
+                                "context",
+                            semanticMeaning,
+                            displayName:
+                                contextualCandidate
+                                    .displayName,
+                            contextReason:
+                                contextualCandidate
+                                    .reason,
+                            contextEvidence:
+                                contextualCandidate
+                                    .evidence,
+                            candidates: [{
+                                semanticMeaning,
+                                displayName:
+                                    contextualCandidate
+                                        .displayName,
+                                matchType:
+                                    "context"
+                            }]
+                        };
+                    }
+                }
+
+                if (
+                    resolved.status ===
+                    "conflict"
+                ) {
+                    const candidates =
+                        resolved
+                            .candidates
+                            .map(candidate => {
+                                const semanticMeaning =
+                                    candidate
+                                        .semanticTarget;
+
+                                const standard =
+                                    standardCandidates
+                                        .find(
+                                            item =>
+                                                item
+                                                    .semanticMeaning ===
+                                                semanticMeaning
+                                        );
+
+                                if (standard) {
+                                    return {
+                                        ...standard
+                                    };
+                                }
+
+                                if (
+                                    contextualCandidate &&
+                                    contextualCandidate
+                                        .semanticMeaning ===
+                                    semanticMeaning
+                                ) {
+                                    return {
+                                        semanticMeaning,
+                                        displayName:
+                                            contextualCandidate
+                                                .displayName,
+                                        matchType:
+                                            "context"
+                                    };
+                                }
+
+                                return {
+                                    semanticMeaning,
+                                    displayName:
+                                        semanticMeaning,
+                                    matchType:
+                                        "candidate"
+                                };
+                            });
+
+                    return {
+                        sourceFieldKey,
+                        label,
+                        status:
+                            "ambiguous",
+                        semanticMeaning:
+                            null,
+                        displayName:
+                            null,
+                        candidates
+                    };
+                }
+            }
+
+            if (
+                standardCandidates.length ===
+                1
             ) {
                 return {
                     sourceFieldKey,
                     label,
                     status:
-                        candidates[0]
+                        standardCandidates[0]
                             .matchType,
                     semanticMeaning:
-                        candidates[0]
+                        standardCandidates[0]
                             .semanticMeaning,
-                    candidates
+                    displayName:
+                        null,
+                    candidates:
+                        standardCandidates
                 };
             }
 
@@ -418,69 +758,107 @@ function resolveFields(
                 sourceFieldKey,
                 label,
                 status:
-                    candidates.length > 1
+                    standardCandidates.length >
+                    1
                         ? "ambiguous"
                         : "review",
                 semanticMeaning:
                     null,
-                candidates
+                displayName:
+                    null,
+                candidates:
+                    standardCandidates
             };
         }
     );
 }
 
 function renderSummary() {
-    const total =
-        semanticResolvedFields.length;
+    const ReviewModel =
+        window.RisenSemanticReviewModel;
 
-    const registered =
-        semanticResolvedFields.filter(
-            item =>
-                item.status ===
-                "registered"
-        ).length;
+    const summary =
+        ReviewModel
+            ? ReviewModel.summarize(
+                semanticResolvedFields
+            )
+            : {
+                total:
+                    semanticResolvedFields
+                        .length,
 
-    const exact =
-        semanticResolvedFields.filter(
-            item =>
-                item.status ===
-                "exact"
-        ).length;
+                registered:
+                    semanticResolvedFields
+                        .filter(
+                            item =>
+                                item.status ===
+                                "registered"
+                        )
+                        .length,
 
-    const alias =
-        semanticResolvedFields.filter(
-            item =>
-                item.status ===
-                "alias"
-        ).length;
+                resolved:
+                    semanticResolvedFields
+                        .filter(
+                            item =>
+                                item.status ===
+                                    "exact" ||
+                                item.status ===
+                                    "alias"
+                        )
+                        .length,
 
-    const review =
-        total -
-        registered -
-        exact -
-        alias;
+                candidate:
+                    semanticResolvedFields
+                        .filter(
+                            item =>
+                                item.status ===
+                                "context"
+                        )
+                        .length,
+
+                review:
+                    semanticResolvedFields
+                        .filter(
+                            item =>
+                                ![
+                                    "registered",
+                                    "exact",
+                                    "alias",
+                                    "context"
+                                ].includes(
+                                    item.status
+                                )
+                        )
+                        .length
+            };
 
     document.getElementById(
         "semanticTotalCount"
-    ).textContent = total;
+    ).textContent =
+        summary.total;
 
     document.getElementById(
         "semanticRegisteredCount"
-    ).textContent = registered;
+    ).textContent =
+        summary.registered;
 
     document.getElementById(
         "semanticExactCount"
-    ).textContent = exact;
+    ).textContent =
+        summary.resolved;
 
     document.getElementById(
         "semanticAliasCount"
-    ).textContent = alias;
+    ).textContent =
+        summary.candidate;
 
     document.getElementById(
         "semanticReviewCount"
-    ).textContent = review;
+    ).textContent =
+        summary.review;
 
-    summaryPanel.hidden = false;
+    summaryPanel.hidden =
+        false;
 
     updateHighConfidenceButton();
 }
@@ -511,6 +889,21 @@ function badgeFor(item) {
                 "
             >
                 ✓ RISEN判定済み
+            </span>
+        `;
+    }
+
+    if (
+        item.status === "context"
+    ) {
+        return `
+            <span
+                class="
+                    semantic-badge
+                    semantic-badge-review
+                "
+            >
+                ○ RISEN候補
             </span>
         `;
     }
@@ -710,133 +1103,368 @@ async function confirmHighConfidenceCandidates() {
     }
 }
 
-function renderMeaningEditor(item) {
-    if (item.status === "registered") {
-        return `
-            <span
-                class="semantic-meaning"
-            >
-                ${escapeHtml(
-                    item.semanticMeaning
-                )}
-            </span>
-        `;
-    }
+function renderSemanticEvidence(
+    review
+) {
+    const sampleValues =
+        Array.isArray(
+            review?.evidence
+                ?.sampleValues
+        )
+            ? review
+                .evidence
+                .sampleValues
+            : [];
 
-    const suggestedMeaning =
-        typeof item.semanticMeaning ===
-            "string"
-            ? item.semanticMeaning
-            : "";
+    const neighboringFields =
+        Array.isArray(
+            review?.evidence
+                ?.neighboringFields
+        )
+            ? review
+                .evidence
+                .neighboringFields
+            : [];
 
     if (
-        (
-            item.status === "exact" ||
-            item.status === "alias"
-        ) &&
-        suggestedMeaning
+        sampleValues.length === 0 &&
+        neighboringFields.length === 0
+    ) {
+        return "";
+    }
+
+    return `
+        <div
+            class="semantic-review-evidence"
+            style="
+                margin-top: 10px;
+                padding: 10px 12px;
+                border: 1px solid #e1e7f0;
+                border-radius: 8px;
+                background: #f8fafc;
+            "
+        >
+            ${
+                sampleValues.length > 0
+                    ? `
+                        <p
+                            class="form-help"
+                            style="margin: 0 0 6px;"
+                        >
+                            原本の値:
+                            <strong>
+                                ${escapeHtml(
+                                    sampleValues
+                                        .slice(0, 5)
+                                        .join(" / ")
+                                )}
+                            </strong>
+                        </p>
+                    `
+                    : ""
+            }
+
+            ${
+                neighboringFields.length > 0
+                    ? `
+                        <p
+                            class="form-help"
+                            style="margin: 0;"
+                        >
+                            周辺項目:
+                            ${escapeHtml(
+                                neighboringFields
+                                    .slice(0, 8)
+                                    .join(" / ")
+                            )}
+                        </p>
+                    `
+                    : ""
+            }
+        </div>
+    `;
+}
+
+
+function renderMeaningEditor(item) {
+    const ReviewModel =
+        window.RisenSemanticReviewModel;
+
+    const review =
+        ReviewModel
+            ? ReviewModel.toReviewItem({
+                item,
+                standardFields:
+                    semanticStandardFields,
+                analysis:
+                    semanticCurrentAnalysis
+            })
+            : null;
+
+    if (!review) {
+        return "";
+    }
+
+    const canonicalMeaning =
+        review.semanticMeaning || "";
+
+    const displayName =
+        review.displayName ||
+        canonicalMeaning;
+
+    if (
+        review.state ===
+            "registered" ||
+        review.state ===
+            "resolved"
     ) {
         return `
-            <span
-                class="semantic-meaning"
-            >
-                ${escapeHtml(
-                    suggestedMeaning
-                )}
-            </span>
+            <div>
+                <strong>
+                    ${escapeHtml(
+                        displayName
+                    )}
+                </strong>
+
+                ${
+                    canonicalMeaning
+                        ? `
+                            <div
+                                class="semantic-source-key"
+                                style="margin-top: 4px;"
+                            >
+                                ${escapeHtml(
+                                    canonicalMeaning
+                                )}
+                            </div>
+                        `
+                        : ""
+                }
+            </div>
         `;
     }
 
-    const candidateOptions =
-        Array.isArray(item.candidates)
-            ? item.candidates
-                .map(candidate => {
-                    const value =
-                        typeof candidate
-                            ?.semanticMeaning ===
-                            "string"
-                            ? candidate
-                                .semanticMeaning
-                                .trim()
-                            : "";
+    if (
+        review.state ===
+        "candidate"
+    ) {
+        return `
+            <div>
+                <strong>
+                    ${escapeHtml(
+                        displayName
+                    )}
+                </strong>
 
-                    if (!value) {
-                        return "";
-                    }
+                ${renderSemanticEvidence(
+                    review
+                )}
 
-                    return `
-                        <option
-                            value="${escapeHtml(
-                                value
-                            )}"
-                        ></option>
-                    `;
-                })
-                .join("")
-            : "";
+                <div
+                    class="
+                        bottom-actions
+                        csv-step-actions
+                    "
+                    style="
+                        justify-content: flex-start;
+                        margin-top: 12px;
+                    "
+                >
+                    <button
+                        class="
+                            primary-button
+                            semantic-confirm-review-candidate-button
+                        "
+                        type="button"
+                        data-source-field-key="${
+                            escapeHtml(
+                                review
+                                    .sourceFieldKey
+                            )
+                        }"
+                        data-semantic-meaning="${
+                            escapeHtml(
+                                canonicalMeaning
+                            )
+                        }"
+                        ${
+                            semanticCurrentTemplateId
+                                ? ""
+                                : "disabled"
+                        }
+                    >
+                        ${escapeHtml(
+                            displayName
+                        )}として確定
+                    </button>
+                </div>
+            </div>
+        `;
+    }
 
-    const listId =
-        `semantic-candidates-${
-            item.sourceFieldKey
-                .replace(
-                    /[^a-zA-Z0-9_-]/g,
-                    "-"
-                )
-        }`;
+    if (
+        review.state ===
+        "conflict"
+    ) {
+        const buttons =
+            review.candidates
+                .map(candidate => `
+                    <button
+                        class="
+                            primary-button
+                            semantic-confirm-review-candidate-button
+                        "
+                        type="button"
+                        data-source-field-key="${
+                            escapeHtml(
+                                review
+                                    .sourceFieldKey
+                            )
+                        }"
+                        data-semantic-meaning="${
+                            escapeHtml(
+                                candidate
+                                    .semanticMeaning
+                            )
+                        }"
+                        ${
+                            semanticCurrentTemplateId
+                                ? ""
+                                : "disabled"
+                        }
+                    >
+                        ${escapeHtml(
+                            candidate
+                                .displayName
+                        )}として確定
+                    </button>
+                `)
+                .join("");
+
+        return `
+            <div>
+                <strong>
+                    複数の意味候補があります
+                </strong>
+
+                ${renderSemanticEvidence(
+                    review
+                )}
+
+                <div
+                    class="
+                        bottom-actions
+                        csv-step-actions
+                    "
+                    style="
+                        justify-content: flex-start;
+                        margin-top: 12px;
+                        flex-wrap: wrap;
+                    "
+                >
+                    ${buttons}
+                </div>
+            </div>
+        `;
+    }
 
     return `
-        <details
-            class="semantic-admin-review"
-        >
-            <summary>
-                管理者が確認
-            </summary>
+        <div>
+            <strong>
+                RISENで意味をまだ特定できません
+            </strong>
 
-            <div
-                class="semantic-meaning-editor"
+            ${renderSemanticEvidence(
+                review
+            )}
+
+            <p
+                class="form-help"
+                style="margin-top: 10px;"
             >
-                <input
-                    class="semantic-meaning-input"
-                    type="text"
-                    value="${escapeHtml(
-                        suggestedMeaning
-                    )}"
-                    placeholder="RISEN Meaning"
-                    list="${escapeHtml(
-                        listId
-                    )}"
-                >
-
-                <datalist
-                    id="${escapeHtml(
-                        listId
-                    )}"
-                >
-                    ${candidateOptions}
-                </datalist>
-
-                <button
-                    type="button"
-                    class="
-                        semantic-confirm-meaning-button
-                    "
-                    data-source-field-key="${
-                        escapeHtml(
-                            item.sourceFieldKey
-                        )
-                    }"
-                    ${
-                        semanticCurrentTemplateId
-                            ? ""
-                            : "disabled"
-                    }
-                >
-                    確定
-                </button>
-            </div>
-        </details>
+                原本の値と周辺項目を
+                判断材料として保持します。
+                Meaningコードを人が手入力する
+                必要はありません。
+            </p>
+        </div>
     `;
 }
+
+
+async function confirmReviewCandidate(
+    button
+) {
+    const sourceFieldKey =
+        String(
+            button?.dataset
+                ?.sourceFieldKey ||
+            ""
+        ).trim();
+
+    const semanticMeaning =
+        String(
+            button?.dataset
+                ?.semanticMeaning ||
+            ""
+        ).trim();
+
+    if (
+        !sourceFieldKey ||
+        !semanticMeaning ||
+        !semanticCurrentTemplateId
+    ) {
+        setStatus(
+            "Semantic候補を確定できません。",
+            "error"
+        );
+        return;
+    }
+
+    const item =
+        semanticResolvedFields.find(
+            candidate =>
+                candidate
+                    .sourceFieldKey ===
+                sourceFieldKey
+        );
+
+    if (!item) {
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent =
+        "保存中...";
+
+    try {
+        await persistConfirmedMeaning(
+            item,
+            semanticMeaning
+        );
+
+        renderSummary();
+        renderFields();
+
+        setStatus(
+            `${item.label} の意味を確定しました。`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent =
+            "もう一度確認";
+
+        setStatus(
+            error?.message ||
+            "Semantic候補の確定に失敗しました。",
+            "error"
+        );
+    }
+}
+
 
 async function confirmSemanticMeaning(
     button
@@ -917,6 +1545,81 @@ async function confirmSemanticMeaning(
     }
 }
 
+async function confirmContextMeaning(
+    button
+) {
+    const sourceFieldKey =
+        String(
+            button?.dataset
+                ?.sourceFieldKey ||
+            ""
+        ).trim();
+
+    if (
+        !sourceFieldKey ||
+        !semanticCurrentTemplateId
+    ) {
+        setStatus(
+            "先に書式を登録してください。",
+            "error"
+        );
+        return;
+    }
+
+    const item =
+        semanticResolvedFields.find(
+            candidate =>
+                candidate
+                    .sourceFieldKey ===
+                sourceFieldKey
+        );
+
+    if (
+        !item ||
+        item.status !== "context" ||
+        typeof item.semanticMeaning !==
+            "string" ||
+        !item.semanticMeaning.trim()
+    ) {
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent =
+        "保存中...";
+
+    try {
+        await persistConfirmedMeaning(
+            item,
+            item.semanticMeaning.trim()
+        );
+
+        renderSummary();
+        renderFields();
+
+        setStatus(
+            `${item.label} を ${
+                item.displayName ||
+                item.semanticMeaning
+            } として確定しました。`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent =
+            "この意味で確定";
+
+        setStatus(
+            error?.message ||
+            "Semantic候補の確定に失敗しました。",
+            "error"
+        );
+    }
+}
+
+
 function renderFields() {
     const visible =
         semanticResolvedFields.filter(
@@ -972,6 +1675,34 @@ function renderFields() {
                 `;
             })
             .join("");
+
+    fieldsBody
+        .querySelectorAll(
+            ".semantic-confirm-context-button"
+        )
+        .forEach(button => {
+            button.addEventListener(
+                "click",
+                () =>
+                    confirmContextMeaning(
+                        button
+                    )
+            );
+        });
+
+    fieldsBody
+        .querySelectorAll(
+            ".semantic-confirm-review-candidate-button"
+        )
+        .forEach(button => {
+            button.addEventListener(
+                "click",
+                () =>
+                    confirmReviewCandidate(
+                        button
+                    )
+            );
+        });
 
     fieldsBody
         .querySelectorAll(
@@ -2148,6 +2879,11 @@ async function analyzeSelectedFile() {
 
         await loadPersistedMappings(
             result
+        );
+
+        await loadContextCandidates(
+            result,
+            fieldDefinitions
         );
 
         semanticResolvedFields =

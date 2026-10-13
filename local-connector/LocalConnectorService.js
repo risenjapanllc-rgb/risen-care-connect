@@ -11,6 +11,7 @@ const DocumentNormalizer = require('./DocumentNormalizer');
 const DocumentSemanticExtractor = require('./DocumentSemanticExtractor');
 const SourceMeaningInterpreter = require('./SourceMeaningInterpreter');
 const SourceFieldExtractor = require('./SourceFieldExtractor');
+const SemanticEvidenceBuilder = require('./SemanticEvidenceBuilder');
 
 class LocalConnectorService {
     constructor(options = {}) {
@@ -60,6 +61,10 @@ class LocalConnectorService {
         this.sourceFieldExtractor =
             options.sourceFieldExtractor ||
             new SourceFieldExtractor();
+
+        this.semanticEvidenceBuilder =
+            options.semanticEvidenceBuilder ||
+            new SemanticEvidenceBuilder();
 
         this.sourceDocumentRegistry =
             options.sourceDocumentRegistry ||
@@ -539,6 +544,18 @@ class LocalConnectorService {
                     ).meanings
             }));
 
+        const semanticEvidence =
+            this.semanticEvidenceBuilder
+                .buildForTabular({
+                    fieldDefinitions,
+                    sourceFields:
+                        interpretedSourceFields,
+                    sourceType:
+                        standardDocument.sourceType,
+                    documentType:
+                        standardDocument.documentType
+                });
+
         return {
             ...standardDocument,
             extracted: {
@@ -546,7 +563,8 @@ class LocalConnectorService {
                 fieldDefinitions,
                 sourceEntities,
                 sourceFields:
-                    interpretedSourceFields
+                    interpretedSourceFields,
+                semanticEvidence
             }
         };
     }
@@ -645,9 +663,21 @@ class LocalConnectorService {
                 standardDocument
             );
 
+        const semanticEvidence =
+            this.semanticEvidenceBuilder
+                .buildForWord({
+                    text:
+                        standardDocument.content?.text,
+                    documentType:
+                        standardDocument.documentType
+                });
+
         return {
             ...standardDocument,
-            extracted
+            extracted: {
+                ...extracted,
+                semanticEvidence
+            }
         };
     }
 
@@ -745,6 +775,18 @@ class LocalConnectorService {
                     ).meanings
             }));
 
+        const semanticEvidence =
+            this.semanticEvidenceBuilder
+                .buildForTabular({
+                    fieldDefinitions,
+                    sourceFields:
+                        interpretedSourceFields,
+                    sourceType:
+                        standardDocument.sourceType,
+                    documentType:
+                        standardDocument.documentType
+                });
+
         return {
             ...standardDocument,
             extracted: {
@@ -752,7 +794,8 @@ class LocalConnectorService {
                 fieldDefinitions,
                 sourceEntities,
                 sourceFields:
-                    interpretedSourceFields
+                    interpretedSourceFields,
+                semanticEvidence
             }
         };
     }

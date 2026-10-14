@@ -115,6 +115,72 @@ const RULES = Object.freeze([
 
     Object.freeze({
         id:
+            "source_record.protection_flag",
+
+        sourceLabels:
+            Object.freeze([
+                "保護"
+            ]),
+
+        semanticTarget:
+            Object.freeze({
+                entityName:
+                    "source_record",
+                fieldName:
+                    "protection_flag",
+                displayName:
+                    "原本保護フラグ"
+            }),
+
+        evidencePolicy:
+            Object.freeze({
+                type:
+                    "all_of",
+
+                policies:
+                    Object.freeze([
+                        Object.freeze({
+                            type:
+                                "all_in_set",
+
+                            values:
+                                Object.freeze([
+                                    "0",
+                                    "1",
+                                    "0.0",
+                                    "1.0"
+                                ])
+                        }),
+
+                        Object.freeze({
+                            type:
+                                "neighboring_fields_include_at_least",
+
+                            values:
+                                Object.freeze([
+                                    "ID",
+                                    "日時",
+                                    "氏名",
+                                    "処遇内容",
+                                    "記入者",
+                                    "種類"
+                                ]),
+
+                            minimum:
+                                4
+                        })
+                    ])
+            }),
+
+        resolutionPolicy:
+            "automatic",
+
+        reason:
+            "protection_label_binary_values_and_record_context_support_source_protection_flag"
+    }),
+
+    Object.freeze({
+        id:
             "source_record.group_state_code",
 
         sourceLabels:

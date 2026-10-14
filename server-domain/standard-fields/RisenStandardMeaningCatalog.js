@@ -678,6 +678,14 @@ const STANDARD_MEANINGS = Object.freeze([
     }),
     Object.freeze({
         entityName: "source_record",
+        fieldName: "protection_flag",
+        displayName: "原本保護フラグ",
+        synonyms: Object.freeze([
+            "source_protection_flag"
+        ])
+    }),
+    Object.freeze({
+        entityName: "source_record",
         fieldName: "group_state_code",
         displayName: "原本記録グループ状態コード",
         synonyms: Object.freeze([

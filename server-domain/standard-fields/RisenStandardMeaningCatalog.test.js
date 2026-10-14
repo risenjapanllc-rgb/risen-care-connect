@@ -70,6 +70,11 @@ test(
             ],
             [
                 "source_record",
+                "protection_flag",
+                "原本保護フラグ"
+            ],
+            [
+                "source_record",
                 "group_state_code",
                 "原本記録グループ状態コード"
             ],

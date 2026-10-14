@@ -598,3 +598,97 @@ test(
         );
     }
 );
+
+test(
+    "保護 with binary values and source record context resolves as protection flag",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "保護"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            sampleValues: [
+                                "1.0"
+                            ],
+                            neighboringFields: [
+                                "ID",
+                                "日時",
+                                "氏名",
+                                "処遇内容",
+                                "記入者",
+                                "種類"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.equal(
+            result.length,
+            1
+        );
+
+        assert.equal(
+            result[0].status,
+            "automatic_candidate"
+        );
+
+        assert.equal(
+            result[0].humanConfirmationRequired,
+            false
+        );
+
+        assert.equal(
+            result[0].candidate.entityName,
+            "source_record"
+        );
+
+        assert.equal(
+            result[0].candidate.fieldName,
+            "protection_flag"
+        );
+    }
+);
+
+test(
+    "generic 保護 without source record context remains unresolved",
+    () => {
+        const result =
+            SemanticEvidenceResolver
+                .resolve({
+                    fieldDefinitions: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            headerLabel:
+                                "保護"
+                        }
+                    ],
+
+                    semanticEvidence: [
+                        {
+                            sourceFieldKey:
+                                "sheet:0:column:0",
+                            sampleValues: [
+                                "1.0"
+                            ]
+                        }
+                    ]
+                });
+
+        assert.deepEqual(
+            result,
+            []
+        );
+    }
+);

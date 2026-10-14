@@ -130,6 +130,8 @@ class SemanticReviewModel {
                 : [];
 
         return {
+            hasEvidence:
+                sourceEvidence !== null,
             sampleValues,
             neighboringFields
         };
@@ -170,6 +172,20 @@ class SemanticReviewModel {
             item?.status === "ambiguous"
         ) {
             state = "conflict";
+        }
+
+        const evidence =
+            this.getEvidence(
+                sourceFieldKey,
+                analysis
+            );
+
+        if (
+            state === "unresolved" &&
+            evidence.hasEvidence &&
+            evidence.sampleValues.length === 0
+        ) {
+            state = "empty";
         }
 
         const candidates =
@@ -236,11 +252,7 @@ class SemanticReviewModel {
 
             candidates,
 
-            evidence:
-                this.getEvidence(
-                    sourceFieldKey,
-                    analysis
-                )
+            evidence
         };
     }
 

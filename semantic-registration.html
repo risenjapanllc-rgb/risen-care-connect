@@ -630,7 +630,15 @@
                 </div>
 
                 <div class="semantic-summary-card">
-                    <span>未解決</span>
+                    <span>原本値なし</span>
+                    <strong
+                        id="semanticEmptyCount"
+                        class="semantic-summary-number"
+                    >0</strong>
+                </div>
+
+                <div class="semantic-summary-card">
+                    <span>未決定</span>
                     <strong
                         id="semanticReviewCount"
                         class="semantic-summary-number"
@@ -682,7 +690,15 @@
                         class="semantic-filter-button"
                         data-semantic-filter="unresolved"
                     >
-                        未解決だけ
+                        未決定だけ
+                    </button>
+
+                    <button
+                        type="button"
+                        class="semantic-filter-button"
+                        data-semantic-filter="empty"
+                    >
+                        原本値なしだけ
                     </button>
                 </div>
             </div>

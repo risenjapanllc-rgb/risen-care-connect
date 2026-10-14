@@ -188,3 +188,100 @@ test(
         );
     }
 );
+
+test(
+    "Semantic Review item separates source field with no original values as empty",
+    () => {
+        const review =
+            SemanticReviewModel
+                .toReviewItem({
+                    item: {
+                        sourceFieldKey:
+                            "sheet:0:column:10",
+                        label:
+                            "データ4",
+                        status:
+                            "review",
+                        semanticMeaning:
+                            null,
+                        displayName:
+                            null,
+                        candidates: []
+                    },
+
+                    standardFields: [],
+
+                    analysis: {
+                        extracted: {
+                            semanticEvidence: [
+                                {
+                                    sourceFieldKey:
+                                        "sheet:0:column:10",
+                                    sampleValues: [],
+                                    neighboringFields: [
+                                        "日時",
+                                        "氏名"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                });
+
+        assert.equal(
+            review.state,
+            "empty"
+        );
+
+        assert.equal(
+            review.evidence.hasEvidence,
+            true
+        );
+
+        assert.deepEqual(
+            review.evidence.sampleValues,
+            []
+        );
+    }
+);
+
+test(
+    "Semantic Review item without matching evidence remains unresolved",
+    () => {
+        const review =
+            SemanticReviewModel
+                .toReviewItem({
+                    item: {
+                        sourceFieldKey:
+                            "sheet:0:column:99",
+                        label:
+                            "未知",
+                        status:
+                            "review",
+                        semanticMeaning:
+                            null,
+                        displayName:
+                            null,
+                        candidates: []
+                    },
+
+                    standardFields: [],
+
+                    analysis: {
+                        extracted: {
+                            semanticEvidence: []
+                        }
+                    }
+                });
+
+        assert.equal(
+            review.state,
+            "unresolved"
+        );
+
+        assert.equal(
+            review.evidence.hasEvidence,
+            false
+        );
+    }
+);

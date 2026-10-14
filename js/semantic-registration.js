@@ -947,29 +947,33 @@ function renderSummary() {
             )
             .length;
 
+    const emptyCount =
+        semanticResolvedFields
+            .filter(item =>
+                !hasRowSemanticForField(item) &&
+                getReviewStateForItem(item) ===
+                    "empty"
+            )
+            .length;
+
     const unresolvedCount =
         semanticResolvedFields
-            .filter(item => {
-                if (
-                    item.status === "registered" ||
-                    item.status === "exact" ||
-                    item.status === "alias" ||
-                    item.status === "context" ||
-                    item.status === "ambiguous"
-                ) {
-                    return false;
-                }
-
-                return !hasRowSemanticForField(
-                    item
-                );
-            })
+            .filter(item =>
+                !hasRowSemanticForField(item) &&
+                getReviewStateForItem(item) ===
+                    "unresolved"
+            )
             .length;
 
     document.getElementById(
         "semanticRowFieldCount"
     ).textContent =
         rowSemanticFieldCount;
+
+    document.getElementById(
+        "semanticEmptyCount"
+    ).textContent =
+        emptyCount;
 
     document.getElementById(
         "semanticReviewCount"
@@ -1062,6 +1066,28 @@ function hasRowSemanticForField(item) {
 }
 
 
+function getReviewStateForItem(item) {
+    const ReviewModel =
+        window.RisenSemanticReviewModel;
+
+    if (!ReviewModel) {
+        return "unresolved";
+    }
+
+    const review =
+        ReviewModel.toReviewItem({
+            item,
+            standardFields:
+                semanticStandardFields,
+            analysis:
+                semanticCurrentAnalysis
+        });
+
+    return review?.state ||
+        "unresolved";
+}
+
+
 function badgeFor(item) {
     if (item.status === "registered") {
         return `
@@ -1105,6 +1131,22 @@ function badgeFor(item) {
                 "
             >
                 ✓ 行Semantic判定あり
+            </span>
+        `;
+    }
+
+    if (
+        getReviewStateForItem(item) ===
+        "empty"
+    ) {
+        return `
+            <span
+                class="
+                    semantic-badge
+                    semantic-badge-review
+                "
+            >
+                ○ 原本値なし
             </span>
         `;
     }
@@ -1661,6 +1703,35 @@ function renderMeaningEditor(item) {
         `;
     }
 
+    if (
+        review.state ===
+        "empty"
+    ) {
+        return `
+            <div
+                class="
+                    semantic-meaning-editor
+                    semantic-review-hold
+                "
+            >
+                <strong>
+                    原本値なし
+                </strong>
+
+                <p
+                    class="form-help"
+                    style="
+                        margin: 10px 0 0;
+                    "
+                >
+                    この原本では値が確認されていません。
+                    Semanticコード決定の対象外として
+                    原本項目をそのまま保持します。
+                </p>
+            </div>
+        `;
+    }
+
     const activeEntityNames =
         new Set(
             semanticResolvedFields
@@ -2128,18 +2199,27 @@ function renderFields() {
                     semanticCurrentFilter ===
                     "unresolved"
                 ) {
-                    if (
-                        item.status === "registered" ||
-                        item.status === "exact" ||
-                        item.status === "alias" ||
-                        item.status === "context" ||
-                        item.status === "ambiguous"
-                    ) {
-                        return false;
-                    }
+                    return (
+                        !hasRowSemanticForField(
+                            item
+                        ) &&
+                        getReviewStateForItem(
+                            item
+                        ) === "unresolved"
+                    );
+                }
 
-                    return !hasRowSemanticForField(
-                        item
+                if (
+                    semanticCurrentFilter ===
+                    "empty"
+                ) {
+                    return (
+                        !hasRowSemanticForField(
+                            item
+                        ) &&
+                        getReviewStateForItem(
+                            item
+                        ) === "empty"
                     );
                 }
 

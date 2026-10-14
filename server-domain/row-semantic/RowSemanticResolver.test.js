@@ -259,3 +259,97 @@ test(
         );
     }
 );
+
+test(
+    "known source event states resolve from row context while preserving source values",
+    () => {
+        const cases = [
+            ["その他外出", "その他外出", "他外出始"],
+            ["病院", "病院", "病院受診始"],
+            ["帰園", "帰園", "病院受診終"],
+            ["帰園", "帰園", "他外出終"],
+            ["買物", "買物", "買物外出始"],
+            ["帰園", "帰園", "買物外出終"],
+            ["帰園", "帰園", "外泊終"],
+            ["帰宅", "帰宅", "外泊始"],
+            ["行事", "行事", "行事外出始"],
+            ["帰園", "帰園", "行事外出終"],
+            ["入院", "入院", "入院始"]
+        ];
+
+        const result =
+            RowSemanticResolver.resolve({
+                sourceFields:
+                    cases.map(
+                        (
+                            [
+                                action,
+                                kind,
+                                eventState
+                            ],
+                            index
+                        ) => ({
+                            rowIndex:
+                                100 + index,
+                            fields: {
+                                行動: action,
+                                種類: kind,
+                                データ3:
+                                    eventState
+                            }
+                        })
+                    )
+            });
+
+        assert.equal(
+            result.length,
+            cases.length
+        );
+
+        assert.deepEqual(
+            result.map(row =>
+                row.interpretations[0]
+                    .semanticMeaning
+            ),
+            cases.map(() =>
+                "support_record.event_state"
+            )
+        );
+
+        assert.deepEqual(
+            result.map(row =>
+                row.interpretations[0]
+                    .sourceValue
+            ),
+            cases.map(
+                ([, , eventState]) =>
+                    eventState
+            )
+        );
+    }
+);
+
+test(
+    "unknown source event state remains unresolved even in a known row context",
+    () => {
+        const result =
+            RowSemanticResolver.resolve({
+                sourceFields: [
+                    {
+                        rowIndex: 200,
+                        fields: {
+                            行動: "帰園",
+                            種類: "帰園",
+                            データ3:
+                                "未知イベント終"
+                        }
+                    }
+                ]
+            });
+
+        assert.deepEqual(
+            result,
+            []
+        );
+    }
+);

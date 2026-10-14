@@ -659,6 +659,14 @@ const STANDARD_MEANINGS = Object.freeze([
     }),
     Object.freeze({
         entityName: "support_record",
+        fieldName: "event_state",
+        displayName: "行動イベント状態",
+        synonyms: Object.freeze([
+            "event_state"
+        ])
+    }),
+    Object.freeze({
+        entityName: "support_record",
         fieldName: "extension_value",
         displayName: "その他・拡張情報",
         synonyms: Object.freeze([

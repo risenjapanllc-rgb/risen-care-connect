@@ -206,6 +206,143 @@ const ROW_RULES = Object.freeze([
                     "sleep_state_row"
             })
         ])
+    }),
+
+    Object.freeze({
+        rowType: "other_outing_event",
+        action: "その他外出",
+        kind: "その他外出",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "他外出始"
+                    ]),
+                reason:
+                    "other_outing_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "hospital_visit_event",
+        action: "病院",
+        kind: "病院",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "病院受診始"
+                    ]),
+                reason:
+                    "hospital_visit_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "return_event",
+        action: "帰園",
+        kind: "帰園",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "病院受診終",
+                        "他外出終",
+                        "買物外出終",
+                        "外泊終",
+                        "行事外出終"
+                    ]),
+                reason:
+                    "return_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "shopping_outing_event",
+        action: "買物",
+        kind: "買物",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "買物外出始"
+                    ]),
+                reason:
+                    "shopping_outing_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "overnight_leave_event",
+        action: "帰宅",
+        kind: "帰宅",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "外泊始"
+                    ]),
+                reason:
+                    "overnight_leave_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "event_outing_event",
+        action: "行事",
+        kind: "行事",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "行事外出始"
+                    ]),
+                reason:
+                    "event_outing_event_state"
+            })
+        ])
+    }),
+
+    Object.freeze({
+        rowType: "hospital_admission_event",
+        action: "入院",
+        kind: "入院",
+        fields: Object.freeze([
+            Object.freeze({
+                sourceFieldName: "データ3",
+                semanticFieldName:
+                    "event_state",
+                allowedValues:
+                    Object.freeze([
+                        "入院始"
+                    ]),
+                reason:
+                    "hospital_admission_event_state"
+            })
+        ])
     })
 ]);
 
@@ -235,6 +372,18 @@ function resolveInterpretation({
         );
 
     if (!sourceValue) {
+        return null;
+    }
+
+    if (
+        Array.isArray(
+            rule.allowedValues
+        ) &&
+        rule.allowedValues.length > 0 &&
+        !rule.allowedValues.includes(
+            sourceValue
+        )
+    ) {
         return null;
     }
 

@@ -1146,7 +1146,7 @@ function badgeFor(item) {
                 semantic-badge-review
             "
         >
-            ○ 未解決
+            ○ 未決定
         </span>
     `;
 }
@@ -1732,7 +1732,7 @@ function renderMeaningEditor(item) {
             "
         >
             <strong>
-                未解決（原本保持）
+                未決定（原本保持）
             </strong>
 
             ${renderSemanticEvidence(
@@ -1756,7 +1756,7 @@ function renderMeaningEditor(item) {
                     font-weight: 600;
                 "
             >
-                未解決Semanticとして原本とEvidenceを保持しています。
+                Semanticコードはまだ決定していません。原本とEvidenceを保持しています。
                 追加の文脈・コード体系・Semantic Authorityが得られた時に、
                 RISENが再判定します。
             </p>
@@ -3346,12 +3346,12 @@ async function registerSemanticTemplate() {
                 : "原本紐付け保留";
 
         registerButton.title =
-            `Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件、${sourceStatusText}`;
+            `Meaning確定 ${resolved.length}件、未決定 ${unresolvedCount}件、${sourceStatusText}`;
 
         setStatus(
             sourceDocumentBound
-                ? `書式を登録しました。Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件。原本紐付け済み。`
-                : `書式を登録しました。Meaning確定 ${resolved.length}件、未解決 ${unresolvedCount}件。原本紐付けは保留しています。${sourceDocumentWarning ? ` ${sourceDocumentWarning}` : ""}`,
+                ? `書式を登録しました。Meaning確定 ${resolved.length}件、未決定 ${unresolvedCount}件。原本紐付け済み。`
+                : `書式を登録しました。Meaning確定 ${resolved.length}件、未決定 ${unresolvedCount}件。原本紐付けは保留しています。${sourceDocumentWarning ? ` ${sourceDocumentWarning}` : ""}`,
             "success"
         );
     } catch (error) {

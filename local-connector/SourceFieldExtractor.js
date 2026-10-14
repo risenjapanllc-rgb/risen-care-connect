@@ -42,6 +42,9 @@ class SourceFieldExtractor {
                     this.normalizeHeader(value)
                 );
 
+            const carryForwardEmptyCells =
+                options.carryForwardEmptyCells !== false;
+
             let carriedValues = [];
 
             for (
@@ -92,6 +95,7 @@ class SourceFieldExtractor {
                          * 直前の値を論理的に引き継ぐ。
                          */
                         if (
+                            carryForwardEmptyCells &&
                             value === '' &&
                             carriedValues[columnIndex]
                         ) {

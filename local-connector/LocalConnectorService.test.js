@@ -938,7 +938,8 @@ test(
       assert.deepStrictEqual(
         call.options,
         {
-          headerRowIndex: 1
+          headerRowIndex: 1,
+          carryForwardEmptyCells: false
         }
       );
     }

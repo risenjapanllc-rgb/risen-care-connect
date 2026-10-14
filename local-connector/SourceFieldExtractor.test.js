@@ -769,3 +769,74 @@ test(
         }
     }
 );
+
+test(
+    'carryForwardEmptyCells false preserves empty source cells',
+    () => {
+        const extractor =
+            new SourceFieldExtractor();
+
+        const document = {
+            sheets: [
+                {
+                    sheetName: 'CSV',
+                    rows: [
+                        [
+                            '行動',
+                            '種類',
+                            'データ3'
+                        ],
+                        [
+                            '帰園',
+                            '帰園',
+                            '他外出終'
+                        ],
+                        [
+                            '健康管理',
+                            '健康管理',
+                            ''
+                        ]
+                    ]
+                }
+            ]
+        };
+
+        const defaultResult =
+            extractor.extractExcelRows(
+                document
+            );
+
+        assert.equal(
+            defaultResult[1]
+                .fields['データ3'],
+            '他外出終'
+        );
+
+        const sourceFaithfulResult =
+            extractor.extractExcelRows(
+                document,
+                {
+                    carryForwardEmptyCells:
+                        false
+                }
+            );
+
+        assert.equal(
+            sourceFaithfulResult[1]
+                .fields['データ3'],
+            ''
+        );
+
+        assert.equal(
+            sourceFaithfulResult[1]
+                .fields['行動'],
+            '健康管理'
+        );
+
+        assert.equal(
+            sourceFaithfulResult[1]
+                .fields['種類'],
+            '健康管理'
+        );
+    }
+);

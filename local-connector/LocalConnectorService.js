@@ -499,7 +499,8 @@ class LocalConnectorService {
         const sourceFieldOptions = {
             headerRowIndex:
                 inspection.headerCandidate
-                    .rowIndex
+                    .rowIndex,
+            carryForwardEmptyCells: false
         };
 
         const documentType =

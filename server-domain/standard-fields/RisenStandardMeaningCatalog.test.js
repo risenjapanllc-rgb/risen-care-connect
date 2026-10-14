@@ -70,6 +70,11 @@ test(
             ],
             [
                 "source_record",
+                "group_state_code",
+                "原本記録グループ状態コード"
+            ],
+            [
+                "source_record",
                 "record_id",
                 "原本レコードID"
             ],

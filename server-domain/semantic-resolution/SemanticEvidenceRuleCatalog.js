@@ -115,6 +115,70 @@ const RULES = Object.freeze([
 
     Object.freeze({
         id:
+            "source_record.group_state_code",
+
+        sourceLabels:
+            Object.freeze([
+                "状態"
+            ]),
+
+        semanticTarget:
+            Object.freeze({
+                entityName:
+                    "source_record",
+                fieldName:
+                    "group_state_code",
+                displayName:
+                    "原本記録グループ状態コード"
+            }),
+
+        evidencePolicy:
+            Object.freeze({
+                type:
+                    "all_of",
+
+                policies:
+                    Object.freeze([
+                        Object.freeze({
+                            type:
+                                "all_integer"
+                        }),
+
+                        Object.freeze({
+                            type:
+                                "minimum_sample_count",
+                            minimum:
+                                3
+                        }),
+
+                        Object.freeze({
+                            type:
+                                "neighboring_fields_include_at_least",
+
+                            values:
+                                Object.freeze([
+                                    "日時",
+                                    "氏名",
+                                    "処遇内容",
+                                    "記入者",
+                                    "種類"
+                                ]),
+
+                            minimum:
+                                4
+                        })
+                    ])
+            }),
+
+        resolutionPolicy:
+            "automatic",
+
+        reason:
+            "status_label_integer_values_and_record_context_support_source_group_state_code"
+    }),
+
+    Object.freeze({
+        id:
             "source_record.record_id",
 
         sourceLabels:

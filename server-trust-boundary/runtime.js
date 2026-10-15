@@ -87,6 +87,15 @@ const SupabaseSourceTemplateSemanticAuthorityPersistenceRepository =
 const SourceTemplateSemanticAuthorityIngestionService =
     require("./SourceTemplateSemanticAuthorityIngestionService");
 
+const StandardMeaningCandidatePayloadValidator =
+    require("./StandardMeaningCandidatePayloadValidator");
+
+const SupabaseStandardMeaningCandidatePersistenceRepository =
+    require("./SupabaseStandardMeaningCandidatePersistenceRepository");
+
+const StandardMeaningCandidateIngestionService =
+    require("./StandardMeaningCandidateIngestionService");
+
 const SourceDocumentTemplateBindingPayloadValidator =
     require("./SourceDocumentTemplateBindingPayloadValidator");
 
@@ -648,6 +657,25 @@ function createServerTrustBoundaryRuntime({
                 sourceTemplateSemanticAuthorityPersistenceRepository
         });
 
+    const standardMeaningCandidatePayloadValidator =
+        new StandardMeaningCandidatePayloadValidator();
+
+    const standardMeaningCandidatePersistenceRepository =
+        new SupabaseStandardMeaningCandidatePersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const standardMeaningCandidateIngestionService =
+        new StandardMeaningCandidateIngestionService({
+            connectorTrustService,
+            payloadValidator:
+                standardMeaningCandidatePayloadValidator,
+            persistenceRepository:
+                standardMeaningCandidatePersistenceRepository
+        });
+
     const sourceDocumentTemplateBindingPayloadValidator =
         new SourceDocumentTemplateBindingPayloadValidator();
 
@@ -1059,6 +1087,7 @@ function createServerTrustBoundaryRuntime({
         sourceTemplateExactIngestionService,
         sourceTemplateFieldsIngestionService,
         sourceTemplateSemanticAuthorityIngestionService,
+        standardMeaningCandidateIngestionService,
         sourceDocumentTemplateBindingIngestionService,
         sourceFieldInterpretationIngestionService,
         sourceFieldInterpretationQueryService,

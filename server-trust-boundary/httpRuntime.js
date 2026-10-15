@@ -49,6 +49,12 @@ const SourceTemplateSemanticAuthorityHttpAdapter =
 const SourceTemplateSemanticAuthorityTransport =
     require("./SourceTemplateSemanticAuthorityTransport");
 
+const StandardMeaningCandidateHttpAdapter =
+    require("./StandardMeaningCandidateHttpAdapter");
+
+const StandardMeaningCandidateTransport =
+    require("./StandardMeaningCandidateTransport");
+
 const SourceDocumentTemplateBindingHttpAdapter =
     require("./SourceDocumentTemplateBindingHttpAdapter");
 
@@ -386,6 +392,21 @@ function createServerTrustBoundaryHttpRuntime({
         new SourceTemplateSemanticAuthorityTransport({
             httpAdapter:
                 sourceTemplateSemanticAuthorityHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const standardMeaningCandidateHttpAdapter =
+        new StandardMeaningCandidateHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .standardMeaningCandidateIngestionService
+        });
+
+    const standardMeaningCandidateTransport =
+        new StandardMeaningCandidateTransport({
+            httpAdapter:
+                standardMeaningCandidateHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -917,6 +938,9 @@ function createServerTrustBoundaryHttpRuntime({
             sourceTemplateSemanticAuthorityTransport,
             sourceTemplateSemanticAuthorityEndpointPath:
                 "/connector/source-template-semantic-authority",
+            standardMeaningCandidateTransport,
+            standardMeaningCandidateEndpointPath:
+                "/connector/standard-meaning-candidate",
             sourceDocumentTemplateBindingTransport,
             sourceDocumentTemplateBindingEndpointPath:
                 "/connector/source-document-template-bindings",

@@ -31,6 +31,9 @@ function createServerTrustBoundaryApp({
     sourceTemplateSemanticAuthorityTransport,
     sourceTemplateSemanticAuthorityEndpointPath =
         "/connector/source-template-semantic-authority",
+    standardMeaningCandidateTransport,
+    standardMeaningCandidateEndpointPath =
+        "/connector/standard-meaning-candidate",
     sourceDocumentTemplateBindingTransport,
     sourceDocumentTemplateBindingEndpointPath =
         "/connector/source-document-template-bindings",
@@ -388,6 +391,42 @@ function createServerTrustBoundaryApp({
                 try {
                     const result =
                         await sourceTemplateSemanticAuthorityTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body,
+                                query:
+                                    req.query
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (standardMeaningCandidateTransport) {
+        app.all(
+            standardMeaningCandidateEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await standardMeaningCandidateTransport
                             .handle({
                                 method:
                                     req.method,

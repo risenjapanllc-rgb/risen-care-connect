@@ -1618,6 +1618,106 @@ registerSemanticRegistrationProxyRoute({
         "confirmAuthority"
 });
 
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/standard-meaning-candidate",
+    envelopeName:
+        "standardMeaningCandidate",
+    clientMethod:
+        "submitStandardMeaningCandidate"
+});
+
+
+app.get(
+    "/standard-meaning-candidate",
+    async (req, res) => {
+        try {
+            const templateId =
+                typeof req.query?.templateId ===
+                    "string"
+                    ? req.query.templateId.trim()
+                    : "";
+
+            if (!templateId) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "Template IDが必要です"
+                    });
+            }
+
+            const client =
+                await app.locals
+                    .getSemanticRegistrationClient();
+
+            const result =
+                await client
+                    .listStandardMeaningCandidates(
+                        templateId
+                    );
+
+            if (
+                result?.status !== "found" ||
+                !Array.isArray(
+                    result.candidates
+                )
+            ) {
+                return res
+                    .status(503)
+                    .json({
+                        success: false,
+                        message:
+                            "Meaning候補の取得に失敗しました"
+                    });
+            }
+
+            return res
+                .status(200)
+                .json({
+                    success: true,
+                    candidates:
+                        result.candidates
+                });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res
+                    .status(401)
+                    .json({
+                        success: false,
+                        message:
+                            "Connector認証に失敗しました"
+                    });
+            }
+
+            if (
+                error?.httpStatus === 422
+            ) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "Template IDが不正です"
+                    });
+            }
+
+            return res
+                .status(503)
+                .json({
+                    success: false,
+                    message:
+                        error?.message ||
+                        "Meaning候補の取得に失敗しました"
+                });
+        }
+    }
+);
+
 
 app.get(
     "/source-template-semantic-authority",

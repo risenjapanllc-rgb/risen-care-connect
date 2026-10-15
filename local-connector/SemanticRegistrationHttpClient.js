@@ -327,6 +327,34 @@ class SemanticRegistrationHttpClient {
         });
     }
 
+    submitStandardMeaningCandidate(
+        standardMeaningCandidate
+    ) {
+        return this.post({
+            pathname:
+                "/connector/standard-meaning-candidate",
+
+            envelopeName:
+                "standardMeaningCandidate",
+
+            payload:
+                standardMeaningCandidate
+        });
+    }
+
+    listStandardMeaningCandidates(
+        templateId
+    ) {
+        return this.get({
+            pathname:
+                "/connector/standard-meaning-candidate",
+
+            query: {
+                templateId
+            }
+        });
+    }
+
     bindDocument(
         sourceDocumentTemplateBinding
     ) {

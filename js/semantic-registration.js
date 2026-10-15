@@ -8,6 +8,8 @@ let semanticResolvedFields = [];
 let semanticRowSummary = [];
 let semanticCurrentFilter = "all";
 let semanticPersistedMappings = new Map();
+let semanticStandardMeaningCandidates =
+    new Map();
 let semanticCurrentAnalysis = null;
 
 let semanticContextCandidates =
@@ -1831,8 +1833,231 @@ function renderMeaningEditor(item) {
                 追加の文脈・コード体系・Semantic Authorityが得られた時に、
                 RISENが再判定します。
             </p>
+
+            <div
+                style="
+                    margin-top: 12px;
+                "
+            >
+                <input
+                    type="text"
+                    class="
+                        semantic-standard-meaning-candidate-input
+                    "
+                    placeholder="分かる場合だけ、この項目が何を表すか入力"
+                    aria-label="この項目の意味"
+                    value="${escapeHtml(
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.proposedMeaning ||
+                        ""
+                    )}"
+                    ${semanticStandardMeaningCandidates
+                        .has(
+                            item.sourceFieldKey
+                        )
+                            ? "disabled"
+                            : ""}
+                    style="
+                        display: block;
+                        width: 100%;
+                        max-width: 720px;
+                        box-sizing: border-box;
+                        padding: 10px 12px;
+                        min-height: 42px;
+                    "
+                >
+
+                <button
+                    type="button"
+                    class="
+                        secondary-button
+                        semantic-submit-standard-meaning-candidate-button
+                    "
+                    data-source-field-key="${escapeHtml(
+                        item.sourceFieldKey
+                    )}"
+                    ${semanticStandardMeaningCandidates
+                        .has(
+                            item.sourceFieldKey
+                        )
+                            ? "disabled"
+                            : ""}
+                    style="
+                        margin-top: 8px;
+                    "
+                >
+                    ${semanticStandardMeaningCandidates
+                        .has(
+                            item.sourceFieldKey
+                        )
+                            ? "送信済み"
+                            : "RISENへ意味候補を送る"}
+                </button>
+
+                <p
+                    class="form-help"
+                    style="
+                        margin: 6px 0 0;
+                    "
+                >
+                    任意です。Semanticコードの入力は不要です。
+                </p>
+            </div>
         </div>
     `;
+}
+
+
+async function submitStandardMeaningCandidate(
+    button
+) {
+    const sourceFieldKey =
+        String(
+            button?.dataset
+                ?.sourceFieldKey ||
+            ""
+        ).trim();
+
+    if (
+        !sourceFieldKey ||
+        !semanticCurrentTemplateId
+    ) {
+        setStatus(
+            "Meaning候補を送信できません。",
+            "error"
+        );
+        return;
+    }
+
+    const item =
+        semanticResolvedFields.find(
+            candidate =>
+                candidate
+                    ?.sourceFieldKey ===
+                sourceFieldKey
+        );
+
+    if (!item) {
+        return;
+    }
+
+    const editor =
+        button.closest(
+            ".semantic-meaning-editor"
+        );
+
+    const input =
+        editor?.querySelector(
+            ".semantic-standard-meaning-candidate-input"
+        );
+
+    const proposedMeaning =
+        String(
+            input?.value || ""
+        ).trim();
+
+    if (!proposedMeaning) {
+        setStatus(
+            "この項目が何を表すかを入力してください。",
+            "error"
+        );
+
+        input?.focus();
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent =
+        "送信中...";
+
+    try {
+        const result =
+            await postSemanticRegistration(
+                "/standard-meaning-candidate",
+                "standardMeaningCandidate",
+                {
+                    templateId:
+                        semanticCurrentTemplateId,
+
+                    templateFieldKey:
+                        sourceFieldKey,
+
+                    proposedMeaning,
+
+                    evidence: {
+                        sourceLabel:
+                            String(
+                                item.label || ""
+                            ).trim(),
+
+                        sourceDocumentName:
+                            String(
+                                fileSelect.value ||
+                                ""
+                            ).trim()
+                    },
+
+                    submittedAt:
+                        new Date()
+                            .toISOString()
+                }
+            );
+
+        if (
+            result.status ===
+            "conflict"
+        ) {
+            throw new Error(
+                `${item.label} には別のMeaning候補が既に登録されています。RISEN側で確認します。`
+            );
+        }
+
+        semanticStandardMeaningCandidates
+            .set(
+                sourceFieldKey,
+                {
+                    candidateId:
+                        result?.candidateId ||
+                        null,
+
+                    proposedMeaning,
+
+                    status:
+                        "submitted",
+
+                    submittedAt:
+                        new Date()
+                            .toISOString()
+                }
+            );
+
+        button.textContent =
+            "送信済み";
+
+        if (input) {
+            input.disabled = true;
+        }
+
+        setStatus(
+            `${item.label} の意味候補をRISENへ送信しました。`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent =
+            "RISENへ意味候補を送る";
+
+        setStatus(
+            error?.message ||
+            "Meaning候補の送信に失敗しました。",
+            "error"
+        );
+    }
 }
 
 
@@ -2294,6 +2519,20 @@ function renderFields() {
 
     fieldsBody
         .querySelectorAll(
+            ".semantic-submit-standard-meaning-candidate-button"
+        )
+        .forEach(button => {
+            button.addEventListener(
+                "click",
+                () =>
+                    submitStandardMeaningCandidate(
+                        button
+                    )
+            );
+        });
+
+    fieldsBody
+        .querySelectorAll(
             ".semantic-entity-input"
         )
         .forEach(select => {
@@ -2331,6 +2570,9 @@ async function loadPersistedMappings(
     analysis
 ) {
     semanticPersistedMappings =
+        new Map();
+
+    semanticStandardMeaningCandidates =
         new Map();
 
     if (
@@ -2545,6 +2787,94 @@ async function loadPersistedMappings(
         semanticPersistedMappings.set(
             sourceFieldKey,
             semanticMeaning
+        );
+    }
+
+    try {
+        const candidateParams =
+            new URLSearchParams({
+                templateId:
+                    semanticCurrentTemplateId
+            });
+
+        const candidateResponse =
+            await fetch(
+                `${LOCAL_CONNECTOR_BASE}/standard-meaning-candidate?${candidateParams}`
+            );
+
+        let candidateResult = null;
+
+        try {
+            candidateResult =
+                await candidateResponse.json();
+        } catch {
+            candidateResult = null;
+        }
+
+        if (
+            candidateResponse.ok &&
+            candidateResult?.success === true &&
+            Array.isArray(
+                candidateResult.candidates
+            )
+        ) {
+            for (
+                const candidate
+                of candidateResult.candidates
+            ) {
+                const templateFieldKey =
+                    typeof candidate
+                        ?.templateFieldKey ===
+                        "string"
+                        ? candidate
+                            .templateFieldKey
+                            .trim()
+                        : "";
+
+                const proposedMeaning =
+                    typeof candidate
+                        ?.proposedMeaning ===
+                        "string"
+                        ? candidate
+                            .proposedMeaning
+                            .trim()
+                        : "";
+
+                if (
+                    !templateFieldKey ||
+                    !proposedMeaning
+                ) {
+                    continue;
+                }
+
+                semanticStandardMeaningCandidates
+                    .set(
+                        templateFieldKey,
+                        {
+                            candidateId:
+                                candidate
+                                    ?.candidateId ||
+                                null,
+
+                            proposedMeaning,
+
+                            status:
+                                candidate
+                                    ?.status ||
+                                "submitted",
+
+                            submittedAt:
+                                candidate
+                                    ?.submittedAt ||
+                                null
+                        }
+                    );
+            }
+        }
+    } catch (error) {
+        console.warn(
+            "Standard Meaning Candidate restore failed",
+            error
         );
     }
 }

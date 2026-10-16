@@ -803,13 +803,41 @@ function getSemanticTargets(
 }
 
 
+function isSemanticContractRequired(
+    semanticType
+) {
+    const normalizedSemanticType =
+        String(semanticType || "").trim();
+
+    if (!normalizedSemanticType) {
+        return false;
+    }
+
+    const explicitSemanticTypes =
+        window.RisenSemanticProjectionPolicy
+            ?.getSupportedExplicitSemanticProjectionTypes?.();
+
+    return Array.isArray(explicitSemanticTypes) &&
+        explicitSemanticTypes.includes(
+            normalizedSemanticType
+        );
+}
+
+
 function getAvailableStandardFields() {
     const semanticProjectionType =
         getSelectedSemanticProjectionType();
 
+    const semanticTargets =
+        getSemanticTargets(
+            semanticProjectionType
+        );
+
     if (
-        semanticProjectionType !==
-        "recipient_certificate"
+        !Array.isArray(semanticTargets) &&
+        !isSemanticContractRequired(
+            semanticProjectionType
+        )
     ) {
         return standardFields;
     }
@@ -817,9 +845,7 @@ function getAvailableStandardFields() {
     return window.RisenStandardFieldMapping
         ?.filterStandardFieldsBySemanticTargets(
             standardFields,
-            getSemanticTargets(
-                semanticProjectionType
-            )
+            semanticTargets
         ) || [];
 }
 
@@ -829,11 +855,17 @@ function isMeaningAllowedForConfirmedDocumentType(
     const semanticProjectionType =
         getSelectedSemanticProjectionType();
 
+    const semanticTargets =
+        getSemanticTargets(
+            semanticProjectionType
+        );
+
     return window.RisenStandardFieldMapping
         ?.isSemanticTargetAllowedForDocumentType(
             semanticProjectionType,
             semanticMeaning,
-            getSemanticTargets(
+            semanticTargets,
+            isSemanticContractRequired(
                 semanticProjectionType
             )
         ) === true;
@@ -2519,6 +2551,9 @@ function renderConfirmation() {
                             getSelectedSemanticProjectionType(),
                             selectedMeaning,
                             getSemanticTargets(
+                                getSelectedSemanticProjectionType()
+                            ),
+                            isSemanticContractRequired(
                                 getSelectedSemanticProjectionType()
                             )
                         ) || "not_confirmed";

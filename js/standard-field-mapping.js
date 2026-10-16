@@ -108,15 +108,16 @@ function isSemanticTargetSupported(
 function isSemanticTargetAllowedForDocumentType(
     documentType,
     semanticTarget,
-    recipientCertificateSemanticTargets
+    supportedSemanticTargets,
+    semanticContractRequired = false
 ) {
-    if (documentType !== "recipient_certificate") {
-        return true;
+    if (!Array.isArray(supportedSemanticTargets)) {
+        return semanticContractRequired !== true;
     }
 
     return isSemanticTargetSupported(
         semanticTarget,
-        recipientCertificateSemanticTargets
+        supportedSemanticTargets
     );
 }
 
@@ -124,16 +125,17 @@ function getSemanticConfirmationValidity(
     reviewState,
     documentType,
     semanticTarget,
-    recipientCertificateSemanticTargets
+    supportedSemanticTargets,
+    semanticContractRequired = false
 ) {
     if (reviewState !== "confirmed") {
         return "not_confirmed";
     }
 
     if (
-        documentType === "recipient_certificate" &&
+        semanticContractRequired === true &&
         !Array.isArray(
-            recipientCertificateSemanticTargets
+            supportedSemanticTargets
         )
     ) {
         return "contract_unconfirmed";
@@ -142,7 +144,8 @@ function getSemanticConfirmationValidity(
     return isSemanticTargetAllowedForDocumentType(
         documentType,
         semanticTarget,
-        recipientCertificateSemanticTargets
+        supportedSemanticTargets,
+        semanticContractRequired
     )
         ? "confirmed_current"
         : "confirmed_outside_current_contract";

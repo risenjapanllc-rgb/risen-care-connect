@@ -8,7 +8,7 @@ const SERVICE =
 
 const CAPABILITIES =
     Object.freeze([
-        "recipient_certificate.semantic_contract",
+        "semantic_contract",
         "recipient_certificate.preview",
         "recipient_certificate.fingerprint_execution"
     ]);

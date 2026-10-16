@@ -718,11 +718,18 @@ async function loadLocalConnectorRuntimeCompatibility() {
     localConnectorRuntimeContract =
         contract;
 
+    const semanticContractCapability =
+        window.LocalConnectorRuntimeCompatibilityPolicy
+            ?.getRequiredCapability(
+                null,
+                "semantic_contract"
+            ) || null;
+
     const compatibility =
         window.LocalConnectorRuntimeCompatibilityPolicy
             ?.evaluateRuntimeCapability(
                 contract,
-                "recipient_certificate.semantic_contract"
+                semanticContractCapability
             ) || {
                 status:
                     "runtime_unavailable",
@@ -779,6 +786,54 @@ async function loadSemanticTargets(
     return [
         ...targets
     ];
+}
+
+
+async function refreshSelectedSemanticContract() {
+    const semanticType =
+        getSelectedSemanticProjectionType();
+
+    if (
+        !isSemanticContractRequired(
+            semanticType
+        )
+    ) {
+        return {
+            status: "not_required",
+            supported: true,
+            semanticType
+        };
+    }
+
+    const compatibility =
+        evaluateLocalConnectorOperationCapability(
+            semanticType,
+            "semantic_contract"
+        );
+
+    if (!compatibility.supported) {
+        semanticTargetsByType.delete(
+            semanticType
+        );
+
+        return {
+            ...compatibility,
+            semanticType
+        };
+    }
+
+    const targets =
+        await loadSemanticTargets(
+            semanticType
+        );
+
+    return {
+        status: "loaded",
+        supported: true,
+        semanticType,
+        targetCount:
+            targets.length
+    };
 }
 
 
@@ -1569,12 +1624,8 @@ async function analyzeFile(filePath) {
 
             if (!compatibility.supported) {
                 console.warn(
-                    "Local Connectorとの互換性を確認できないため、受給者証の標準項目契約を利用できません:",
+                    "Local ConnectorとのSemantic Contract互換性を確認できません:",
                     compatibility.status
-                );
-            } else {
-                await loadSemanticTargets(
-                    "recipient_certificate"
                 );
             }
         } catch (error) {
@@ -1583,12 +1634,9 @@ async function analyzeFile(filePath) {
                     "runtime_unavailable",
                 supported: false
             };
-            semanticTargetsByType.delete(
-                "recipient_certificate"
-            );
 
             console.warn(
-                "Local Connectorとの互換性または受給者証の標準項目契約を確認できませんでした:",
+                "Local ConnectorとのSemantic Contract互換性を確認できませんでした:",
                 error.message
             );
         }
@@ -1645,6 +1693,34 @@ async function analyzeFile(filePath) {
         } catch (error) {
             console.warn(
                 "保存済みの項目対応を復元できませんでした:",
+                error.message
+            );
+        }
+
+        try {
+            const semanticContractState =
+                await refreshSelectedSemanticContract();
+
+            if (
+                semanticContractState.supported !== true
+            ) {
+                console.warn(
+                    "選択されたSemantic Projectionの契約を確認できません:",
+                    semanticContractState.status
+                );
+            }
+        } catch (error) {
+            const semanticType =
+                getSelectedSemanticProjectionType();
+
+            if (semanticType) {
+                semanticTargetsByType.delete(
+                    semanticType
+                );
+            }
+
+            console.warn(
+                "選択されたSemantic Projectionの契約を取得できませんでした:",
                 error.message
             );
         }
@@ -3010,6 +3086,35 @@ function renderConfirmation() {
                     null;
                 subjectContextResolution =
                     null;
+
+                try {
+                    const semanticContractState =
+                        await refreshSelectedSemanticContract();
+
+                    if (
+                        semanticContractState.supported !==
+                            true
+                    ) {
+                        console.warn(
+                            "選択されたSemantic Projectionの契約を確認できません:",
+                            semanticContractState.status
+                        );
+                    }
+                } catch (error) {
+                    const semanticType =
+                        getSelectedSemanticProjectionType();
+
+                    if (semanticType) {
+                        semanticTargetsByType.delete(
+                            semanticType
+                        );
+                    }
+
+                    console.warn(
+                        "選択されたSemantic Projectionの契約を取得できませんでした:",
+                        error.message
+                    );
+                }
 
                 renderConfirmation();
 

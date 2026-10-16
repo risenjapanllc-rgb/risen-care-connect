@@ -14,12 +14,16 @@ function unavailable() {
     };
 }
 
-const REQUIRED_CAPABILITIES_BY_OPERATION =
+const COMMON_CAPABILITIES_BY_OPERATION =
+    Object.freeze({
+        semantic_contract:
+            "semantic_contract"
+    });
+
+const REQUIRED_CAPABILITIES_BY_SEMANTIC_TYPE =
     Object.freeze({
         recipient_certificate:
             Object.freeze({
-                semantic_contract:
-                    "recipient_certificate.semantic_contract",
                 preview:
                     "recipient_certificate.preview",
                 fingerprint_execution:
@@ -32,9 +36,6 @@ function getRequiredCapability(
     operation
 ) {
     if (
-        typeof semanticType !== "string" ||
-        semanticType.trim() !== semanticType ||
-        semanticType.length === 0 ||
         typeof operation !== "string" ||
         operation.trim() !== operation ||
         operation.length === 0
@@ -42,8 +43,25 @@ function getRequiredCapability(
         return null;
     }
 
+    const commonCapability =
+        COMMON_CAPABILITIES_BY_OPERATION[
+            operation
+        ] || null;
+
+    if (commonCapability) {
+        return commonCapability;
+    }
+
+    if (
+        typeof semanticType !== "string" ||
+        semanticType.trim() !== semanticType ||
+        semanticType.length === 0
+    ) {
+        return null;
+    }
+
     return (
-        REQUIRED_CAPABILITIES_BY_OPERATION[
+        REQUIRED_CAPABILITIES_BY_SEMANTIC_TYPE[
             semanticType
         ]?.[operation] ||
         null

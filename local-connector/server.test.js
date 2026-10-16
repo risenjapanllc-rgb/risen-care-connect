@@ -5304,7 +5304,7 @@ test("GET /runtime-contract exposes the Local Connector runtime capability contr
                 service:
                     "RISEN CARE Local Connector",
                 capabilities: [
-                    "recipient_certificate.semantic_contract",
+                    "semantic_contract",
                     "recipient_certificate.preview",
                     "recipient_certificate.fingerprint_execution"
                 ]
@@ -5335,7 +5335,7 @@ test("POST /import-preview fails closed when required recipient certificate prev
             service:
                 "RISEN CARE Local Connector",
             capabilities: [
-                "recipient_certificate.semantic_contract",
+                "semantic_contract",
                 "recipient_certificate.fingerprint_execution"
             ]
         });
@@ -5454,7 +5454,7 @@ test("POST /import-execute fails closed when required recipient certificate fing
             service:
                 "RISEN CARE Local Connector",
             capabilities: [
-                "recipient_certificate.semantic_contract",
+                "semantic_contract",
                 "recipient_certificate.preview"
             ]
         });
@@ -5576,7 +5576,7 @@ test("POST /import-preview fails closed when runtime contract version is incompa
             service:
                 "RISEN CARE Local Connector",
             capabilities: [
-                "recipient_certificate.semantic_contract",
+                "semantic_contract",
                 "recipient_certificate.preview",
                 "recipient_certificate.fingerprint_execution"
             ]

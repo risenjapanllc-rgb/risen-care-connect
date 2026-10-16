@@ -2,8 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
-const RecipientCertificateSemanticContract =
-    require("./RecipientCertificateSemanticContract");
 const LocalConnectorRuntimeContract =
     require("./LocalConnectorRuntimeContract");
 
@@ -946,13 +944,7 @@ app.get(
         }
 
         const supportedSemanticTargets =
-            semanticType ===
-                "recipient_certificate"
-                ? new RecipientCertificateSemanticContract({
-                    additionalSupportedSemanticTargets
-                })
-                    .listSupportedSemanticTargets()
-                : additionalSupportedSemanticTargets;
+            additionalSupportedSemanticTargets;
 
         return res.status(200).json({
             success: true,

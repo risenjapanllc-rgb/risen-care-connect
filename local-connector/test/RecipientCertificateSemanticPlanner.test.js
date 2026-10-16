@@ -5,9 +5,31 @@ const assert = require("node:assert/strict");
 const RecipientCertificateSemanticPlanner =
     require("../RecipientCertificateSemanticPlanner");
 
+function createPlanner() {
+    return new RecipientCertificateSemanticPlanner({
+        semanticContract: {
+            assertSupported(semanticKey) {
+                if (
+                    semanticKey ===
+                    "recipient_certificate.not_a_real_field"
+                ) {
+                    const error = new Error(
+                        "Semantic target is not governed by authority"
+                    );
+
+                    error.code =
+                        "semantic_target_unsupported";
+
+                    throw error;
+                }
+            }
+        }
+    });
+}
+
 test("recipient certificate planner maps source values by confirmed semantic meaning", () => {
     const planner =
-        new RecipientCertificateSemanticPlanner();
+        createPlanner();
 
     const result = planner.build({
         sourceEntities: [{
@@ -49,7 +71,7 @@ test("recipient certificate planner maps source values by confirmed semantic mea
 
 test("recipient certificate planner fails closed on duplicate semantic meaning", () => {
     const planner =
-        new RecipientCertificateSemanticPlanner();
+        createPlanner();
 
     assert.throws(
         () => planner.build({
@@ -82,7 +104,7 @@ test("recipient certificate planner fails closed on duplicate semantic meaning",
 
 test("recipient certificate planner canonicalizes source short dates by semantic meaning", () => {
     const planner =
-        new RecipientCertificateSemanticPlanner();
+        createPlanner();
 
     const result = planner.build({
         sourceEntities: [
@@ -160,7 +182,7 @@ test("recipient certificate planner canonicalizes source short dates by semantic
 
 test("recipient certificate planner canonicalizes explicit Japanese era dates without guessing ambiguous dates", () => {
     const planner =
-        new RecipientCertificateSemanticPlanner();
+        createPlanner();
 
     const result = planner.build({
         sourceEntities: [
@@ -254,7 +276,7 @@ test("recipient certificate planner canonicalizes explicit Japanese era dates wi
 
 test("recipient certificate planner fails closed on unsupported semantic target", () => {
     const planner =
-        new RecipientCertificateSemanticPlanner();
+        createPlanner();
 
     assert.throws(
         () => planner.build({
@@ -273,7 +295,7 @@ test("recipient certificate planner fails closed on unsupported semantic target"
         error =>
             error &&
             error.code ===
-                "recipient_certificate_semantic_target_unsupported"
+                "semantic_target_unsupported"
     );
 });
 
@@ -281,7 +303,7 @@ test(
     "recipient certificate planner preserves governed meanings across aggregate entity families",
     () => {
         const planner =
-            new RecipientCertificateSemanticPlanner();
+            createPlanner();
 
         const result =
             planner.build({

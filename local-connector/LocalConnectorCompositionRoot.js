@@ -84,8 +84,8 @@ const RecipientCertificatePreviewFingerprint =
     require("./RecipientCertificatePreviewFingerprint");
 const RecipientCertificateSemanticPlanner =
     require("./RecipientCertificateSemanticPlanner");
-const RecipientCertificateSemanticContract =
-    require("./RecipientCertificateSemanticContract");
+const GovernedSemanticTargetContract =
+    require("./GovernedSemanticTargetContract");
 const ConnectorSupportRecordRowBuilder =
     require("./ConnectorSupportRecordRowBuilder");
 const ConnectorSupportRecordCanonicalizer =
@@ -900,8 +900,9 @@ async function createRecipientCertificateImportPreviewService({
         semanticPlanner:
             new RecipientCertificateSemanticPlanner({
                 semanticContract:
-                    new RecipientCertificateSemanticContract({
-                        additionalSupportedSemanticTargets
+                    new GovernedSemanticTargetContract({
+                        supportedSemanticTargets:
+                            additionalSupportedSemanticTargets
                     })
             }),
         previewFingerprint:

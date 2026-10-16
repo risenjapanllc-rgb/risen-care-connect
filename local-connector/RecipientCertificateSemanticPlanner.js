@@ -2,16 +2,23 @@
 
 const JapaneseBusinessDateNormalizer =
     require("./JapaneseBusinessDateNormalizer");
-const RecipientCertificateSemanticContract =
-    require("./RecipientCertificateSemanticContract");
-
 class RecipientCertificateSemanticPlanner {
     constructor({
-        semanticContract =
-            new RecipientCertificateSemanticContract()
+        semanticContract
     } = {}) {
+        if (
+            !semanticContract ||
+            typeof semanticContract.assertSupported !==
+                "function"
+        ) {
+            throw new Error(
+                "RecipientCertificateSemanticPlanner requires semanticContract"
+            );
+        }
+
         this.dateNormalizer =
             new JapaneseBusinessDateNormalizer();
+
         this.semanticContract =
             semanticContract;
     }

@@ -1,10 +1,11 @@
 "use strict";
 
 (function () {
-    const EXPLICIT_SEMANTIC_PROJECTION_TYPES =
-        new Set([
-            "recipient_certificate"
-        ]);
+    let semanticProjectionContracts =
+        new Map();
+
+    let semanticProjectionContractAuthorityLoaded =
+        false;
 
     const LEGACY_DOCUMENT_TYPE_PROJECTIONS =
         new Set([
@@ -12,9 +13,154 @@
             "recipient_certificate"
         ]);
 
+    function setSemanticProjectionContracts(
+        contracts = [],
+        standardFields = []
+    ) {
+        if (!Array.isArray(contracts)) {
+            throw new Error(
+                "Semantic Projection Contracts must be an array"
+            );
+        }
+
+        const safeStandardFields =
+            Array.isArray(standardFields)
+                ? standardFields
+                : [];
+
+        const nextContracts =
+            new Map();
+
+        for (const contract of contracts) {
+            const semanticType =
+                typeof contract?.semanticType === "string"
+                    ? contract.semanticType.trim()
+                    : "";
+
+            const sourceRecordIdentityRequired =
+                contract?.sourceRecordIdentityRequired;
+
+            const requiredSemanticTargets =
+                contract?.requiredSemanticTargets;
+
+            if (
+                !semanticType ||
+                typeof sourceRecordIdentityRequired !==
+                    "boolean" ||
+                !Array.isArray(
+                    requiredSemanticTargets
+                ) ||
+                nextContracts.has(
+                    semanticType
+                )
+            ) {
+                throw new Error(
+                    "Invalid Semantic Projection Contract"
+                );
+            }
+
+            const requiredMeanings = [];
+
+            for (
+                const semanticTarget
+                of requiredSemanticTargets
+            ) {
+                const normalizedTarget =
+                    typeof semanticTarget === "string"
+                        ? semanticTarget.trim()
+                        : "";
+
+                const separatorIndex =
+                    normalizedTarget.indexOf(".");
+
+                if (
+                    !normalizedTarget ||
+                    separatorIndex <= 0 ||
+                    separatorIndex ===
+                        normalizedTarget.length - 1
+                ) {
+                    throw new Error(
+                        "Invalid required Semantic Target"
+                    );
+                }
+
+                const entityName =
+                    normalizedTarget.slice(
+                        0,
+                        separatorIndex
+                    );
+
+                const fieldName =
+                    normalizedTarget.slice(
+                        separatorIndex + 1
+                    );
+
+                const standardField =
+                    safeStandardFields.find(
+                        field =>
+                            field?.entity_name ===
+                                entityName &&
+                            field?.field_name ===
+                                fieldName
+                    );
+
+                const displayName =
+                    typeof standardField?.display_name ===
+                        "string" &&
+                    standardField.display_name.trim()
+                        ? standardField.display_name.trim()
+                        : normalizedTarget;
+
+                requiredMeanings.push(
+                    Object.freeze({
+                        entityName,
+                        fieldName,
+                        label:
+                            displayName
+                    })
+                );
+            }
+
+            nextContracts.set(
+                semanticType,
+                Object.freeze({
+                    sourceRecordIdentityRequired,
+                    requiredMeanings:
+                        Object.freeze(
+                            requiredMeanings
+                        )
+                })
+            );
+        }
+
+        semanticProjectionContracts =
+            nextContracts;
+
+        semanticProjectionContractAuthorityLoaded =
+            true;
+    }
+
+
+    function resetSemanticProjectionContractAuthority() {
+        semanticProjectionContracts =
+            new Map();
+
+        semanticProjectionContractAuthorityLoaded =
+            false;
+    }
+
+
+    function isSemanticProjectionContractAuthorityLoaded() {
+        return (
+            semanticProjectionContractAuthorityLoaded ===
+            true
+        );
+    }
+
+
     function getSupportedExplicitSemanticProjectionTypes() {
         return Array.from(
-            EXPLICIT_SEMANTIC_PROJECTION_TYPES
+            semanticProjectionContracts.keys()
         );
     }
 
@@ -28,7 +174,7 @@
             return null;
         }
 
-        return EXPLICIT_SEMANTIC_PROJECTION_TYPES.has(
+        return semanticProjectionContracts.has(
             explicitSemanticType
         )
             ? explicitSemanticType
@@ -43,7 +189,7 @@
             typeof explicitSemanticType === "string" &&
             explicitSemanticType.length > 0
         ) {
-            return EXPLICIT_SEMANTIC_PROJECTION_TYPES.has(
+            return semanticProjectionContracts.has(
                 explicitSemanticType
             )
                 ? explicitSemanticType
@@ -63,30 +209,6 @@
             : null;
     }
 
-    const SEMANTIC_PROJECTION_REQUIREMENTS =
-        Object.freeze({
-            recipient_certificate:
-                Object.freeze({
-                    sourceRecordIdentityRequired:
-                        false,
-                    requiredMeanings:
-                        Object.freeze([
-                            Object.freeze({
-                                entityName: "user",
-                                fieldName: "name",
-                                label: "利用者名"
-                            }),
-                            Object.freeze({
-                                entityName:
-                                    "recipient_certificate",
-                                fieldName:
-                                    "certificate_number",
-                                label: "受給者証番号"
-                            })
-                        ])
-                })
-        });
-
     function getSemanticProjectionRequirementState(
         semanticType,
         mappings = []
@@ -97,9 +219,9 @@
                 : "";
 
         const requirement =
-            SEMANTIC_PROJECTION_REQUIREMENTS[
+            semanticProjectionContracts.get(
                 normalizedSemanticType
-            ];
+            );
 
         if (!requirement) {
             return {
@@ -207,6 +329,9 @@
     }
 
     window.RisenSemanticProjectionPolicy = {
+        setSemanticProjectionContracts,
+        resetSemanticProjectionContractAuthority,
+        isSemanticProjectionContractAuthorityLoaded,
         getSupportedExplicitSemanticProjectionTypes,
         resolveExplicitSemanticProjectionType,
         resolveSemanticProjectionType,

@@ -742,6 +742,56 @@ async function loadLocalConnectorRuntimeCompatibility() {
     return compatibility;
 }
 
+async function loadSemanticProjectionContracts() {
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/semantic-projection-contracts`
+        );
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+    if (
+        !response.ok ||
+        result?.success !== true ||
+        !Array.isArray(
+            result?.contracts
+        )
+    ) {
+        throw new Error(
+            "Semantic Projection Contract Authorityを取得できませんでした"
+        );
+    }
+
+    const projectionPolicy =
+        window.RisenSemanticProjectionPolicy;
+
+    if (
+        typeof projectionPolicy
+            ?.setSemanticProjectionContracts !==
+            "function"
+    ) {
+        throw new Error(
+            "Semantic Projection PolicyがAuthority更新に対応していません"
+        );
+    }
+
+    projectionPolicy
+        .setSemanticProjectionContracts(
+            result.contracts,
+            standardFields
+        );
+
+    return result.contracts;
+}
+
+
 async function loadSemanticTargets(
     semanticType
 ) {
@@ -868,8 +918,19 @@ function isSemanticContractRequired(
         return false;
     }
 
+    const projectionPolicy =
+        window.RisenSemanticProjectionPolicy;
+
+    if (
+        projectionPolicy
+            ?.isSemanticProjectionContractAuthorityLoaded?.() !==
+        true
+    ) {
+        return false;
+    }
+
     const explicitSemanticTypes =
-        window.RisenSemanticProjectionPolicy
+        projectionPolicy
             ?.getSupportedExplicitSemanticProjectionTypes?.();
 
     return Array.isArray(explicitSemanticTypes) &&
@@ -1617,6 +1678,25 @@ async function analyzeFile(filePath) {
         }
 
         semanticTargetsByType.clear();
+
+        try {
+            await loadSemanticProjectionContracts();
+        } catch (error) {
+            window.RisenSemanticProjectionPolicy
+                ?.resetSemanticProjectionContractAuthority?.();
+
+            console.warn(
+                "Semantic Projection Contract Authorityを取得できませんでした:",
+                error.message
+            );
+
+            setStatus(
+                "Semantic Projection Contract Authorityを確認できません。Local Connectorの状態を確認してください。",
+                "error"
+            );
+
+            return;
+        }
 
         try {
             const compatibility =

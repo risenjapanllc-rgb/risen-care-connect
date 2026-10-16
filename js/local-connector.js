@@ -92,7 +92,7 @@ let confirmedImportPreviewFingerprint = null;
 let confirmedImportPreview = null;
 
 let standardFields = [];
-let recipientCertificateSemanticTargets = null;
+const semanticTargetsByType = new Map();
 let localConnectorRuntimeContract = null;
 let localConnectorRuntimeCompatibility = {
     status: "runtime_unavailable",
@@ -767,18 +767,41 @@ async function loadSemanticTargets(
         );
     }
 
-    return [
+    const targets = [
         ...result.supportedSemanticTargets
+    ];
+
+    semanticTargetsByType.set(
+        normalizedSemanticType,
+        targets
+    );
+
+    return [
+        ...targets
     ];
 }
 
 
-async function loadRecipientCertificateSemanticTargets() {
-    recipientCertificateSemanticTargets =
-        await loadSemanticTargets(
-            "recipient_certificate"
+function getSemanticTargets(
+    semanticType
+) {
+    const normalizedSemanticType =
+        String(semanticType || "").trim();
+
+    if (!normalizedSemanticType) {
+        return null;
+    }
+
+    const targets =
+        semanticTargetsByType.get(
+            normalizedSemanticType
         );
+
+    return Array.isArray(targets)
+        ? [...targets]
+        : null;
 }
+
 
 function getAvailableStandardFields() {
     const semanticProjectionType =
@@ -794,18 +817,25 @@ function getAvailableStandardFields() {
     return window.RisenStandardFieldMapping
         ?.filterStandardFieldsBySemanticTargets(
             standardFields,
-            recipientCertificateSemanticTargets
+            getSemanticTargets(
+                semanticProjectionType
+            )
         ) || [];
 }
 
 function isMeaningAllowedForConfirmedDocumentType(
     semanticMeaning
 ) {
+    const semanticProjectionType =
+        getSelectedSemanticProjectionType();
+
     return window.RisenStandardFieldMapping
         ?.isSemanticTargetAllowedForDocumentType(
-            getSelectedSemanticProjectionType(),
+            semanticProjectionType,
             semanticMeaning,
-            recipientCertificateSemanticTargets
+            getSemanticTargets(
+                semanticProjectionType
+            )
         ) === true;
 }
 
@@ -1499,7 +1529,7 @@ async function analyzeFile(filePath) {
             );
         }
 
-        recipientCertificateSemanticTargets = null;
+        semanticTargetsByType.clear();
 
         try {
             const compatibility =
@@ -1511,7 +1541,9 @@ async function analyzeFile(filePath) {
                     compatibility.status
                 );
             } else {
-                await loadRecipientCertificateSemanticTargets();
+                await loadSemanticTargets(
+                    "recipient_certificate"
+                );
             }
         } catch (error) {
             localConnectorRuntimeCompatibility = {
@@ -1519,7 +1551,9 @@ async function analyzeFile(filePath) {
                     "runtime_unavailable",
                 supported: false
             };
-            recipientCertificateSemanticTargets = null;
+            semanticTargetsByType.delete(
+                "recipient_certificate"
+            );
 
             console.warn(
                 "Local Connectorとの互換性または受給者証の標準項目契約を確認できませんでした:",
@@ -2484,7 +2518,9 @@ function renderConfirmation() {
                             reviewState,
                             getSelectedSemanticProjectionType(),
                             selectedMeaning,
-                            recipientCertificateSemanticTargets
+                            getSemanticTargets(
+                                getSelectedSemanticProjectionType()
+                            )
                         ) || "not_confirmed";
 
                 const confirmedOutsideCurrentContract =

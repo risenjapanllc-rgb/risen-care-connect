@@ -34,6 +34,9 @@ function createServerTrustBoundaryApp({
     standardMeaningCandidateTransport,
     standardMeaningCandidateEndpointPath =
         "/connector/standard-meaning-candidate",
+    documentSemanticTargetTransport,
+    documentSemanticTargetEndpointPath =
+        "/connector/document-semantic-targets",
     sourceDocumentTemplateBindingTransport,
     sourceDocumentTemplateBindingEndpointPath =
         "/connector/source-document-template-bindings",
@@ -438,6 +441,36 @@ function createServerTrustBoundaryApp({
                                     req.headers,
                                 body:
                                     req.body,
+                                query:
+                                    req.query
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (documentSemanticTargetTransport) {
+        app.get(
+            documentSemanticTargetEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await documentSemanticTargetTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
                                 query:
                                     req.query
                             });

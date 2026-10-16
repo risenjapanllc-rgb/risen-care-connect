@@ -29,7 +29,11 @@ class RecipientCertificateSemanticPlanner {
         const dateMeanings =
             new Set([
                 "user.birth_date",
-                "recipient_certificate.valid_until"
+                "recipient_certificate.issued_date",
+                "recipient_certificate.valid_from",
+                "recipient_certificate.valid_until",
+                "service_contract.contract_date",
+                "service_contract.service_end_date"
             ]);
 
         if (!dateMeanings.has(semanticKey)) {

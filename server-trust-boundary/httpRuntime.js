@@ -55,6 +55,12 @@ const StandardMeaningCandidateHttpAdapter =
 const StandardMeaningCandidateTransport =
     require("./StandardMeaningCandidateTransport");
 
+const DocumentSemanticTargetHttpAdapter =
+    require("./DocumentSemanticTargetHttpAdapter");
+
+const DocumentSemanticTargetTransport =
+    require("./DocumentSemanticTargetTransport");
+
 const SourceDocumentTemplateBindingHttpAdapter =
     require("./SourceDocumentTemplateBindingHttpAdapter");
 
@@ -407,6 +413,21 @@ function createServerTrustBoundaryHttpRuntime({
         new StandardMeaningCandidateTransport({
             httpAdapter:
                 standardMeaningCandidateHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const documentSemanticTargetHttpAdapter =
+        new DocumentSemanticTargetHttpAdapter({
+            queryService:
+                coreRuntime
+                    .documentSemanticTargetQueryService
+        });
+
+    const documentSemanticTargetTransport =
+        new DocumentSemanticTargetTransport({
+            httpAdapter:
+                documentSemanticTargetHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -941,6 +962,9 @@ function createServerTrustBoundaryHttpRuntime({
             standardMeaningCandidateTransport,
             standardMeaningCandidateEndpointPath:
                 "/connector/standard-meaning-candidate",
+            documentSemanticTargetTransport,
+            documentSemanticTargetEndpointPath:
+                "/connector/document-semantic-targets",
             sourceDocumentTemplateBindingTransport,
             sourceDocumentTemplateBindingEndpointPath:
                 "/connector/source-document-template-bindings",

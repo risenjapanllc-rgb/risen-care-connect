@@ -1435,24 +1435,187 @@ app.get("/api/sample/:table", async (req, res) => {
 // RISEN CARE標準項目一覧取得
 // ==========================================
 
-app.get("/api/standard-fields", (req, res) => {
+app.get("/api/standard-fields", async (req, res) => {
     try {
         const {
             listStandardMeanings
         } = require("./server-domain/standard-fields/RisenStandardMeaningCatalog");
 
-        const rows = listStandardMeanings().map(
-            (meaning, index) => ({
-                id: `risen-standard-meaning-${index + 1}`,
-                entity_name: meaning.entityName,
-                field_name: meaning.fieldName,
-                display_name: meaning.displayName,
-                data_type: null,
-                required_flag: 0,
-                description: null,
-                synonyms: meaning.synonyms
-            })
-        );
+        const staticMeanings =
+            listStandardMeanings();
+
+        const supabaseUrl =
+            String(
+                process.env.SUPABASE_URL || ""
+            )
+                .trim()
+                .replace(/\/+$/, "");
+
+        const publishableKey =
+            String(
+                process.env.SUPABASE_PUBLISHABLE_KEY || ""
+            ).trim();
+
+        let dynamicRows = [];
+
+        if (
+            supabaseUrl &&
+            publishableKey
+        ) {
+            try {
+                const response =
+                    await fetch(
+                        `${supabaseUrl}/rest/v1/rpc/list_active_standard_meanings`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                                apikey:
+                                    publishableKey,
+                                Authorization:
+                                    `Bearer ${publishableKey}`
+                            },
+                            body:
+                                JSON.stringify({})
+                        }
+                    );
+
+                if (response.ok) {
+                    const result =
+                        await response.json();
+
+                    if (Array.isArray(result)) {
+                        dynamicRows =
+                            result;
+                    } else {
+                        console.warn(
+                            "Standard Meaning query returned invalid result; using static catalog only"
+                        );
+                    }
+                } else {
+                    console.warn(
+                        `Standard Meaning query failed: ${response.status}; using static catalog only`
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    "Standard Meaning query unavailable; using static catalog only:",
+                    error?.message ||
+                        "unknown error"
+                );
+            }
+        }
+
+        const merged =
+            new Map();
+
+        for (const meaning of staticMeanings) {
+            const key =
+                `${meaning.entityName}.${meaning.fieldName}`;
+
+            merged.set(
+                key,
+                {
+                    entityName:
+                        meaning.entityName,
+                    fieldName:
+                        meaning.fieldName,
+                    displayName:
+                        meaning.displayName,
+                    synonyms:
+                        Array.isArray(
+                            meaning.synonyms
+                        )
+                            ? meaning.synonyms
+                            : []
+                }
+            );
+        }
+
+        for (const row of dynamicRows) {
+            const entityName =
+                typeof row?.entity_name ===
+                    "string"
+                    ? row.entity_name.trim()
+                    : "";
+
+            const fieldName =
+                typeof row?.field_name ===
+                    "string"
+                    ? row.field_name.trim()
+                    : "";
+
+            const displayName =
+                typeof row?.display_name ===
+                    "string"
+                    ? row.display_name.trim()
+                    : "";
+
+            if (
+                !entityName ||
+                !fieldName ||
+                !displayName
+            ) {
+                continue;
+            }
+
+            const key =
+                `${entityName}.${fieldName}`;
+
+            if (merged.has(key)) {
+                continue;
+            }
+
+            merged.set(
+                key,
+                {
+                    entityName,
+                    fieldName,
+                    displayName,
+                    synonyms:
+                        Array.isArray(
+                            row?.synonyms
+                        )
+                            ? row.synonyms
+                                .filter(
+                                    value =>
+                                        typeof value ===
+                                            "string" &&
+                                        value.trim()
+                                )
+                                .map(
+                                    value =>
+                                        value.trim()
+                                )
+                            : []
+                }
+            );
+        }
+
+        const rows =
+            Array.from(
+                merged.values()
+            ).map(
+                (meaning, index) => ({
+                    id:
+                        `risen-standard-meaning-${index + 1}`,
+                    entity_name:
+                        meaning.entityName,
+                    field_name:
+                        meaning.fieldName,
+                    display_name:
+                        meaning.displayName,
+                    data_type:
+                        null,
+                    required_flag:
+                        0,
+                    description:
+                        null,
+                    synonyms:
+                        meaning.synonyms
+                })
+            );
 
         return res.json(rows);
     } catch (error) {

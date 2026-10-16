@@ -518,3 +518,33 @@ test(
         );
     }
 );
+
+test("共通カタログ synonyms から受給者証所持状態を候補にする", () => {
+    const mapping = loadMapping();
+    const fields = [{
+        entity_name: "recipient_certificate",
+        field_name: "possession_status",
+        display_name: "受給者証所持状態",
+        synonyms: [
+            "所持",
+            "受給者証所持",
+            "受給者証所持状態"
+        ]
+    }];
+
+    const result =
+        mapping.findStandardFieldSuggestion(
+            "所持",
+            fields
+        );
+
+    assert.ok(result);
+    assert.equal(
+        result.entity_name,
+        "recipient_certificate"
+    );
+    assert.equal(
+        result.field_name,
+        "possession_status"
+    );
+});

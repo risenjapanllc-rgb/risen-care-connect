@@ -96,6 +96,12 @@ const SupabaseStandardMeaningCandidatePersistenceRepository =
 const StandardMeaningCandidateIngestionService =
     require("./StandardMeaningCandidateIngestionService");
 
+const SupabaseDocumentSemanticTargetQueryRepository =
+    require("./SupabaseDocumentSemanticTargetQueryRepository");
+
+const DocumentSemanticTargetQueryService =
+    require("./DocumentSemanticTargetQueryService");
+
 const SourceDocumentTemplateBindingPayloadValidator =
     require("./SourceDocumentTemplateBindingPayloadValidator");
 
@@ -676,6 +682,20 @@ function createServerTrustBoundaryRuntime({
                 standardMeaningCandidatePersistenceRepository
         });
 
+    const documentSemanticTargetQueryRepository =
+        new SupabaseDocumentSemanticTargetQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const documentSemanticTargetQueryService =
+        new DocumentSemanticTargetQueryService({
+            connectorTrustService,
+            queryRepository:
+                documentSemanticTargetQueryRepository
+        });
+
     const sourceDocumentTemplateBindingPayloadValidator =
         new SourceDocumentTemplateBindingPayloadValidator();
 
@@ -1088,6 +1108,7 @@ function createServerTrustBoundaryRuntime({
         sourceTemplateFieldsIngestionService,
         sourceTemplateSemanticAuthorityIngestionService,
         standardMeaningCandidateIngestionService,
+        documentSemanticTargetQueryService,
         sourceDocumentTemplateBindingIngestionService,
         sourceFieldInterpretationIngestionService,
         sourceFieldInterpretationQueryService,

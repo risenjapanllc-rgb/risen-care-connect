@@ -276,3 +276,187 @@ test("recipient certificate planner fails closed on unsupported semantic target"
                 "recipient_certificate_semantic_target_unsupported"
     );
 });
+
+test(
+    "recipient certificate planner preserves governed meanings across aggregate entity families",
+    () => {
+        const planner =
+            new RecipientCertificateSemanticPlanner();
+
+        const result =
+            planner.build({
+                sourceEntities: [{
+                    sourceEntityKey:
+                        "sheet:0:row:2",
+                    valuesBySourceFieldKey: {
+                        provider:
+                            "事業者A",
+                        providedHours:
+                            "12",
+                        mutualUse:
+                            "あり",
+                        mealAddition:
+                            "対象",
+                        monthlyCap:
+                            "9300",
+                        managingProvider:
+                            "上限管理事業者A"
+                    }
+                }],
+                fieldMappings: [
+                    {
+                        sourceFieldKey:
+                            "provider",
+                        standardEntityName:
+                            "service_contract",
+                        standardFieldName:
+                            "provider_name"
+                    },
+                    {
+                        sourceFieldKey:
+                            "providedHours",
+                        standardEntityName:
+                            "service_delivery",
+                        standardFieldName:
+                            "provided_quantity_hours"
+                    },
+                    {
+                        sourceFieldKey:
+                            "mutualUse",
+                        standardEntityName:
+                            "service_entitlement",
+                        standardFieldName:
+                            "mutual_use"
+                    },
+                    {
+                        sourceFieldKey:
+                            "mealAddition",
+                        standardEntityName:
+                            "service_addition",
+                        standardFieldName:
+                            "meal_addition_i"
+                    },
+                    {
+                        sourceFieldKey:
+                            "monthlyCap",
+                        standardEntityName:
+                            "cost_sharing",
+                        standardFieldName:
+                            "monthly_cap"
+                    },
+                    {
+                        sourceFieldKey:
+                            "managingProvider",
+                        standardEntityName:
+                            "upper_limit_management",
+                        standardFieldName:
+                            "managing_provider"
+                    }
+                ]
+            });
+
+        assert.deepStrictEqual(
+            result,
+            [{
+                sourceEntityKey:
+                    "sheet:0:row:2",
+                semanticValues: {
+                    "service_contract.provider_name":
+                        "事業者A",
+                    "service_delivery.provided_quantity_hours":
+                        "12",
+                    "service_entitlement.mutual_use":
+                        "あり",
+                    "service_addition.meal_addition_i":
+                        "対象",
+                    "cost_sharing.monthly_cap":
+                        "9300",
+                    "upper_limit_management.managing_provider":
+                        "上限管理事業者A"
+                }
+            }]
+        );
+    }
+);
+
+test(
+    "recipient certificate planner canonicalizes governed aggregate date meanings",
+    () => {
+        const planner =
+            new RecipientCertificateSemanticPlanner({
+                semanticContract: {
+                    assertSupported() {}
+                }
+            });
+
+        const result =
+            planner.build({
+                sourceEntities: [{
+                    sourceEntityKey:
+                        "sheet:0:row:2",
+                    valuesBySourceFieldKey: {
+                        issuedDate:
+                            "R8/04/01",
+                        validFrom:
+                            "4/1/26",
+                        contractDate:
+                            "R8/04/02",
+                        serviceEndDate:
+                            "4/30/26"
+                    }
+                }],
+                fieldMappings: [
+                    {
+                        sourceFieldKey:
+                            "issuedDate",
+                        standardEntityName:
+                            "recipient_certificate",
+                        standardFieldName:
+                            "issued_date"
+                    },
+                    {
+                        sourceFieldKey:
+                            "validFrom",
+                        standardEntityName:
+                            "recipient_certificate",
+                        standardFieldName:
+                            "valid_from"
+                    },
+                    {
+                        sourceFieldKey:
+                            "contractDate",
+                        standardEntityName:
+                            "service_contract",
+                        standardFieldName:
+                            "contract_date"
+                    },
+                    {
+                        sourceFieldKey:
+                            "serviceEndDate",
+                        standardEntityName:
+                            "service_contract",
+                        standardFieldName:
+                            "service_end_date"
+                    }
+                ]
+            });
+
+        assert.deepStrictEqual(
+            result,
+            [{
+                sourceEntityKey:
+                    "sheet:0:row:2",
+                semanticValues: {
+                    "recipient_certificate.issued_date":
+                        "2026-04-01",
+                    "recipient_certificate.valid_from":
+                        "2026-04-01",
+                    "service_contract.contract_date":
+                        "2026-04-02",
+                    "service_contract.service_end_date":
+                        "2026-04-30"
+                }
+            }]
+        );
+    }
+);

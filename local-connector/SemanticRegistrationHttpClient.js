@@ -355,6 +355,19 @@ class SemanticRegistrationHttpClient {
         });
     }
 
+    listDocumentSemanticTargets(
+        semanticType
+    ) {
+        return this.get({
+            pathname:
+                "/connector/document-semantic-targets",
+
+            query: {
+                semanticType
+            }
+        });
+    }
+
     bindDocument(
         sourceDocumentTemplateBinding
     ) {

@@ -848,14 +848,45 @@ app.use(express.json({
 
 app.get(
     "/semantic-contracts/recipient-certificate",
-    (req, res) => {
+    async (req, res) => {
+        const semanticType =
+            "recipient_certificate";
+
+        const additionalSupportedSemanticTargets =
+            await LocalConnectorCompositionRoot
+                .listDocumentSemanticTargets({
+                    serverTrustBoundaryEndpoint:
+                        process.env
+                            .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+
+                    semanticType,
+
+                    credential:
+                        await connectorCredentialProvider
+                            .getCredential(),
+
+                    authorizationScheme:
+                        process.env
+                            .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                        "RISEN-Connector",
+
+                    connectorIdHeader:
+                        process.env
+                            .RISEN_CONNECTOR_ID_HEADER ||
+                        "x-risen-connector-id",
+
+                    timeoutMs:
+                        60000
+                });
+
         const semanticContract =
-            new RecipientCertificateSemanticContract();
+            new RecipientCertificateSemanticContract({
+                additionalSupportedSemanticTargets
+            });
 
         return res.status(200).json({
             success: true,
-            semanticType:
-                "recipient_certificate",
+            semanticType,
             supportedSemanticTargets:
                 semanticContract
                     .listSupportedSemanticTargets()
@@ -2255,6 +2286,8 @@ app.locals.getRecipientCertificateImportPreviewService =
             recipientCertificateImportPreviewServicePromise =
                 LocalConnectorCompositionRoot
                     .createRecipientCertificateImportPreviewService({
+                        semanticRegistrationEndpoint:
+                            semanticEndpoint,
                         fieldMappingEndpoint:
                             process.env
                                 .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||

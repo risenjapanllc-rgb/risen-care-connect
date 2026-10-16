@@ -84,6 +84,8 @@ const RecipientCertificatePreviewFingerprint =
     require("./RecipientCertificatePreviewFingerprint");
 const RecipientCertificateSemanticPlanner =
     require("./RecipientCertificateSemanticPlanner");
+const RecipientCertificateSemanticContract =
+    require("./RecipientCertificateSemanticContract");
 const ConnectorSupportRecordRowBuilder =
     require("./ConnectorSupportRecordRowBuilder");
 const ConnectorSupportRecordCanonicalizer =
@@ -347,6 +349,67 @@ async function createSemanticRegistrationClient({
     });
 }
 
+async function listDocumentSemanticTargets({
+    databasePath,
+    configPath,
+    serverTrustBoundaryEndpoint,
+    semanticType,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    timeoutMs = 60000,
+    fetchImpl = globalThis.fetch
+} = {}) {
+    if (
+        typeof semanticType !== "string" ||
+        !semanticType.trim() ||
+        typeof serverTrustBoundaryEndpoint !== "string" ||
+        !serverTrustBoundaryEndpoint.trim()
+    ) {
+        return [];
+    }
+
+    try {
+        const semanticRegistrationClient =
+            await createSemanticRegistrationClient({
+                databasePath,
+                configPath,
+                serverTrustBoundaryEndpoint,
+                credential,
+                authorizationScheme,
+                connectorIdHeader,
+                timeoutMs,
+                fetchImpl
+            });
+
+        const result =
+            await semanticRegistrationClient
+                .listDocumentSemanticTargets(
+                    semanticType.trim()
+                );
+
+        if (
+            result?.status !== "found" ||
+            !Array.isArray(result.targets)
+        ) {
+            return [];
+        }
+
+        return [
+            ...new Set(
+                result.targets.filter(
+                    target =>
+                        typeof target === "string" &&
+                        target.trim()
+                )
+            )
+        ];
+    } catch {
+        return [];
+    }
+}
+
 async function createSourceFieldInterpretationIngestionService({
     databasePath,
     configPath,
@@ -557,6 +620,7 @@ async function createImportPreviewService({
 async function createRecipientCertificateImportPreviewService({
     databasePath,
     configPath,
+    semanticRegistrationEndpoint,
     fieldMappingEndpoint,
     interpretationEndpoint,
     candidateEndpoint,
@@ -618,6 +682,22 @@ async function createRecipientCertificateImportPreviewService({
         await localConnectorService
             .getConnectorId();
 
+    const additionalSupportedSemanticTargets =
+        await listDocumentSemanticTargets({
+            databasePath,
+            configPath,
+            serverTrustBoundaryEndpoint:
+                semanticRegistrationEndpoint,
+            semanticType:
+                "recipient_certificate",
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs:
+                60000,
+            fetchImpl
+        });
+
     const sourceFieldMappingClient =
         new SourceFieldMappingHttpClient({
             endpoint:
@@ -676,7 +756,12 @@ async function createRecipientCertificateImportPreviewService({
         semanticLogicalRecordClient,
         residentProfileQueryClient,
         semanticPlanner:
-            new RecipientCertificateSemanticPlanner(),
+            new RecipientCertificateSemanticPlanner({
+                semanticContract:
+                    new RecipientCertificateSemanticContract({
+                        additionalSupportedSemanticTargets
+                    })
+            }),
         previewFingerprint:
             new RecipientCertificatePreviewFingerprint(),
         strategy:
@@ -1295,6 +1380,7 @@ module.exports = {
     createSourceDocumentIngestionService,
     createSourceFieldMappingIngestionService,
     createSemanticRegistrationClient,
+    listDocumentSemanticTargets,
     createSourceFieldInterpretationIngestionService,
     createResidentCandidateService,
     createSourceResidentCandidateResolver,

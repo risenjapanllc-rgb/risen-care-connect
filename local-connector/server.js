@@ -847,10 +847,22 @@ app.use(express.json({
 }));
 
 app.get(
-    "/semantic-contracts/recipient-certificate",
+    "/semantic-contracts/:semanticType",
     async (req, res) => {
         const semanticType =
-            "recipient_certificate";
+            String(
+                req.params?.semanticType || ""
+            )
+                .trim()
+                .replace(/-/g, "_");
+
+        if (!semanticType) {
+            return res.status(400).json({
+                success: false,
+                errorCode:
+                    "semantic_type_required"
+            });
+        }
 
         const additionalSupportedSemanticTargets =
             await LocalConnectorCompositionRoot
@@ -879,17 +891,19 @@ app.get(
                         60000
                 });
 
-        const semanticContract =
-            new RecipientCertificateSemanticContract({
-                additionalSupportedSemanticTargets
-            });
+        const supportedSemanticTargets =
+            semanticType ===
+                "recipient_certificate"
+                ? new RecipientCertificateSemanticContract({
+                    additionalSupportedSemanticTargets
+                })
+                    .listSupportedSemanticTargets()
+                : additionalSupportedSemanticTargets;
 
         return res.status(200).json({
             success: true,
             semanticType,
-            supportedSemanticTargets:
-                semanticContract
-                    .listSupportedSemanticTargets()
+            supportedSemanticTargets
         });
     }
 );

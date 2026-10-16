@@ -735,9 +735,20 @@ async function loadLocalConnectorRuntimeCompatibility() {
     return compatibility;
 }
 
-async function loadRecipientCertificateSemanticTargets() {
+async function loadSemanticTargets(
+    semanticType
+) {
+    const normalizedSemanticType =
+        String(semanticType || "").trim();
+
+    if (!normalizedSemanticType) {
+        throw new Error(
+            "Semantic Typeが指定されていません"
+        );
+    }
+
     const response = await fetch(
-        `${LOCAL_CONNECTOR_BASE}/semantic-contracts/recipient-certificate`
+        `${LOCAL_CONNECTOR_BASE}/semantic-contracts/${encodeURIComponent(normalizedSemanticType)}`
     );
 
     const result = await response.json();
@@ -746,18 +757,27 @@ async function loadRecipientCertificateSemanticTargets() {
         !response.ok ||
         result?.success !== true ||
         result?.semanticType !==
-            "recipient_certificate" ||
+            normalizedSemanticType ||
         !Array.isArray(
             result?.supportedSemanticTargets
         )
     ) {
         throw new Error(
-            "受給者証の標準項目契約を取得できませんでした"
+            "Semantic契約を取得できませんでした"
         );
     }
 
+    return [
+        ...result.supportedSemanticTargets
+    ];
+}
+
+
+async function loadRecipientCertificateSemanticTargets() {
     recipientCertificateSemanticTargets =
-        [...result.supportedSemanticTargets];
+        await loadSemanticTargets(
+            "recipient_certificate"
+        );
 }
 
 function getAvailableStandardFields() {

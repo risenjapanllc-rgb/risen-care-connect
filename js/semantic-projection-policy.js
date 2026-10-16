@@ -7,12 +7,6 @@
     let semanticProjectionContractAuthorityLoaded =
         false;
 
-    const LEGACY_DOCUMENT_TYPE_PROJECTIONS =
-        new Set([
-            "support_record",
-            "recipient_certificate"
-        ]);
-
     function setSemanticProjectionContracts(
         contracts = [],
         standardFields = []
@@ -185,27 +179,32 @@
         confirmedDocumentType,
         explicitSemanticType
     ) {
-        if (
-            typeof explicitSemanticType === "string" &&
-            explicitSemanticType.length > 0
-        ) {
+        const normalizedExplicitSemanticType =
+            typeof explicitSemanticType === "string"
+                ? explicitSemanticType.trim()
+                : "";
+
+        if (normalizedExplicitSemanticType) {
             return semanticProjectionContracts.has(
-                explicitSemanticType
+                normalizedExplicitSemanticType
             )
-                ? explicitSemanticType
+                ? normalizedExplicitSemanticType
                 : null;
         }
 
-        if (
-            typeof confirmedDocumentType !== "string"
-        ) {
+        const normalizedDocumentType =
+            typeof confirmedDocumentType === "string"
+                ? confirmedDocumentType.trim()
+                : "";
+
+        if (!normalizedDocumentType) {
             return null;
         }
 
-        return LEGACY_DOCUMENT_TYPE_PROJECTIONS.has(
-            confirmedDocumentType
+        return semanticProjectionContracts.has(
+            normalizedDocumentType
         )
-            ? confirmedDocumentType
+            ? normalizedDocumentType
             : null;
     }
 
@@ -307,25 +306,25 @@
             return resolvedProjection;
         }
 
-        const legacyProjection =
+        const documentProjection =
             resolveSemanticProjectionType(
                 confirmedDocumentType,
                 null
             );
 
-        if (!legacyProjection) {
+        if (!documentProjection) {
             return null;
         }
 
         if (
             previewSemanticType != null &&
             previewSemanticType !==
-                legacyProjection
+                documentProjection
         ) {
             return null;
         }
 
-        return legacyProjection;
+        return documentProjection;
     }
 
     window.RisenSemanticProjectionPolicy = {

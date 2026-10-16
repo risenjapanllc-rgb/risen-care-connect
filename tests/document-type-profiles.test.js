@@ -15,44 +15,79 @@ function loadProfiles() {
     return context.window.RisenDocumentTypeProfiles;
 }
 
-test("unknown は支援記録の必須項目を要求しない", () => {
+test("unknown は確認可能なデータ種別Profileを持たない", () => {
     const profiles = loadProfiles();
-    const result = profiles.getStep3RequirementState("unknown", []);
-    assert.equal(result.status, "document_type_unresolved");
-    assert.equal(result.missingRequiredMeanings.length, 0);
-});
 
-test("support_record は既存3項目を必須にする", () => {
-    const profiles = loadProfiles();
-    const result = profiles.getStep3RequirementState("support_record", []);
-    assert.equal(result.status, "required_mapping_missing");
-    assert.deepEqual(
-        Array.from(result.missingRequiredMeanings, item => item.label),
-        ["利用者名", "記録日時", "支援記録本文"]
+    assert.equal(
+        profiles.getDocumentTypeProfile("unknown"),
+        null
     );
 });
 
-test("support_record は3項目確認済みなら ready", () => {
+
+test("support_record はSTEP3対応データ種別として定義される", () => {
     const profiles = loadProfiles();
-    const mappings = [
-        { standardEntityName: "user", standardFieldName: "name" },
-        { standardEntityName: "support_record", standardFieldName: "record_date" },
-        { standardEntityName: "support_record", standardFieldName: "record_content" }
-    ];
-    const result = profiles.getStep3RequirementState(
-        "support_record",
-        mappings
+
+    const profile =
+        profiles.getDocumentTypeProfile(
+            "support_record"
+        );
+
+    assert.equal(
+        profile.type,
+        "support_record"
     );
-    assert.equal(result.status, "ready");
+
+    assert.equal(
+        profile.step3Supported,
+        true
+    );
+
+    assert.equal(
+        Object.prototype.hasOwnProperty.call(
+            profile,
+            "requiredMeanings"
+        ),
+        false
+    );
+
+    assert.equal(
+        Object.prototype.hasOwnProperty.call(
+            profile,
+            "sourceRecordIdentityRequired"
+        ),
+        false
+    );
 });
 
-test("未実装種別を支援記録として通さない", () => {
+
+test("recipient_certificate はSTEP3対応データ種別として定義される", () => {
     const profiles = loadProfiles();
-    const result = profiles.getStep3RequirementState(
-        "individual_support_plan",
-        []
+
+    const profile =
+        profiles.getDocumentTypeProfile(
+            "recipient_certificate"
+        );
+
+    assert.equal(
+        profile.step3Supported,
+        true
     );
-    assert.equal(result.status, "document_type_not_supported");
+});
+
+
+test("未実装種別はSTEP3非対応として定義される", () => {
+    const profiles = loadProfiles();
+
+    const profile =
+        profiles.getDocumentTypeProfile(
+            "individual_support_plan"
+        );
+
+    assert.equal(
+        profile.step3Supported,
+        false
+    );
 });
 
 

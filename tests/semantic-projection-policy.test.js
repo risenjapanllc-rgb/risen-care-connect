@@ -6,7 +6,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function loadPolicy() {
+function loadPolicy({
+    loadAuthority = true
+} = {}) {
     const source = fs.readFileSync(
         path.join(
             __dirname,
@@ -30,9 +32,113 @@ function loadPolicy() {
         }
     );
 
-    return context.window
-        .RisenSemanticProjectionPolicy;
+    const policy =
+        context.window
+            .RisenSemanticProjectionPolicy;
+
+    if (loadAuthority) {
+        policy.setSemanticProjectionContracts(
+            [
+                {
+                    semanticType:
+                        "recipient_certificate",
+                    sourceRecordIdentityRequired:
+                        false,
+                    requiredSemanticTargets: [
+                        "user.name",
+                        "recipient_certificate.certificate_number"
+                    ]
+                },
+                {
+                    semanticType:
+                        "support_record",
+                    sourceRecordIdentityRequired:
+                        true,
+                    requiredSemanticTargets: [
+                        "user.name",
+                        "support_record.record_date",
+                        "support_record.record_content"
+                    ]
+                }
+            ],
+            [
+                {
+                    entity_name: "user",
+                    field_name: "name",
+                    display_name: "利用者名"
+                },
+                {
+                    entity_name:
+                        "recipient_certificate",
+                    field_name:
+                        "certificate_number",
+                    display_name:
+                        "受給者証番号"
+                },
+                {
+                    entity_name:
+                        "support_record",
+                    field_name:
+                        "record_date",
+                    display_name:
+                        "記録日時"
+                },
+                {
+                    entity_name:
+                        "support_record",
+                    field_name:
+                        "record_content",
+                    display_name:
+                        "支援記録本文"
+                }
+            ]
+        );
+    }
+
+    return policy;
 }
+
+test("projection policy fails closed until Projection Authority is loaded", () => {
+    const policy = loadPolicy({
+        loadAuthority: false
+    });
+
+    assert.strictEqual(
+        policy.isSemanticProjectionContractAuthorityLoaded(),
+        false
+    );
+
+    assert.deepStrictEqual(
+        Array.from(
+            policy.getSupportedExplicitSemanticProjectionTypes()
+        ),
+        []
+    );
+
+    assert.strictEqual(
+        policy.resolveSemanticProjectionType(
+            "recipient_certificate",
+            null
+        ),
+        null
+    );
+
+    assert.strictEqual(
+        policy.resolveExplicitSemanticProjectionType(
+            "recipient_certificate"
+        ),
+        null
+    );
+
+    assert.strictEqual(
+        policy.getSemanticProjectionRequirementState(
+            "recipient_certificate",
+            []
+        ).status,
+        "semantic_projection_not_supported"
+    );
+});
+
 
 test("explicit recipient certificate projection is independent of resident master source classification", () => {
     const policy = loadPolicy();
@@ -399,7 +505,8 @@ test("internal projection resolution can enumerate only governed explicit projec
             policy.getSupportedExplicitSemanticProjectionTypes()
         ),
         [
-            "recipient_certificate"
+            "recipient_certificate",
+            "support_record"
         ]
     );
 });

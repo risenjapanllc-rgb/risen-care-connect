@@ -2190,14 +2190,21 @@ function renderConfirmation() {
                 .sourceFieldKey.trim()
         );
 
-    const confirmedDocumentTypeProfile =
-        window.RisenDocumentTypeProfiles
-            .getDocumentTypeProfile(
-                confirmedDocumentType
-            );
+    const identitySemanticProjectionType =
+        getSelectedSemanticProjectionType();
+
+    const identityProjectionRequirementState =
+        typeof identitySemanticProjectionType === "string" &&
+        identitySemanticProjectionType.length > 0
+            ? window.RisenSemanticProjectionPolicy
+                .getSemanticProjectionRequirementState(
+                    identitySemanticProjectionType,
+                    collectHumanConfirmedSemanticMappings()
+                )
+            : null;
 
     const sourceRecordIdentityRequired =
-        confirmedDocumentTypeProfile
+        identityProjectionRequirementState
             ?.sourceRecordIdentityRequired === true;
 
     const identitySection =
@@ -2586,7 +2593,7 @@ function renderConfirmation() {
     })();
 
     const availableStandardFields =
-        getAvailableStandardFields();
+        standardFields;
 
     const standardMeaningOptions =
         availableStandardFields.map(field => ({
@@ -3353,10 +3360,7 @@ function renderConfirmation() {
 
                 if (
                     !sourceFieldKey ||
-                    !standardMeaning ||
-                    !isMeaningAllowedForConfirmedDocumentType(
-                        standardMeaning
-                    )
+                    !standardMeaning
                 ) {
                     return;
                 }
@@ -3409,10 +3413,7 @@ function renderConfirmation() {
 
                 if (
                     !sourceFieldKey ||
-                    !standardMeaning ||
-                    !isMeaningAllowedForConfirmedDocumentType(
-                        standardMeaning
-                    )
+                    !standardMeaning
                 ) {
                     return;
                 }
@@ -3458,13 +3459,7 @@ function renderConfirmation() {
                     event.currentTarget.value || "";
 
                 if (
-                    !sourceFieldKey ||
-                    (
-                        standardMeaning &&
-                        !isMeaningAllowedForConfirmedDocumentType(
-                            standardMeaning
-                        )
-                    )
+                    !sourceFieldKey
                 ) {
                     return;
                 }
@@ -7520,39 +7515,76 @@ importReadyButton?.addEventListener(
         const selectedSemanticProjectionType =
             getSelectedSemanticProjectionType();
 
+        const confirmedDocumentTypeProfile =
+            window.RisenDocumentTypeProfiles
+                .getDocumentTypeProfile(
+                    confirmedDocumentType
+                );
+
+        const documentTypeSupportsStep3 =
+            confirmedDocumentTypeProfile
+                ?.step3Supported === true;
+
         const usesSemanticProjectionRequirement =
-            confirmedDocumentType ===
-                "resident_master" &&
             typeof selectedSemanticProjectionType ===
                 "string" &&
-            selectedSemanticProjectionType.length > 0;
+            selectedSemanticProjectionType.length > 0 &&
+            (
+                documentTypeSupportsStep3 ||
+                confirmedDocumentType ===
+                    "resident_master"
+            );
 
-        const step3RequirementState =
-            usesSemanticProjectionRequirement
-                ? window.RisenSemanticProjectionPolicy
+        let step3RequirementState;
+
+        if (!confirmedDocumentTypeProfile) {
+            step3RequirementState = {
+                status:
+                    "document_type_unresolved",
+                profile: null,
+                missingRequiredMeanings: []
+            };
+        } else if (
+            !documentTypeSupportsStep3 &&
+            confirmedDocumentType !==
+                "resident_master"
+        ) {
+            step3RequirementState = {
+                status:
+                    "document_type_not_supported",
+                profile:
+                    confirmedDocumentTypeProfile,
+                missingRequiredMeanings: []
+            };
+        } else if (
+            !usesSemanticProjectionRequirement
+        ) {
+            step3RequirementState = {
+                status:
+                    "semantic_projection_not_supported",
+                semanticType:
+                    selectedSemanticProjectionType,
+                missingRequiredMeanings: []
+            };
+        } else {
+            step3RequirementState =
+                window.RisenSemanticProjectionPolicy
                     .getSemanticProjectionRequirementState(
                         selectedSemanticProjectionType,
                         mappings
-                    )
-                : window.RisenDocumentTypeProfiles
-                    .getStep3RequirementState(
-                        confirmedDocumentType,
-                        mappings
                     );
+        }
 
-        if (
-            selectedSemanticProjectionType ===
-                "recipient_certificate"
-        ) {
+        if (usesSemanticProjectionRequirement) {
             const runtimeCompatibility =
                 evaluateLocalConnectorOperationCapability(
-                    getSelectedSemanticProjectionType(),
+                    selectedSemanticProjectionType,
                     "semantic_contract"
                 );
 
             if (!runtimeCompatibility.supported) {
                 setStatus(
-                    "現在のLocal Connector実行環境では、受給者証の意味契約を確認できません。Local Connectorの状態を確認してください。",
+                    "現在のLocal Connector実行環境では、意味契約を確認できません。Local Connectorの状態を確認してください。",
                     "error"
                 );
 
@@ -7614,12 +7646,8 @@ importReadyButton?.addEventListener(
         }
 
         const sourceRecordIdentityRequired =
-            usesSemanticProjectionRequirement
-                ? step3RequirementState
-                    .sourceRecordIdentityRequired === true
-                : step3RequirementState
-                    .profile
-                    ?.sourceRecordIdentityRequired === true;
+            step3RequirementState
+                .sourceRecordIdentityRequired === true;
 
         if (
             sourceRecordIdentityRequired &&

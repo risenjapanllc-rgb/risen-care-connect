@@ -15,22 +15,6 @@ const browserSource = fs.readFileSync(
     "utf8"
 );
 
-test(
-    "recipient certificate semantic contract is loaded from the Local Connector API boundary",
-    () => {
-        assert.match(
-            browserSource,
-            /fetch\(\s*`\$\{LOCAL_CONNECTOR_BASE\}\/semantic-contracts\/recipient-certificate`\s*\)/,
-            [
-                "The browser must load the recipient certificate semantic contract",
-                "from LOCAL_CONNECTOR_BASE.",
-                "A relative URL would incorrectly target the web UI origin",
-                "instead of the Local Connector."
-            ].join(" ")
-        );
-    }
-);
-
 const browserHtml = fs.readFileSync(
     path.join(
         __dirname,
@@ -38,6 +22,31 @@ const browserHtml = fs.readFileSync(
         "local-connector.html"
     ),
     "utf8"
+);
+
+test(
+    "semantic targets are loaded generically from the Local Connector API boundary",
+    () => {
+        assert.match(
+            browserSource,
+            /async function loadSemanticTargets\(\s*semanticType\s*\)/
+        );
+
+        assert.match(
+            browserSource,
+            /`\$\{LOCAL_CONNECTOR_BASE\}\/semantic-contracts\/\$\{encodeURIComponent\(normalizedSemanticType\)\}`/,
+            [
+                "Semantic target Authority must be loaded generically",
+                "from LOCAL_CONNECTOR_BASE for the selected semantic type."
+            ].join(" ")
+        );
+
+        assert.doesNotMatch(
+            browserSource,
+            /semantic-contracts\/recipient_certificate/,
+            "The browser must not hard-code recipient_certificate as the Semantic Contract endpoint."
+        );
+    }
 );
 
 test(
@@ -88,29 +97,58 @@ test(
 );
 
 test(
-    "recipient certificate semantic targets start as unconfirmed rather than an empty contract",
+    "semantic target cache distinguishes unconfirmed authority from a confirmed empty contract",
     () => {
         assert.match(
             browserSource,
-            /let\s+recipientCertificateSemanticTargets\s*=\s*null\s*;/,
+            /const\s+semanticTargetsByType\s*=\s*new Map\(\)\s*;/,
+            "Semantic target Authority must start without a loaded contract."
+        );
+
+        assert.match(
+            browserSource,
+            /const targets\s*=\s*semanticTargetsByType\.get\(\s*normalizedSemanticType\s*\)\s*;/,
+            "Semantic targets must be read from the per-type Authority cache."
+        );
+
+        assert.match(
+            browserSource,
+            /return Array\.isArray\(targets\)\s*\?\s*\[\.\.\.targets\]\s*:\s*null\s*;/,
             [
-                "Unconfirmed semantic contract state must be null.",
-                "An empty array is reserved for a successfully loaded",
-                "contract that actually contains no targets."
+                "An unloaded Semantic Contract must remain null.",
+                "A successfully loaded empty contract may remain an empty array."
             ].join(" ")
         );
     }
 );
 
 test(
-    "semantic contract load failure is not converted into an empty business contract",
+    "semantic contract failure preserves an unconfirmed authority state",
     () => {
         assert.doesNotMatch(
             browserSource,
-            /catch\s*\(\s*error\s*\)\s*\{\s*recipientCertificateSemanticTargets\s*=\s*\[\s*\]/,
+            /semanticTargetsByType\.set\([^)]*,\s*\[\s*\]\s*\)/,
             [
                 "Infrastructure or API failure must not be represented",
-                "as an empty recipient certificate semantic contract."
+                "as a successfully loaded empty Semantic Contract."
+            ].join(" ")
+        );
+
+        assert.match(
+            browserSource,
+            /if\s*\(\s*!compatibility\.supported\s*\)\s*\{[\s\S]*?semanticTargetsByType\.delete\(\s*semanticType\s*\)/,
+            [
+                "When Semantic Contract capability is unavailable,",
+                "the per-type Authority cache must be invalidated."
+            ].join(" ")
+        );
+
+        assert.match(
+            browserSource,
+            /return Array\.isArray\(targets\)\s*\?\s*\[\.\.\.targets\]\s*:\s*null\s*;/,
+            [
+                "An unconfirmed Semantic Contract must remain null",
+                "instead of being converted into an empty contract."
             ].join(" ")
         );
     }
@@ -132,15 +170,15 @@ test(
 );
 
 test(
-    "browser evaluates recipient certificate semantic contract capability before STEP3 progression",
+    "browser evaluates semantic contract capability for governed STEP3 projections",
     () => {
         assert.match(
             browserSource,
-            /evaluateLocalConnectorOperationCapability\(\s*getSelectedSemanticProjectionType\(\)\s*,\s*"semantic_contract"\s*\)/,
+            /if\s*\(\s*usesSemanticProjectionRequirement\s*\)\s*\{[\s\S]*?evaluateLocalConnectorOperationCapability\(\s*selectedSemanticProjectionType\s*,\s*"semantic_contract"\s*\)/,
             [
-                "Explicit recipient certificate STEP3 progression must",
-                "require the semantic_contract runtime capability.",
-                "Semantic mapping readiness alone is insufficient."
+                "Every governed STEP3 Semantic Projection must require",
+                "the semantic_contract runtime capability.",
+                "The check must not be recipient-certificate specific."
             ].join(" ")
         );
     }
@@ -578,6 +616,94 @@ test(
         assert.match(
             source,
             /executionSemanticType\s*===\s*"recipient_certificate"[\s\S]*?payload\.semanticType\s*=\s*executionSemanticType/
+        );
+    }
+);
+
+test(
+    "STEP3 semantic suggestions remain projection-independent while confirmation stays contract-governed",
+    () => {
+        const start =
+            browserSource.indexOf(
+                "function renderConfirmation()"
+            );
+
+        const end =
+            browserSource.indexOf(
+                "function collectHumanConfirmedSemanticMappings()",
+                start
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        assert.ok(
+            end > start
+        );
+
+        const source =
+            browserSource.slice(
+                start,
+                end
+            );
+
+        assert.match(
+            source,
+            /const availableStandardFields\s*=\s*standardFields\s*;/
+        );
+
+        assert.doesNotMatch(
+            source,
+            /const availableStandardFields\s*=\s*getAvailableStandardFields\(\)/
+        );
+
+        assert.match(
+            source,
+            /isMeaningAllowedForConfirmedDocumentType/
+        );
+    }
+);
+
+
+test(
+    "STEP3 human semantic confirmation remains projection-independent while execution stays contract-governed",
+    () => {
+        const start =
+            browserSource.indexOf(
+                '".source-field-confirm-suggestion"'
+            );
+
+        const end =
+            browserSource.indexOf(
+                "function collectHumanConfirmedSemanticMappings()",
+                start
+            );
+
+        assert.notStrictEqual(
+            start,
+            -1
+        );
+
+        assert.ok(
+            end > start
+        );
+
+        const source =
+            browserSource.slice(
+                start,
+                end
+            );
+
+        assert.doesNotMatch(
+            source,
+            /!isMeaningAllowedForConfirmedDocumentType\(\s*standardMeaning\s*\)/
+        );
+
+        assert.match(
+            browserSource,
+            /isMeaningAllowedForConfirmedDocumentType/
         );
     }
 );

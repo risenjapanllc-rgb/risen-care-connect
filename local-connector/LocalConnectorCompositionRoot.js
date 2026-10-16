@@ -446,11 +446,28 @@ async function listSemanticProjectionContracts({
     timeoutMs = 60000,
     fetchImpl = globalThis.fetch
 } = {}) {
+    const createAuthorityUnavailableError = (
+        cause = null
+    ) => {
+        const error = new Error(
+            "Semantic projection contract authority is unavailable"
+        );
+
+        error.code =
+            "semantic_projection_contracts_unavailable";
+
+        if (cause) {
+            error.cause = cause;
+        }
+
+        return error;
+    };
+
     if (
         typeof serverTrustBoundaryEndpoint !== "string" ||
         !serverTrustBoundaryEndpoint.trim()
     ) {
-        return [];
+        throw createAuthorityUnavailableError();
     }
 
     try {
@@ -474,7 +491,7 @@ async function listSemanticProjectionContracts({
             result?.status !== "found" ||
             !Array.isArray(result.contracts)
         ) {
-            return [];
+            throw createAuthorityUnavailableError();
         }
 
         const contracts = [];
@@ -499,7 +516,7 @@ async function listSemanticProjectionContracts({
                     requiredSemanticTargets
                 )
             ) {
-                return [];
+                throw createAuthorityUnavailableError();
             }
 
             const normalizedTargets = [];
@@ -512,7 +529,7 @@ async function listSemanticProjectionContracts({
                     typeof target !== "string" ||
                     !target.trim()
                 ) {
-                    return [];
+                    throw createAuthorityUnavailableError();
                 }
 
                 normalizedTargets.push(
@@ -542,15 +559,24 @@ async function listSemanticProjectionContracts({
             new Set(semanticTypes).size !==
                 semanticTypes.length
         ) {
-            return [];
+            throw createAuthorityUnavailableError();
         }
 
         return contracts;
-    } catch {
-        return [];
+    } catch (error) {
+        if (
+            error &&
+            error.code ===
+                "semantic_projection_contracts_unavailable"
+        ) {
+            throw error;
+        }
+
+        throw createAuthorityUnavailableError(
+            error
+        );
     }
 }
-
 
 async function createSourceFieldInterpretationIngestionService({
     databasePath,

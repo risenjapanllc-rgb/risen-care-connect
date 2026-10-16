@@ -393,7 +393,14 @@ async function listDocumentSemanticTargets({
             result?.status !== "found" ||
             !Array.isArray(result.targets)
         ) {
-            return [];
+            const error = new Error(
+                "Document semantic target authority returned invalid result"
+            );
+
+            error.code =
+                "document_semantic_targets_unavailable";
+
+            throw error;
         }
 
         return [
@@ -405,8 +412,26 @@ async function listDocumentSemanticTargets({
                 )
             )
         ];
-    } catch {
-        return [];
+    } catch (error) {
+        if (
+            error &&
+            error.code ===
+                "document_semantic_targets_unavailable"
+        ) {
+            throw error;
+        }
+
+        const authorityError = new Error(
+            "Document semantic target authority is unavailable"
+        );
+
+        authorityError.code =
+            "document_semantic_targets_unavailable";
+
+        authorityError.cause =
+            error;
+
+        throw authorityError;
     }
 }
 

@@ -908,32 +908,42 @@ app.get(
             });
         }
 
-        const additionalSupportedSemanticTargets =
-            await LocalConnectorCompositionRoot
-                .listDocumentSemanticTargets({
-                    serverTrustBoundaryEndpoint:
-                        process.env
-                            .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+        let additionalSupportedSemanticTargets;
 
-                    semanticType,
+        try {
+            additionalSupportedSemanticTargets =
+                await LocalConnectorCompositionRoot
+                    .listDocumentSemanticTargets({
+                        serverTrustBoundaryEndpoint:
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
 
-                    credential:
-                        await connectorCredentialProvider
-                            .getCredential(),
+                        semanticType,
 
-                    authorizationScheme:
-                        process.env
-                            .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
-                        "RISEN-Connector",
+                        credential:
+                            await connectorCredentialProvider
+                                .getCredential(),
 
-                    connectorIdHeader:
-                        process.env
-                            .RISEN_CONNECTOR_ID_HEADER ||
-                        "x-risen-connector-id",
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
 
-                    timeoutMs:
-                        60000
-                });
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id",
+
+                        timeoutMs:
+                            60000
+                    });
+        } catch {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "document_semantic_targets_unavailable"
+            });
+        }
 
         const supportedSemanticTargets =
             semanticType ===

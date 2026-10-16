@@ -51,6 +51,121 @@ const connectorActivationHandoffRepository =
     });
 
 
+async function verifyRisenAdminRequest(req) {
+    const authorization =
+        String(
+            req.headers.authorization || ""
+        ).trim();
+
+    const match =
+        authorization.match(
+            /^Bearer\s+(.+)$/i
+        );
+
+    if (!match) {
+        return {
+            status:
+                "unauthenticated"
+        };
+    }
+
+    const accessToken =
+        String(match[1] || "").trim();
+
+    const supabaseUrl =
+        String(
+            process.env.SUPABASE_URL || ""
+        )
+            .trim()
+            .replace(/\/$/, "");
+
+    const publishableKey =
+        String(
+            process.env.SUPABASE_PUBLISHABLE_KEY || ""
+        ).trim();
+
+    if (
+        !supabaseUrl ||
+        !publishableKey
+    ) {
+        return {
+            status:
+                "configuration_error"
+        };
+    }
+
+    let response;
+
+    try {
+        response =
+            await fetch(
+                `${supabaseUrl}/auth/v1/user`,
+                {
+                    method: "GET",
+                    headers: {
+                        apikey:
+                            publishableKey,
+                        Authorization:
+                            `Bearer ${accessToken}`
+                    }
+                }
+            );
+    } catch {
+        return {
+            status:
+                "verification_unavailable"
+        };
+    }
+
+    if (!response.ok) {
+        return {
+            status:
+                "unauthenticated"
+        };
+    }
+
+    let user;
+
+    try {
+        user =
+            await response.json();
+    } catch {
+        return {
+            status:
+                "verification_unavailable"
+        };
+    }
+
+    const authRole =
+        String(
+            user?.role || ""
+        ).trim();
+
+    const risenCareRole =
+        String(
+            user?.app_metadata
+                ?.risencare_role || ""
+        ).trim();
+
+    if (
+        authRole !== "authenticated" ||
+        risenCareRole !==
+            "risen_admin"
+    ) {
+        return {
+            status:
+                "forbidden"
+        };
+    }
+
+    return {
+        status:
+            "authenticated",
+        accessToken
+    };
+}
+
+
 async function verifyFacilitySystemRequest(req) {
     const authorization =
         String(
@@ -2299,6 +2414,436 @@ app.post("/api/csv/poc/process", async (req, res) => {
 // ==========================================
 // 存在しないAPI
 // ==========================================
+
+app.get(
+    "/semantic-admin.html",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "semantic-admin.html"
+            )
+        );
+    }
+);
+
+
+app.get(
+    "/js/semantic-admin.js",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "js",
+                "semantic-admin.js"
+            )
+        );
+    }
+);
+
+
+app.post(
+    "/api/admin/session",
+    async (req, res) => {
+        const supabaseUrl =
+            String(
+                process.env.SUPABASE_URL ||
+                ""
+            )
+                .trim()
+                .replace(/\/$/, "");
+
+        const publishableKey =
+            String(
+                process.env
+                    .SUPABASE_PUBLISHABLE_KEY ||
+                ""
+            ).trim();
+
+        if (
+            !supabaseUrl ||
+            !publishableKey
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_unavailable"
+            });
+        }
+
+        let response;
+
+        try {
+            response =
+                await fetch(
+                    `${supabaseUrl}/auth/v1/token?grant_type=password`,
+                    {
+                        method: "POST",
+                        headers: {
+                            apikey:
+                                publishableKey,
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                email:
+                                    req.body?.email,
+                                password:
+                                    req.body?.password
+                            })
+                    }
+                );
+        } catch {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_unavailable"
+            });
+        }
+
+        let body = {};
+
+        try {
+            body =
+                await response.json();
+        } catch {}
+
+        if (!response.ok) {
+            return res.status(401).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_required"
+            });
+        }
+
+        const accessToken =
+            typeof body?.access_token ===
+                "string"
+                ? body.access_token
+                : "";
+
+        const risenCareRole =
+            String(
+                body?.user?.app_metadata
+                    ?.risencare_role ||
+                ""
+            ).trim();
+
+        if (
+            !accessToken ||
+            risenCareRole !==
+                "risen_admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                errorCode:
+                    "risen_admin_role_required"
+            });
+        }
+
+        return res.json({
+            success: true,
+            accessToken
+        });
+    }
+);
+
+
+app.get(
+    "/api/admin/standard-meaning-candidates",
+    async (req, res) => {
+        const authentication =
+            await verifyRisenAdminRequest(
+                req
+            );
+
+        if (
+            authentication.status ===
+                "unauthenticated"
+        ) {
+            return res.status(401).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_required"
+            });
+        }
+
+        if (
+            authentication.status ===
+                "forbidden"
+        ) {
+            return res.status(403).json({
+                success: false,
+                errorCode:
+                    "risen_admin_role_required"
+            });
+        }
+
+        if (
+            authentication.status !==
+                "authenticated"
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_unavailable"
+            });
+        }
+
+        const supabaseUrl =
+            String(
+                process.env.SUPABASE_URL ||
+                ""
+            )
+                .trim()
+                .replace(/\/$/, "");
+
+        const publishableKey =
+            String(
+                process.env
+                    .SUPABASE_PUBLISHABLE_KEY ||
+                ""
+            ).trim();
+
+        const response =
+            await fetch(
+                `${supabaseUrl}/rest/v1/rpc/risen_admin_list_standard_meaning_candidates`,
+                {
+                    method: "POST",
+                    headers: {
+                        apikey:
+                            publishableKey,
+                        Authorization:
+                            `Bearer ${authentication.accessToken}`,
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({})
+                }
+            );
+
+        if (!response.ok) {
+            return res.status(
+                response.status
+            ).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_candidate_query_failed"
+            });
+        }
+
+        const rows =
+            await response.json();
+
+        return res.json({
+            success: true,
+            candidates:
+                Array.isArray(rows)
+                    ? rows.map(row => ({
+                        candidateId:
+                            row.candidate_id,
+                        facilityId:
+                            row.facility_id,
+                        connectorId:
+                            row.connector_id,
+                        templateId:
+                            row.template_id,
+                        templateFieldKey:
+                            row.template_field_key,
+                        proposedMeaning:
+                            row.proposed_meaning,
+                        evidence:
+                            row.evidence,
+                        status:
+                            row.status,
+                        acceptedMeaningId:
+                            row.accepted_meaning_id,
+                        submittedAt:
+                            row.submitted_at,
+                        acceptedAt:
+                            row.accepted_at
+                    }))
+                    : []
+        });
+    }
+);
+
+
+app.post(
+    "/api/admin/standard-meaning-candidates/:candidateId/accept",
+    async (req, res) => {
+        const authentication =
+            await verifyRisenAdminRequest(
+                req
+            );
+
+        if (
+            authentication.status ===
+                "unauthenticated"
+        ) {
+            return res.status(401).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_required"
+            });
+        }
+
+        if (
+            authentication.status ===
+                "forbidden"
+        ) {
+            return res.status(403).json({
+                success: false,
+                errorCode:
+                    "risen_admin_role_required"
+            });
+        }
+
+        if (
+            authentication.status !==
+                "authenticated"
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_unavailable"
+            });
+        }
+
+        const candidateId =
+            String(
+                req.params?.candidateId ||
+                ""
+            ).trim();
+
+        const entityName =
+            String(
+                req.body?.entityName || ""
+            ).trim();
+
+        const fieldName =
+            String(
+                req.body?.fieldName || ""
+            ).trim();
+
+        const displayName =
+            String(
+                req.body?.displayName || ""
+            ).trim();
+
+        const semanticType =
+            String(
+                req.body?.semanticType || ""
+            ).trim();
+
+        const synonyms =
+            Array.isArray(
+                req.body?.synonyms
+            )
+                ? req.body.synonyms
+                    .filter(
+                        value =>
+                            typeof value ===
+                                "string"
+                    )
+                    .map(
+                        value =>
+                            value.trim()
+                    )
+                    .filter(Boolean)
+                : [];
+
+        if (
+            !candidateId ||
+            !entityName ||
+            !fieldName ||
+            !displayName ||
+            !semanticType
+        ) {
+            return res.status(422).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_acceptance_invalid"
+            });
+        }
+
+        const supabaseUrl =
+            String(
+                process.env.SUPABASE_URL ||
+                ""
+            )
+                .trim()
+                .replace(/\/$/, "");
+
+        const publishableKey =
+            String(
+                process.env
+                    .SUPABASE_PUBLISHABLE_KEY ||
+                ""
+            ).trim();
+
+        const response =
+            await fetch(
+                `${supabaseUrl}/rest/v1/rpc/risen_admin_accept_standard_meaning_candidate`,
+                {
+                    method: "POST",
+                    headers: {
+                        apikey:
+                            publishableKey,
+                        Authorization:
+                            `Bearer ${authentication.accessToken}`,
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify({
+                            p_candidate_id:
+                                candidateId,
+                            p_entity_name:
+                                entityName,
+                            p_field_name:
+                                fieldName,
+                            p_display_name:
+                                displayName,
+                            p_synonyms:
+                                synonyms,
+                            p_semantic_type:
+                                semanticType
+                        })
+                }
+            );
+
+        if (!response.ok) {
+            return res.status(
+                response.status
+            ).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_acceptance_failed"
+            });
+        }
+
+        const rows =
+            await response.json();
+
+        const row =
+            Array.isArray(rows)
+                ? rows[0]
+                : rows;
+
+        return res.json({
+            success: true,
+            status:
+                row?.status || null,
+            meaningId:
+                row?.meaning_id || null
+        });
+    }
+);
+
+
 
 app.use("/api", (req, res) => {
     return res.status(404).json({

@@ -410,6 +410,123 @@ async function listDocumentSemanticTargets({
     }
 }
 
+async function listSemanticProjectionContracts({
+    databasePath,
+    configPath,
+    serverTrustBoundaryEndpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    timeoutMs = 60000,
+    fetchImpl = globalThis.fetch
+} = {}) {
+    if (
+        typeof serverTrustBoundaryEndpoint !== "string" ||
+        !serverTrustBoundaryEndpoint.trim()
+    ) {
+        return [];
+    }
+
+    try {
+        const semanticRegistrationClient =
+            await createSemanticRegistrationClient({
+                databasePath,
+                configPath,
+                serverTrustBoundaryEndpoint,
+                credential,
+                authorizationScheme,
+                connectorIdHeader,
+                timeoutMs,
+                fetchImpl
+            });
+
+        const result =
+            await semanticRegistrationClient
+                .listSemanticProjectionContracts();
+
+        if (
+            result?.status !== "found" ||
+            !Array.isArray(result.contracts)
+        ) {
+            return [];
+        }
+
+        const contracts = [];
+
+        for (const contract of result.contracts) {
+            const semanticType =
+                typeof contract?.semanticType === "string"
+                    ? contract.semanticType.trim()
+                    : "";
+
+            const sourceRecordIdentityRequired =
+                contract?.sourceRecordIdentityRequired;
+
+            const requiredSemanticTargets =
+                contract?.requiredSemanticTargets;
+
+            if (
+                !semanticType ||
+                typeof sourceRecordIdentityRequired !==
+                    "boolean" ||
+                !Array.isArray(
+                    requiredSemanticTargets
+                )
+            ) {
+                return [];
+            }
+
+            const normalizedTargets = [];
+
+            for (
+                const target
+                of requiredSemanticTargets
+            ) {
+                if (
+                    typeof target !== "string" ||
+                    !target.trim()
+                ) {
+                    return [];
+                }
+
+                normalizedTargets.push(
+                    target.trim()
+                );
+            }
+
+            contracts.push({
+                semanticType,
+                sourceRecordIdentityRequired,
+                requiredSemanticTargets:
+                    Array.from(
+                        new Set(
+                            normalizedTargets
+                        )
+                    )
+            });
+        }
+
+        const semanticTypes =
+            contracts.map(
+                contract =>
+                    contract.semanticType
+            );
+
+        if (
+            new Set(semanticTypes).size !==
+                semanticTypes.length
+        ) {
+            return [];
+        }
+
+        return contracts;
+    } catch {
+        return [];
+    }
+}
+
+
 async function createSourceFieldInterpretationIngestionService({
     databasePath,
     configPath,
@@ -1381,6 +1498,7 @@ module.exports = {
     createSourceFieldMappingIngestionService,
     createSemanticRegistrationClient,
     listDocumentSemanticTargets,
+    listSemanticProjectionContracts,
     createSourceFieldInterpretationIngestionService,
     createResidentCandidateService,
     createSourceResidentCandidateResolver,

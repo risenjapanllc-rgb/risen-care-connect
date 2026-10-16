@@ -368,6 +368,13 @@ class SemanticRegistrationHttpClient {
         });
     }
 
+    listSemanticProjectionContracts() {
+        return this.get({
+            pathname:
+                "/connector/semantic-projection-contracts"
+        });
+    }
+
     bindDocument(
         sourceDocumentTemplateBinding
     ) {

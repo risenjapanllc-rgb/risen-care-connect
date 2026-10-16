@@ -847,6 +847,50 @@ app.use(express.json({
 }));
 
 app.get(
+    "/semantic-projection-contracts",
+    async (req, res) => {
+        try {
+            const contracts =
+                await LocalConnectorCompositionRoot
+                    .listSemanticProjectionContracts({
+                        serverTrustBoundaryEndpoint:
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+
+                        credential:
+                            await connectorCredentialProvider
+                                .getCredential(),
+
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id",
+
+                        timeoutMs:
+                            60000
+                    });
+
+            return res.status(200).json({
+                success: true,
+                contracts
+            });
+        } catch {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "semantic_projection_contracts_unavailable"
+            });
+        }
+    }
+);
+
+
+app.get(
     "/semantic-contracts/:semanticType",
     async (req, res) => {
         const semanticType =

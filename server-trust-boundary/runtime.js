@@ -102,6 +102,12 @@ const SupabaseDocumentSemanticTargetQueryRepository =
 const DocumentSemanticTargetQueryService =
     require("./DocumentSemanticTargetQueryService");
 
+const SupabaseSemanticProjectionContractQueryRepository =
+    require("./SupabaseSemanticProjectionContractQueryRepository");
+
+const SemanticProjectionContractQueryService =
+    require("./SemanticProjectionContractQueryService");
+
 const SourceDocumentTemplateBindingPayloadValidator =
     require("./SourceDocumentTemplateBindingPayloadValidator");
 
@@ -696,6 +702,20 @@ function createServerTrustBoundaryRuntime({
                 documentSemanticTargetQueryRepository
         });
 
+    const semanticProjectionContractQueryRepository =
+        new SupabaseSemanticProjectionContractQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const semanticProjectionContractQueryService =
+        new SemanticProjectionContractQueryService({
+            connectorTrustService,
+            queryRepository:
+                semanticProjectionContractQueryRepository
+        });
+
     const sourceDocumentTemplateBindingPayloadValidator =
         new SourceDocumentTemplateBindingPayloadValidator();
 
@@ -1109,6 +1129,7 @@ function createServerTrustBoundaryRuntime({
         sourceTemplateSemanticAuthorityIngestionService,
         standardMeaningCandidateIngestionService,
         documentSemanticTargetQueryService,
+        semanticProjectionContractQueryService,
         sourceDocumentTemplateBindingIngestionService,
         sourceFieldInterpretationIngestionService,
         sourceFieldInterpretationQueryService,

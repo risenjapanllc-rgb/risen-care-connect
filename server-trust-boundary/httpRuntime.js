@@ -61,6 +61,12 @@ const DocumentSemanticTargetHttpAdapter =
 const DocumentSemanticTargetTransport =
     require("./DocumentSemanticTargetTransport");
 
+const SemanticProjectionContractHttpAdapter =
+    require("./SemanticProjectionContractHttpAdapter");
+
+const SemanticProjectionContractTransport =
+    require("./SemanticProjectionContractTransport");
+
 const SourceDocumentTemplateBindingHttpAdapter =
     require("./SourceDocumentTemplateBindingHttpAdapter");
 
@@ -428,6 +434,21 @@ function createServerTrustBoundaryHttpRuntime({
         new DocumentSemanticTargetTransport({
             httpAdapter:
                 documentSemanticTargetHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const semanticProjectionContractHttpAdapter =
+        new SemanticProjectionContractHttpAdapter({
+            queryService:
+                coreRuntime
+                    .semanticProjectionContractQueryService
+        });
+
+    const semanticProjectionContractTransport =
+        new SemanticProjectionContractTransport({
+            httpAdapter:
+                semanticProjectionContractHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -965,6 +986,9 @@ function createServerTrustBoundaryHttpRuntime({
             documentSemanticTargetTransport,
             documentSemanticTargetEndpointPath:
                 "/connector/document-semantic-targets",
+            semanticProjectionContractTransport,
+            semanticProjectionContractEndpointPath:
+                "/connector/semantic-projection-contracts",
             sourceDocumentTemplateBindingTransport,
             sourceDocumentTemplateBindingEndpointPath:
                 "/connector/source-document-template-bindings",

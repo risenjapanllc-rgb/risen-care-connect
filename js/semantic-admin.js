@@ -92,8 +92,27 @@
 
         passwordInput.value = "";
 
+        const emailLabel =
+            emailInput.closest("label");
+
+        const passwordLabel =
+            passwordInput.closest("label");
+
+        if (emailLabel) {
+            emailLabel.hidden =
+                true;
+        }
+
+        if (passwordLabel) {
+            passwordLabel.hidden =
+                true;
+        }
+
+        loginButton.hidden =
+            true;
+
         setLoginStatus(
-            "ログインしました"
+            "Semantic管理者としてログイン中"
         );
 
         candidateSection.hidden =
@@ -138,14 +157,160 @@
 
         candidateList.replaceChildren();
 
+        const pendingCandidates =
+            body.candidates.filter(
+                candidate =>
+                    candidate.status ===
+                        "submitted"
+            );
+
+        const acceptedCandidates =
+            body.candidates.filter(
+                candidate =>
+                    candidate.status ===
+                        "accepted"
+            );
+
+        const otherCandidates =
+            body.candidates.filter(
+                candidate =>
+                    candidate.status !==
+                        "submitted" &&
+                    candidate.status !==
+                        "accepted"
+            );
+
+        const pendingHeader =
+            document.createElement(
+                "div"
+            );
+
+        pendingHeader.className =
+            "review-queue-header";
+
+        const pendingTitle =
+            document.createElement(
+                "h3"
+            );
+
+        pendingTitle.textContent =
+            `審査待ち ${pendingCandidates.length}件`;
+
+        pendingHeader.append(
+            pendingTitle
+        );
+
+        candidateList.append(
+            pendingHeader
+        );
+
+        if (
+            pendingCandidates.length === 0
+        ) {
+            const empty =
+                document.createElement(
+                    "p"
+                );
+
+            empty.className =
+                "review-empty";
+
+            empty.textContent =
+                "現在、審査待ちのMeaningはありません。";
+
+            candidateList.append(
+                empty
+            );
+        } else {
+            for (
+                const candidate
+                of pendingCandidates
+            ) {
+                candidateList.appendChild(
+                    createCandidateCard(
+                        candidate
+                    )
+                );
+            }
+        }
+
+        const acceptedDetails =
+            document.createElement(
+                "details"
+            );
+
+        acceptedDetails.className =
+            "accepted-history";
+
+        const acceptedSummary =
+            document.createElement(
+                "summary"
+            );
+
+        acceptedSummary.textContent =
+            `承認済み履歴 ${acceptedCandidates.length}件`;
+
+        acceptedDetails.append(
+            acceptedSummary
+        );
+
+        const acceptedList =
+            document.createElement(
+                "div"
+            );
+
         for (
             const candidate
-            of body.candidates
+            of acceptedCandidates
         ) {
-            candidateList.appendChild(
+            acceptedList.appendChild(
                 createCandidateCard(
                     candidate
                 )
+            );
+        }
+
+        acceptedDetails.append(
+            acceptedList
+        );
+
+        candidateList.append(
+            acceptedDetails
+        );
+
+        if (
+            otherCandidates.length > 0
+        ) {
+            const otherDetails =
+                document.createElement(
+                    "details"
+                );
+
+            const otherSummary =
+                document.createElement(
+                    "summary"
+                );
+
+            otherSummary.textContent =
+                `その他 ${otherCandidates.length}件`;
+
+            otherDetails.append(
+                otherSummary
+            );
+
+            for (
+                const candidate
+                of otherCandidates
+            ) {
+                otherDetails.appendChild(
+                    createCandidateCard(
+                        candidate
+                    )
+                );
+            }
+
+            candidateList.append(
+                otherDetails
             );
         }
     }
@@ -212,7 +377,11 @@
             );
 
         status.textContent =
-            `status: ${candidate.status}`;
+            candidate.status === "submitted"
+                ? "審査待ち"
+                : candidate.status === "accepted"
+                    ? "承認済み"
+                    : `状態: ${candidate.status}`;
 
         article.append(
             heading,
@@ -255,11 +424,14 @@
 
         const proposalStatus =
             document.createElement(
-                "p"
+                "div"
             );
 
+        proposalStatus.className =
+            "meaning-review-note";
+
         proposalStatus.textContent =
-            "AI提案を生成中...";
+            "AIがMeaning候補を整理しています...";
 
         async function loadAiProposal() {
             try {
@@ -338,28 +510,52 @@
                             ? proposal.synonyms.join(",")
                             : "";
 
+                    const confidenceLabel =
+                        confidence === "high"
+                            ? "高"
+                            : confidence === "medium"
+                                ? "中"
+                                : "低";
+
+                    const decisionLabel =
+                        mode === "existing"
+                            ? "既存Meaningを利用"
+                            : "新しいMeaningを提案";
+
+                    const displayName =
+                        String(
+                            proposal.displayName || ""
+                        ).trim();
+
                     proposalStatus.textContent =
-                        `AI提案: ${
-                            mode === "existing"
-                                ? "既存Meaningを利用"
-                                : "新しいMeaningを提案"
-                        } / 信頼度: ${
-                            confidence || "low"
-                        }${
+                        [
+                            `AI判断：${decisionLabel}`,
+                            displayName
+                                ? `Meaning候補：${displayName}`
+                                : "",
+                            `信頼度：${confidenceLabel}`,
                             reason
-                                ? ` / ${reason}`
+                                ? `判断理由：${reason}`
                                 : ""
-                        }`;
+                        ]
+                            .filter(Boolean)
+                            .join("\n");
+
+                    proposalStatus.style.whiteSpace =
+                        "pre-line";
 
                     return;
                 }
 
                 proposalStatus.textContent =
-                    `AI判断保留${
+                    `AI判断：保留${
                         reason
-                            ? `: ${reason}`
+                            ? `\n判断理由：${reason}`
                             : ""
                     }`;
+
+                proposalStatus.style.whiteSpace =
+                    "pre-line";
             } catch {
                 proposalStatus.textContent =
                     "AI提案を取得できません";
@@ -372,7 +568,7 @@
             );
 
         button.textContent =
-            "正式Meaningとして承認";
+            "Meaningを承認";
 
         const result =
             document.createElement(
@@ -445,13 +641,31 @@
             }
         );
 
-        article.append(
-            proposalStatus,
+        const technicalDetails =
+            document.createElement(
+                "details"
+            );
+
+        const technicalSummary =
+            document.createElement(
+                "summary"
+            );
+
+        technicalSummary.textContent =
+            "技術情報を確認・調整";
+
+        technicalDetails.append(
+            technicalSummary,
             entity.label,
             field.label,
             display.label,
             synonyms.label,
-            semanticType.label,
+            semanticType.label
+        );
+
+        article.append(
+            proposalStatus,
+            technicalDetails,
             button,
             result
         );

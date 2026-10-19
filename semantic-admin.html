@@ -6,7 +6,7 @@
         name="viewport"
         content="width=device-width, initial-scale=1"
     >
-    <title>RISEN Semantic Admin</title>
+    <title>RISEN CARE | Semantic管理</title>
 <style>
     body {
         font-family: system-ui, sans-serif;
@@ -53,14 +53,89 @@
     h3 {
         margin-top: 0;
     }
+
+    .page-description,
+    .section-description {
+        color: #555;
+        max-width: 760px;
+    }
+
+    .section-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .section-heading button {
+        flex: 0 0 auto;
+    }
+
+    article {
+        background: #fff;
+    }
+
+    details {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #eee;
+    }
+
+    summary {
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .meaning-review-note {
+        padding: 12px 14px;
+        border-radius: 8px;
+        background: #f6f7f8;
+        margin: 12px 0;
+    }
+
+    .review-queue-header {
+        margin-top: 24px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .review-queue-header h3 {
+        margin: 0;
+    }
+
+    .review-empty {
+        color: #666;
+        padding: 18px 0 26px;
+    }
+
+    .accepted-history {
+        margin-top: 28px;
+        padding: 16px 0;
+        border-top: 1px solid #ddd;
+    }
+
+    .accepted-history > summary {
+        font-size: 1.05rem;
+        font-weight: 700;
+    }
+
+    .accepted-history article {
+        background: #fafafa;
+    }
+
 </style>
 </head>
 <body>
     <main>
-        <h1>RISEN Semantic Admin</h1>
+        <h1>Semantic管理</h1>
+        <p class="page-description">
+            RISEN CARE全体で使用するMeaningを管理します。
+            新しいMeaning候補が発生した場合に、
+            AIの判断と施設から得られた情報を確認して審査します。
+        </p>
 
         <section id="login-section">
-            <h2>管理者ログイン</h2>
+            <h2>Semantic管理ログイン</h2>
 
             <label>
                 Email
@@ -92,11 +167,19 @@
             id="candidate-section"
             hidden
         >
-            <h2>Standard Meaning Candidates</h2>
+            <div class="section-heading">
+                <div>
+                    <h2>Meaning審査</h2>
+                    <p class="section-description">
+                        新しいMeaning候補を確認します。
+                        施設職員がSemanticコードを決める必要はありません。
+                    </p>
+                </div>
 
-            <button id="reload-candidates-button">
-                再読込
-            </button>
+                <button id="reload-candidates-button">
+                    再読込
+                </button>
+            </div>
 
             <div id="candidate-list"></div>
         </section>

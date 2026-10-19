@@ -8,121 +8,468 @@
     >
     <title>RISEN CARE | Semantic管理</title>
 <style>
-    body {
-        font-family: system-ui, sans-serif;
-        max-width: 960px;
-        margin: 40px auto;
-        padding: 0 20px;
-        line-height: 1.5;
+    :root {
+        --navy-950: #0b1728;
+        --navy-900: #102238;
+        --navy-800: #18334f;
+        --blue-700: #1769aa;
+        --blue-600: #2382c4;
+        --teal-600: #0d9488;
+        --teal-500: #14b8a6;
+
+        --green-700: #15803d;
+        --green-100: #dcfce7;
+
+        --amber-700: #b45309;
+        --amber-100: #fef3c7;
+
+        --red-700: #b91c1c;
+        --red-100: #fee2e2;
+
+        --slate-900: #172033;
+        --slate-700: #46546a;
+        --slate-600: #64748b;
+        --slate-500: #8190a5;
+        --slate-300: #d7dee8;
+        --slate-200: #e7ecf2;
+        --slate-100: #f3f6f9;
+        --white: #ffffff;
+
+        --shadow-sm:
+            0 1px 2px rgba(15, 23, 42, 0.05);
+
+        --shadow-md:
+            0 10px 30px rgba(15, 35, 60, 0.08);
+
+        --shadow-lg:
+            0 22px 55px rgba(15, 35, 60, 0.12);
     }
 
-    section {
-        margin-top: 32px;
-    }
-
-    article {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 20px;
-        margin: 20px 0;
-    }
-
-    article label {
-        display: block;
-        margin: 12px 0;
-    }
-
-    article label span {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 4px;
-    }
-
-    input {
-        width: 100%;
+    * {
         box-sizing: border-box;
-        padding: 8px 10px;
     }
 
-    button {
-        margin-top: 12px;
-        padding: 8px 14px;
-        cursor: pointer;
+    body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+            Inter,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            "Hiragino Sans",
+            "Yu Gothic UI",
+            sans-serif;
+        color: var(--slate-900);
+        background:
+            radial-gradient(
+                circle at 10% 0%,
+                rgba(35, 130, 196, 0.13),
+                transparent 32rem
+            ),
+            radial-gradient(
+                circle at 100% 15%,
+                rgba(20, 184, 166, 0.10),
+                transparent 34rem
+            ),
+            #f6f8fb;
+        line-height: 1.65;
+    }
+
+    main {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 56px 0 80px;
+    }
+
+    main::before {
+        content: "RISEN CARE";
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 4px 11px;
+        margin-bottom: 14px;
+        border: 1px solid rgba(23, 105, 170, 0.18);
+        border-radius: 999px;
+        color: var(--blue-700);
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: var(--shadow-sm);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+    }
+
+    h1 {
+        margin: 0;
+        color: var(--navy-950);
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+    }
+
+    h2,
+    h3 {
+        color: var(--navy-900);
+    }
+
+    h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
     }
 
     h3 {
         margin-top: 0;
     }
 
-    .page-description,
-    .section-description {
-        color: #555;
+    .page-description {
         max-width: 760px;
+        margin: 14px 0 0;
+        color: var(--slate-600);
+        font-size: 1rem;
+    }
+
+    section {
+        margin-top: 32px;
+        padding: 28px;
+        border: 1px solid rgba(215, 222, 232, 0.9);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: var(--shadow-md);
+        backdrop-filter: blur(12px);
+    }
+
+    #login-section {
+        position: relative;
+        overflow: hidden;
+    }
+
+    #login-section::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background:
+            linear-gradient(
+                180deg,
+                var(--blue-600),
+                var(--teal-500)
+            );
+    }
+
+    #login-section > h2 {
+        margin-bottom: 18px;
+    }
+
+    #login-section label {
+        display: block;
+        margin: 14px 0;
+        color: var(--slate-700);
+        font-size: 0.9rem;
+        font-weight: 700;
+    }
+
+    input {
+        width: 100%;
+        margin-top: 6px;
+        padding: 11px 13px;
+        border: 1px solid var(--slate-300);
+        border-radius: 10px;
+        outline: none;
+        color: var(--slate-900);
+        background: var(--white);
+        font: inherit;
+        transition:
+            border-color 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    input:focus {
+        border-color: var(--blue-600);
+        box-shadow:
+            0 0 0 4px rgba(35, 130, 196, 0.11);
+    }
+
+    button {
+        appearance: none;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 17px;
+        cursor: pointer;
+        color: var(--white);
+        background:
+            linear-gradient(
+                135deg,
+                var(--blue-700),
+                var(--teal-600)
+            );
+        box-shadow:
+            0 8px 20px rgba(23, 105, 170, 0.18);
+        font: inherit;
+        font-weight: 750;
+        transition:
+            transform 0.15s ease,
+            box-shadow 0.15s ease,
+            opacity 0.15s ease;
+    }
+
+    button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow:
+            0 12px 26px rgba(23, 105, 170, 0.23);
+    }
+
+    button:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+    #login-status {
+        margin: 14px 0 0;
+        color: var(--teal-600);
+        font-size: 0.92rem;
+        font-weight: 750;
     }
 
     .section-heading {
         display: flex;
-        justify-content: space-between;
         align-items: flex-start;
-        gap: 20px;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
     }
 
-    .section-heading button {
+    .section-description {
+        max-width: 720px;
+        margin: 7px 0 0;
+        color: var(--slate-600);
+        font-size: 0.94rem;
+    }
+
+    #reload-candidates-button {
         flex: 0 0 auto;
+        margin: 0;
+        border: 1px solid var(--slate-300);
+        color: var(--navy-800);
+        background: var(--white);
+        box-shadow: var(--shadow-sm);
+    }
+
+    #reload-candidates-button:hover {
+        border-color: #b8c4d2;
+        background: var(--slate-100);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .review-queue-header {
+        display: flex;
+        align-items: center;
+        min-height: 46px;
+        margin-top: 6px;
+        padding: 0 0 12px;
+        border-bottom: 1px solid var(--slate-200);
+    }
+
+    .review-queue-header h3 {
+        position: relative;
+        margin: 0;
+        padding-left: 16px;
+        font-size: 1.05rem;
+    }
+
+    .review-queue-header h3::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #f59e0b;
+        box-shadow:
+            0 0 0 5px rgba(245, 158, 11, 0.13);
+        transform: translateY(-50%);
+    }
+
+    .review-empty {
+        margin: 0;
+        padding: 26px 18px 30px;
+        color: var(--slate-500);
+        text-align: center;
     }
 
     article {
-        background: #fff;
+        position: relative;
+        margin: 18px 0;
+        padding: 22px 22px 20px;
+        overflow: hidden;
+        border: 1px solid var(--slate-200);
+        border-radius: 16px;
+        background: var(--white);
+        box-shadow: var(--shadow-sm);
+        transition:
+            border-color 0.15s ease,
+            box-shadow 0.15s ease,
+            transform 0.15s ease;
+    }
+
+    article:hover {
+        border-color: #c9d4e1;
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+    }
+
+    article h3 {
+        margin-bottom: 10px;
+        font-size: 1.05rem;
+    }
+
+    article label {
+        display: block;
+        margin: 14px 0;
+    }
+
+    article label span {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--slate-700);
+        font-size: 0.86rem;
+        font-weight: 750;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        margin: 0 0 12px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .status-pending {
+        color: var(--amber-700);
+        background: var(--amber-100);
+    }
+
+    .status-accepted {
+        color: var(--green-700);
+        background: var(--green-100);
+    }
+
+    .status-other {
+        color: var(--slate-700);
+        background: var(--slate-100);
+    }
+
+    .meaning-review-note {
+        position: relative;
+        margin: 14px 0;
+        padding: 17px 18px 17px 20px;
+        overflow: hidden;
+        border: 1px solid rgba(23, 105, 170, 0.14);
+        border-radius: 13px;
+        color: var(--navy-800);
+        background:
+            linear-gradient(
+                135deg,
+                rgba(35, 130, 196, 0.08),
+                rgba(20, 184, 166, 0.07)
+            );
+    }
+
+    .meaning-review-note::before {
+        content: "AI";
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        padding: 3px 7px;
+        border-radius: 6px;
+        color: var(--blue-700);
+        background: rgba(255, 255, 255, 0.8);
+        font-size: 0.67rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
     }
 
     details {
         margin-top: 16px;
-        padding-top: 12px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid var(--slate-200);
     }
 
-    summary {
+    details > summary {
+        padding: 14px 0;
         cursor: pointer;
-        font-weight: 600;
+        color: var(--navy-800);
+        font-weight: 750;
+        list-style-position: outside;
     }
 
-    .meaning-review-note {
-        padding: 12px 14px;
-        border-radius: 8px;
-        background: #f6f7f8;
-        margin: 12px 0;
-    }
-
-    .review-queue-header {
-        margin-top: 24px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #ddd;
-    }
-
-    .review-queue-header h3 {
-        margin: 0;
-    }
-
-    .review-empty {
-        color: #666;
-        padding: 18px 0 26px;
+    details > summary:hover {
+        color: var(--blue-700);
     }
 
     .accepted-history {
         margin-top: 28px;
-        padding: 16px 0;
-        border-top: 1px solid #ddd;
+        padding: 0;
+        border: 1px solid var(--slate-200);
+        border-radius: 14px;
+        background: #fbfcfd;
     }
 
     .accepted-history > summary {
-        font-size: 1.05rem;
-        font-weight: 700;
+        padding: 17px 18px;
+        color: var(--green-700);
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .accepted-history > div {
+        padding: 0 14px 14px;
     }
 
     .accepted-history article {
-        background: #fafafa;
+        margin: 10px 0;
+        padding: 17px 18px;
+        border-color: #e4e9ef;
+        background: var(--white);
+        box-shadow: none;
     }
 
+    .accepted-history article:hover {
+        transform: none;
+        box-shadow: var(--shadow-sm);
+    }
+
+    @media (max-width: 720px) {
+        main {
+            width: min(100% - 24px, 1120px);
+            padding: 30px 0 50px;
+        }
+
+        section {
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .section-heading {
+            flex-direction: column;
+        }
+
+        #reload-candidates-button {
+            width: 100%;
+        }
+
+        article {
+            padding: 18px;
+        }
+    }
 </style>
 </head>
 <body>

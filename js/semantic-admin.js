@@ -383,6 +383,13 @@
                     ? "承認済み"
                     : `状態: ${candidate.status}`;
 
+        status.className =
+            candidate.status === "submitted"
+                ? "status-badge status-pending"
+                : candidate.status === "accepted"
+                    ? "status-badge status-accepted"
+                    : "status-badge status-other";
+
         article.append(
             heading,
             status

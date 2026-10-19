@@ -192,6 +192,86 @@ class StandardMeaningCandidateTransport {
             };
         }
 
+        const isClarification =
+            Boolean(
+                body &&
+                typeof body === "object" &&
+                !Array.isArray(body) &&
+                Object.keys(body).length === 1 &&
+                body
+                    .standardMeaningCandidateClarification &&
+                typeof body
+                    .standardMeaningCandidateClarification ===
+                    "object" &&
+                !Array.isArray(
+                    body
+                        .standardMeaningCandidateClarification
+                )
+            );
+
+        if (isClarification) {
+            if (
+                typeof this.httpAdapter
+                    .handleClarification !==
+                    "function"
+            ) {
+                return {
+                    httpStatus: 503,
+                    body: {
+                        requestId,
+                        errorCode:
+                            "connector_processing_unavailable"
+                    }
+                };
+            }
+
+            const clarificationResult =
+                await this.httpAdapter
+                    .handleClarification({
+                        requestId,
+
+                        connectorId:
+                            connectorId.trim(),
+
+                        credential,
+
+                        standardMeaningCandidateClarification:
+                            body
+                                .standardMeaningCandidateClarification
+                    });
+
+            if (
+                !clarificationResult ||
+                typeof clarificationResult !==
+                    "object" ||
+                !Number.isInteger(
+                    clarificationResult
+                        .statusCode
+                ) ||
+                !clarificationResult.body ||
+                typeof clarificationResult.body !==
+                    "object"
+            ) {
+                return {
+                    httpStatus: 503,
+                    body: {
+                        requestId,
+                        errorCode:
+                            "connector_processing_unavailable"
+                    }
+                };
+            }
+
+            return {
+                httpStatus:
+                    clarificationResult
+                        .statusCode,
+
+                body:
+                    clarificationResult.body
+            };
+        }
+
         if (
             !body ||
             typeof body !== "object" ||

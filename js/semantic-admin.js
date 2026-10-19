@@ -253,6 +253,119 @@
                 "semanticType"
             );
 
+        const proposalStatus =
+            document.createElement(
+                "p"
+            );
+
+        proposalStatus.textContent =
+            "AI提案を生成中...";
+
+        async function loadAiProposal() {
+            try {
+                const response =
+                    await fetch(
+                        `/api/admin/standard-meaning-candidates/${encodeURIComponent(candidate.candidateId)}/proposal`,
+                        {
+                            method:
+                                "POST",
+                            headers: {
+                                Authorization:
+                                    `Bearer ${accessToken}`
+                            }
+                        }
+                    );
+
+                const body =
+                    await response.json();
+
+                if (
+                    !response.ok ||
+                    !body?.proposal
+                ) {
+                    proposalStatus.textContent =
+                        `AI提案を取得できません: ${
+                            body?.errorCode ||
+                            "unknown"
+                        }`;
+
+                    return;
+                }
+
+                const proposal =
+                    body.proposal;
+
+                const mode =
+                    String(
+                        proposal.mode || ""
+                    ).trim();
+
+                const reason =
+                    String(
+                        proposal.reason || ""
+                    ).trim();
+
+                const confidence =
+                    String(
+                        proposal.confidence || ""
+                    ).trim();
+
+                if (
+                    typeof proposal.semanticType ===
+                        "string"
+                ) {
+                    semanticType.input.value =
+                        proposal.semanticType;
+                }
+
+                if (
+                    mode === "existing" ||
+                    mode === "new"
+                ) {
+                    entity.input.value =
+                        proposal.entityName || "";
+
+                    field.input.value =
+                        proposal.fieldName || "";
+
+                    display.input.value =
+                        proposal.displayName || "";
+
+                    synonyms.input.value =
+                        Array.isArray(
+                            proposal.synonyms
+                        )
+                            ? proposal.synonyms.join(",")
+                            : "";
+
+                    proposalStatus.textContent =
+                        `AI提案: ${
+                            mode === "existing"
+                                ? "既存Meaningを利用"
+                                : "新しいMeaningを提案"
+                        } / 信頼度: ${
+                            confidence || "low"
+                        }${
+                            reason
+                                ? ` / ${reason}`
+                                : ""
+                        }`;
+
+                    return;
+                }
+
+                proposalStatus.textContent =
+                    `AI判断保留${
+                        reason
+                            ? `: ${reason}`
+                            : ""
+                    }`;
+            } catch {
+                proposalStatus.textContent =
+                    "AI提案を取得できません";
+            }
+        }
+
         const button =
             document.createElement(
                 "button"
@@ -333,6 +446,7 @@
         );
 
         article.append(
+            proposalStatus,
             entity.label,
             field.label,
             display.label,
@@ -341,6 +455,8 @@
             button,
             result
         );
+
+        void loadAiProposal();
 
         return article;
     }

@@ -342,6 +342,21 @@ class SemanticRegistrationHttpClient {
         });
     }
 
+    clarifyStandardMeaningCandidate(
+        standardMeaningCandidateClarification
+    ) {
+        return this.post({
+            pathname:
+                "/connector/standard-meaning-candidate",
+
+            envelopeName:
+                "standardMeaningCandidateClarification",
+
+            payload:
+                standardMeaningCandidateClarification
+        });
+    }
+
     listStandardMeaningCandidates(
         templateId
     ) {
@@ -372,6 +387,36 @@ class SemanticRegistrationHttpClient {
         return this.get({
             pathname:
                 "/connector/semantic-projection-contracts"
+        });
+    }
+
+    getDocumentBinding({
+        sourceDocumentKey,
+        sourceUpdatedAt,
+        sourceSize
+    } = {}) {
+        return this.get({
+            pathname:
+                "/connector/source-document-template-bindings",
+
+            query: {
+                sourceDocumentKey:
+                    String(
+                        sourceDocumentKey || ""
+                    ),
+
+                sourceUpdatedAt:
+                    String(
+                        sourceUpdatedAt || ""
+                    ),
+
+                sourceSize:
+                    Number.isSafeInteger(
+                        sourceSize
+                    )
+                        ? String(sourceSize)
+                        : ""
+            }
         });
     }
 

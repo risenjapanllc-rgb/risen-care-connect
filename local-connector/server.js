@@ -1622,6 +1622,7 @@ function registerSemanticRegistrationProxyRoute({
                 if (
                     [
                         "created",
+                        "updated",
                         "unchanged",
                         "conflict"
                     ].includes(
@@ -1716,6 +1717,16 @@ registerSemanticRegistrationProxyRoute({
         "standardMeaningCandidate",
     clientMethod:
         "submitStandardMeaningCandidate"
+});
+
+
+registerSemanticRegistrationProxyRoute({
+    path:
+        "/standard-meaning-candidate-clarification",
+    envelopeName:
+        "standardMeaningCandidateClarification",
+    clientMethod:
+        "clarifyStandardMeaningCandidate"
 });
 
 

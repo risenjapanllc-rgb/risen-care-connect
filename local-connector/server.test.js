@@ -2,6 +2,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
+const LocalConnectorCompositionRoot =
+    require("./LocalConnectorCompositionRoot");
 const app = require("./server");
 
 test("POST /files/:fileName/observe observes a registered file", async () => {
@@ -5212,6 +5214,27 @@ test("POST /import-preview preserves unavailable processing as 503", async () =>
 });
 
 test("GET /semantic-contracts/recipient-certificate exposes governed semantic targets", async () => {
+    const original =
+        LocalConnectorCompositionRoot
+            .listDocumentSemanticTargets;
+
+    LocalConnectorCompositionRoot
+        .listDocumentSemanticTargets =
+            async ({
+                semanticType
+            } = {}) => {
+                assert.strictEqual(
+                    semanticType,
+                    "recipient_certificate"
+                );
+
+                return [
+                    "user.user_code",
+                    "recipient_certificate.certificate_number",
+                    "recipient_certificate.facility_usage_years"
+                ];
+            };
+
     const server =
         http.createServer(app);
 
@@ -5241,23 +5264,29 @@ test("GET /semantic-contracts/recipient-certificate exposes governed semantic ta
             200
         );
 
+        assert.strictEqual(
+            body.success,
+            true
+        );
+
+        assert.strictEqual(
+            body.semanticType,
+            "recipient_certificate"
+        );
+
         assert.deepStrictEqual(
-            body,
-            {
-                success: true,
-                semanticType:
-                    "recipient_certificate",
-                supportedSemanticTargets: [
-                    "user.user_code",
-                    "user.name",
-                    "user.birth_date",
-                    "user.gender",
-                    "recipient_certificate.certificate_number",
-                    "recipient_certificate.valid_until"
-                ]
-            }
+            body.supportedSemanticTargets,
+            [
+                "user.user_code",
+                "recipient_certificate.certificate_number",
+                "recipient_certificate.facility_usage_years"
+            ]
         );
     } finally {
+        LocalConnectorCompositionRoot
+            .listDocumentSemanticTargets =
+                original;
+
         await new Promise(
             resolve =>
                 server.close(resolve)

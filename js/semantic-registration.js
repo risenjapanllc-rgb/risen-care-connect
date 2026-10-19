@@ -1906,6 +1906,213 @@ function renderMeaningEditor(item) {
                     任意です。Semanticコードの入力は不要です。
                 </p>
             </div>
+
+            <div
+                class="
+                    semantic-standard-meaning-clarification
+                "
+                style="
+                    margin-top: 16px;
+                    ${
+                        semanticStandardMeaningCandidates
+                            .has(
+                                item.sourceFieldKey
+                            )
+                            ? ""
+                            : "display: none;"
+                    }
+                "
+            >
+                ${
+                    semanticStandardMeaningCandidates
+                        .get(
+                            item.sourceFieldKey
+                        )
+                        ?.evidence
+                        ?.aiReview
+                        ?.mode === "review" &&
+                    semanticStandardMeaningCandidates
+                        .get(
+                            item.sourceFieldKey
+                        )
+                        ?.evidence
+                        ?.aiReview
+                        ?.facilityQuestion
+                        ? `
+                            <div
+                                class="
+                                    semantic-standard-meaning-ai-review-question
+                                "
+                                style="
+                                    margin: 0 0 16px;
+                                    padding: 12px 14px;
+                                    max-width: 720px;
+                                    box-sizing: border-box;
+                                    background: #f7f9fc;
+                                    border-radius: 8px;
+                                "
+                            >
+                                <div
+                                    class="form-help"
+                                    style="
+                                        margin-bottom: 6px;
+                                        font-weight: 700;
+                                    "
+                                >
+                                    RISENから確認したいこと
+                                </div>
+
+                                <div>
+                                    ${escapeHtml(
+                                        semanticStandardMeaningCandidates
+                                            .get(
+                                                item.sourceFieldKey
+                                            )
+                                            ?.evidence
+                                            ?.aiReview
+                                            ?.facilityQuestion ||
+                                        ""
+                                    )}
+                                </div>
+                            </div>
+                        `
+                        : ""
+                }
+
+                <label
+                    style="
+                        display: block;
+                        margin-bottom: 6px;
+                        font-weight: 600;
+                    "
+                >
+                    ${
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.staffClarification
+                            ? "さらに補足"
+                            : "追加の補足"
+                    }
+                </label>
+
+                ${
+                    semanticStandardMeaningCandidates
+                        .get(
+                            item.sourceFieldKey
+                        )
+                        ?.evidence
+                        ?.staffClarification
+                        ? `
+                            <div
+                                class="
+                                    semantic-standard-meaning-current-clarification
+                                "
+                                style="
+                                    margin: 0 0 10px;
+                                    padding: 10px 12px;
+                                    max-width: 720px;
+                                    box-sizing: border-box;
+                                    background: #f7f9fc;
+                                    border-radius: 8px;
+                                "
+                            >
+                                <div
+                                    class="form-help"
+                                    style="
+                                        margin-bottom: 4px;
+                                        font-weight: 600;
+                                    "
+                                >
+                                    現在の補足
+                                </div>
+
+                                <div
+                                    class="
+                                        semantic-standard-meaning-current-clarification-text
+                                    "
+                                >
+                                    ${escapeHtml(
+                                        semanticStandardMeaningCandidates
+                                            .get(
+                                                item.sourceFieldKey
+                                            )
+                                            ?.evidence
+                                            ?.staffClarification ||
+                                        ""
+                                    )}
+                                </div>
+                            </div>
+                        `
+                        : ""
+                }
+
+                <input
+                    type="text"
+                    class="
+                        semantic-standard-meaning-clarification-input
+                    "
+                    placeholder="例：この項目は、この事業所の利用開始日を表します"
+                    aria-label="追加の補足"
+                    value=""
+                    style="
+                        display: block;
+                        width: 100%;
+                        max-width: 720px;
+                        box-sizing: border-box;
+                        padding: 10px 12px;
+                        min-height: 42px;
+                    "
+                >
+
+                <button
+                    type="button"
+                    class="
+                        secondary-button
+                        semantic-submit-standard-meaning-clarification-button
+                    "
+                    data-source-field-key="${escapeHtml(
+                        item.sourceFieldKey
+                    )}"
+                    style="
+                        margin-top: 8px;
+                    "
+                >
+                    ${
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.staffClarification
+                            ? "補足を更新する"
+                            : "補足をRISENへ送る"
+                    }
+                </button>
+
+                <div
+                    class="
+                        semantic-standard-meaning-clarification-status
+                    "
+                    aria-live="polite"
+                    style="
+                        margin-top: 8px;
+                        font-weight: 600;
+                    "
+                ></div>
+
+                <p
+                    class="form-help"
+                    style="
+                        margin: 6px 0 0;
+                    "
+                >
+                    分かる範囲を自然な言葉で入力してください。
+                    Semanticコード等の入力は不要です。
+                </p>
+            </div>
         </div>
     `;
 }
@@ -2041,6 +2248,16 @@ async function submitStandardMeaningCandidate(
             input.disabled = true;
         }
 
+        const clarificationEditor =
+            editor?.querySelector(
+                ".semantic-standard-meaning-clarification"
+            );
+
+        if (clarificationEditor) {
+            clarificationEditor.style.display =
+                "block";
+        }
+
         setStatus(
             `${item.label} の意味候補をRISENへ送信しました。`,
             "success"
@@ -2055,6 +2272,253 @@ async function submitStandardMeaningCandidate(
         setStatus(
             error?.message ||
             "Meaning候補の送信に失敗しました。",
+            "error"
+        );
+    }
+}
+
+
+async function submitStandardMeaningClarification(
+    button
+) {
+    const sourceFieldKey =
+        String(
+            button?.dataset
+                ?.sourceFieldKey ||
+            ""
+        ).trim();
+
+    if (
+        !sourceFieldKey ||
+        !semanticCurrentTemplateId ||
+        !semanticStandardMeaningCandidates
+            .has(
+                sourceFieldKey
+            )
+    ) {
+        setStatus(
+            "補足を送信できません。",
+            "error"
+        );
+        return;
+    }
+
+    const item =
+        semanticResolvedFields.find(
+            candidate =>
+                candidate
+                    ?.sourceFieldKey ===
+                sourceFieldKey
+        );
+
+    if (!item) {
+        return;
+    }
+
+    const editor =
+        button.closest(
+            ".semantic-meaning-editor"
+        );
+
+    const input =
+        editor?.querySelector(
+            ".semantic-standard-meaning-clarification-input"
+        );
+
+    const staffClarification =
+        String(
+            input?.value || ""
+        ).trim();
+
+    if (!staffClarification) {
+        setStatus(
+            "追加の補足を入力してください。",
+            "error"
+        );
+
+        input?.focus();
+        return;
+    }
+
+    const clarifiedAt =
+        new Date()
+            .toISOString();
+
+    button.disabled = true;
+    button.textContent =
+        "送信中...";
+
+    try {
+        const result =
+            await postSemanticRegistration(
+                "/standard-meaning-candidate-clarification",
+                "standardMeaningCandidateClarification",
+                {
+                    templateId:
+                        semanticCurrentTemplateId,
+
+                    templateFieldKey:
+                        sourceFieldKey,
+
+                    staffClarification,
+
+                    clarifiedAt
+                }
+            );
+
+        if (
+            ![
+                "updated",
+                "unchanged"
+            ].includes(
+                result?.status
+            )
+        ) {
+            throw new Error(
+                "補足をRISENへ送信できませんでした。"
+            );
+        }
+
+        const currentCandidate =
+            semanticStandardMeaningCandidates
+                .get(
+                    sourceFieldKey
+                );
+
+        semanticStandardMeaningCandidates
+            .set(
+                sourceFieldKey,
+                {
+                    ...currentCandidate,
+
+                    evidence: {
+                        ...(
+                            currentCandidate
+                                ?.evidence ||
+                            {}
+                        ),
+
+                        staffClarification,
+
+                        staffClarificationUpdatedAt:
+                            clarifiedAt
+                    }
+                }
+            );
+
+        button.disabled = false;
+        button.textContent =
+            "補足を更新する";
+
+        if (input) {
+            input.value = "";
+        }
+
+        const clarificationContainer =
+            button.closest(
+                ".semantic-standard-meaning-clarification"
+            );
+
+        let currentClarification =
+            clarificationContainer
+                ?.querySelector(
+                    ".semantic-standard-meaning-current-clarification"
+                );
+
+        let currentClarificationText =
+            clarificationContainer
+                ?.querySelector(
+                    ".semantic-standard-meaning-current-clarification-text"
+                );
+
+        if (
+            !currentClarification &&
+            clarificationContainer
+        ) {
+            currentClarification =
+                document.createElement(
+                    "div"
+                );
+
+            currentClarification.className =
+                "semantic-standard-meaning-current-clarification";
+
+            currentClarification.style.margin =
+                "0 0 10px";
+            currentClarification.style.padding =
+                "10px 12px";
+            currentClarification.style.maxWidth =
+                "720px";
+            currentClarification.style.boxSizing =
+                "border-box";
+            currentClarification.style.background =
+                "#f7f9fc";
+            currentClarification.style.borderRadius =
+                "8px";
+
+            const heading =
+                document.createElement(
+                    "div"
+                );
+
+            heading.className =
+                "form-help";
+            heading.style.marginBottom =
+                "4px";
+            heading.style.fontWeight =
+                "600";
+            heading.textContent =
+                "現在の補足";
+
+            currentClarificationText =
+                document.createElement(
+                    "div"
+                );
+
+            currentClarificationText.className =
+                "semantic-standard-meaning-current-clarification-text";
+
+            currentClarification.append(
+                heading,
+                currentClarificationText
+            );
+
+            clarificationContainer.insertBefore(
+                currentClarification,
+                input
+            );
+        }
+
+        if (currentClarificationText) {
+            currentClarificationText.textContent =
+                staffClarification;
+        }
+
+        const localStatus =
+            clarificationContainer
+                ?.querySelector(
+                    ".semantic-standard-meaning-clarification-status"
+                );
+
+        if (localStatus) {
+            localStatus.textContent =
+                "✓ 補足を更新しました";
+        }
+
+        setStatus(
+            `${item.label} の補足をRISENへ送信しました。`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent =
+            "補足をRISENへ送る";
+
+        setStatus(
+            error?.message ||
+            "補足の送信に失敗しました。",
             "error"
         );
     }
@@ -2533,6 +2997,20 @@ function renderFields() {
 
     fieldsBody
         .querySelectorAll(
+            ".semantic-submit-standard-meaning-clarification-button"
+        )
+        .forEach(button => {
+            button.addEventListener(
+                "click",
+                () =>
+                    submitStandardMeaningClarification(
+                        button
+                    )
+            );
+        });
+
+    fieldsBody
+        .querySelectorAll(
             ".semantic-entity-input"
         )
         .forEach(select => {
@@ -2866,7 +3344,61 @@ async function loadPersistedMappings(
                             submittedAt:
                                 candidate
                                     ?.submittedAt ||
-                                null
+                                null,
+
+                            evidence: {
+                                staffClarification:
+                                    typeof candidate
+                                        ?.evidence
+                                        ?.staffClarification ===
+                                    "string"
+                                        ? candidate
+                                            .evidence
+                                            .staffClarification
+                                            .trim()
+                                        : "",
+
+                                staffClarificationUpdatedAt:
+                                    candidate
+                                        ?.evidence
+                                        ?.staffClarificationUpdatedAt ||
+                                    null,
+
+                                aiReview: {
+                                    mode:
+                                        typeof candidate
+                                            ?.evidence
+                                            ?.aiReview
+                                            ?.mode ===
+                                        "string"
+                                            ? candidate
+                                                .evidence
+                                                .aiReview
+                                                .mode
+                                                .trim()
+                                            : "",
+
+                                    facilityQuestion:
+                                        typeof candidate
+                                            ?.evidence
+                                            ?.aiReview
+                                            ?.facilityQuestion ===
+                                        "string"
+                                            ? candidate
+                                                .evidence
+                                                .aiReview
+                                                .facilityQuestion
+                                                .trim()
+                                            : "",
+
+                                    reviewedAt:
+                                        candidate
+                                            ?.evidence
+                                            ?.aiReview
+                                            ?.reviewedAt ||
+                                        null
+                                }
+                            }
                         }
                     );
             }

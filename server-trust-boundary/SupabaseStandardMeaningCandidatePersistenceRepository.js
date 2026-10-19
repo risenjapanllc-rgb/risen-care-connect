@@ -266,6 +266,118 @@ class SupabaseStandardMeaningCandidatePersistenceRepository
                     : null
         };
     }
+    async clarify(input = {}) {
+        const validation =
+            await super.clarify(input)
+                .catch(error => error);
+
+        if (
+            validation?.status ===
+                "invalid"
+        ) {
+            return validation;
+        }
+
+        const accessToken =
+            await this.accessTokenProvider
+                .getAccessToken();
+
+        const response =
+            await fetch(
+                `${this.supabaseUrl}/rest/v1/rpc/update_standard_meaning_candidate_clarification`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        apikey:
+                            this.apiKey,
+
+                        Authorization:
+                            `Bearer ${accessToken}`
+                    },
+
+                    body:
+                        JSON.stringify({
+                            p_facility_id:
+                                input
+                                    .verifiedFacilityId,
+
+                            p_connector_id:
+                                input
+                                    .verifiedConnectorId,
+
+                            p_template_id:
+                                input
+                                    .templateId,
+
+                            p_template_field_key:
+                                input
+                                    .templateFieldKey,
+
+                            p_staff_clarification:
+                                input
+                                    .staffClarification,
+
+                            p_clarified_at:
+                                input
+                                    .clarifiedAt
+                        })
+                }
+            );
+
+        if (!response.ok) {
+            const errorText =
+                await response.text();
+
+            throw new Error(
+                `Supabase Standard Meaning candidate clarification failed: ${response.status} ${errorText}`
+            );
+        }
+
+        const rows =
+            await response.json();
+
+        if (
+            !Array.isArray(rows) ||
+            rows.length !== 1
+        ) {
+            throw new Error(
+                "Supabase Standard Meaning candidate clarification returned invalid result"
+            );
+        }
+
+        const row =
+            rows[0];
+
+        if (
+            !row ||
+            ![
+                "updated",
+                "unchanged",
+                "denied",
+                "invalid"
+            ].includes(row.status)
+        ) {
+            throw new Error(
+                "Supabase Standard Meaning candidate clarification returned invalid status"
+            );
+        }
+
+        return {
+            status:
+                row.status,
+
+            candidateId:
+                typeof row.candidate_id ===
+                    "string"
+                    ? row.candidate_id
+                    : null
+        };
+    }
+
 }
 
 module.exports =

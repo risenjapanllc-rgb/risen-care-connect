@@ -49,6 +49,32 @@ class StandardMeaningCandidatePersistenceRepository {
         );
     }
 
+    async clarify({
+        verifiedFacilityId,
+        verifiedConnectorId,
+        templateId,
+        templateFieldKey,
+        staffClarification,
+        clarifiedAt
+    } = {}) {
+        if (
+            !this.nonEmpty(verifiedFacilityId) ||
+            !this.nonEmpty(verifiedConnectorId) ||
+            !this.nonEmpty(templateId) ||
+            !this.nonEmpty(templateFieldKey) ||
+            !this.nonEmpty(staffClarification) ||
+            !this.isoDate(clarifiedAt)
+        ) {
+            return {
+                status: "invalid"
+            };
+        }
+
+        throw new Error(
+            "StandardMeaningCandidatePersistenceRepository.clarify is not implemented"
+        );
+    }
+
     nonEmpty(value) {
         return (
             typeof value === "string" &&

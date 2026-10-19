@@ -23,6 +23,11 @@ const SupabaseConnectorActivationHandoffRepository =
         "./server-trust-boundary/SupabaseConnectorActivationHandoffRepository"
     );
 
+const StandardMeaningAiProposalGenerator =
+    require(
+        "./server-trust-boundary/StandardMeaningAiProposalGenerator"
+    );
+
 require("dotenv").config();
 
 const app = express();
@@ -2666,6 +2671,531 @@ app.get(
                             row.accepted_at
                     }))
                     : []
+        });
+    }
+);
+
+
+
+app.post(
+    "/api/admin/standard-meaning-candidates/:candidateId/proposal",
+    async (req, res) => {
+        const authentication =
+            await verifyRisenAdminRequest(
+                req
+            );
+
+        if (
+            authentication.status ===
+                "unauthenticated"
+        ) {
+            return res.status(401).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_required"
+            });
+        }
+
+        if (
+            authentication.status ===
+                "forbidden"
+        ) {
+            return res.status(403).json({
+                success: false,
+                errorCode:
+                    "risen_admin_role_required"
+            });
+        }
+
+        if (
+            authentication.status !==
+                "authenticated"
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "admin_authentication_unavailable"
+            });
+        }
+
+        const candidateId =
+            String(
+                req.params?.candidateId ||
+                ""
+            ).trim();
+
+        if (!candidateId) {
+            return res.status(422).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_invalid"
+            });
+        }
+
+        const apiKey =
+            String(
+                process.env.OPENAI_API_KEY ||
+                ""
+            ).trim();
+
+        if (!apiKey) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_unavailable"
+            });
+        }
+
+        const supabaseUrl =
+            String(
+                process.env.SUPABASE_URL ||
+                ""
+            )
+                .trim()
+                .replace(/\/$/, "");
+
+        const publishableKey =
+            String(
+                process.env
+                    .SUPABASE_PUBLISHABLE_KEY ||
+                ""
+            ).trim();
+
+        if (
+            !supabaseUrl ||
+            !publishableKey
+        ) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_unavailable"
+            });
+        }
+
+        let contextResponse;
+
+        try {
+            contextResponse =
+                await fetch(
+                    `${supabaseUrl}/rest/v1/rpc/risen_admin_get_standard_meaning_candidate_proposal_context`,
+                    {
+                        method: "POST",
+                        headers: {
+                            apikey:
+                                publishableKey,
+                            Authorization:
+                                `Bearer ${authentication.accessToken}`,
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                p_candidate_id:
+                                    candidateId
+                            })
+                    }
+                );
+        } catch {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_context_unavailable"
+            });
+        }
+
+        if (!contextResponse.ok) {
+            const contextErrorText =
+                await contextResponse.text();
+
+            console.error(
+                "Standard Meaning proposal context failed:",
+                contextResponse.status,
+                contextErrorText
+            );
+
+            return res.status(
+                contextResponse.status
+            ).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_context_failed"
+            });
+        }
+
+        const contextRows =
+            await contextResponse.json();
+
+        const context =
+            Array.isArray(contextRows)
+                ? contextRows[0]
+                : contextRows;
+
+        if (
+            !context ||
+            typeof context !==
+                "object"
+        ) {
+            return res.status(404).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_candidate_not_found"
+            });
+        }
+
+        const semanticType =
+            String(
+                context.semantic_type ||
+                ""
+            ).trim();
+
+        if (!semanticType) {
+            return res.status(409).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_semantic_type_ambiguous"
+            });
+        }
+
+        const {
+            listStandardMeanings
+        } = require(
+            "./server-domain/standard-fields/RisenStandardMeaningCatalog"
+        );
+
+        const standardMeanings =
+            listStandardMeanings();
+
+        let dynamicRows = [];
+
+        try {
+            const meaningsResponse =
+                await fetch(
+                    `${supabaseUrl}/rest/v1/rpc/list_active_standard_meanings`,
+                    {
+                        method: "POST",
+                        headers: {
+                            apikey:
+                                publishableKey,
+                            Authorization:
+                                `Bearer ${publishableKey}`,
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({})
+                    }
+                );
+
+            if (!meaningsResponse.ok) {
+                const meaningsErrorText =
+                    await meaningsResponse.text();
+
+                console.error(
+                    "Standard Meaning dynamic catalog failed:",
+                    meaningsResponse.status,
+                    meaningsErrorText
+                );
+
+                return res.status(503).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_catalog_unavailable"
+                });
+            }
+
+            const result =
+                await meaningsResponse.json();
+
+            if (!Array.isArray(result)) {
+                console.error(
+                    "Standard Meaning dynamic catalog returned invalid result"
+                );
+
+                return res.status(503).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_catalog_unavailable"
+                });
+            }
+
+            dynamicRows =
+                result;
+        } catch (error) {
+            console.error(
+                "Standard Meaning dynamic catalog unavailable:",
+                error?.message ||
+                    "unknown error"
+            );
+
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_catalog_unavailable"
+            });
+        }
+
+        const merged =
+            new Map();
+
+        for (const meaning of standardMeanings) {
+            merged.set(
+                `${meaning.entityName}.${meaning.fieldName}`,
+                {
+                    entityName:
+                        meaning.entityName,
+                    fieldName:
+                        meaning.fieldName,
+                    displayName:
+                        meaning.displayName,
+                    synonyms:
+                        Array.isArray(
+                            meaning.synonyms
+                        )
+                            ? meaning.synonyms
+                            : []
+                }
+            );
+        }
+
+        for (const row of dynamicRows) {
+            const entityName =
+                String(
+                    row?.entity_name ||
+                    ""
+                ).trim();
+
+            const fieldName =
+                String(
+                    row?.field_name ||
+                    ""
+                ).trim();
+
+            const displayName =
+                String(
+                    row?.display_name ||
+                    ""
+                ).trim();
+
+            if (
+                !entityName ||
+                !fieldName ||
+                !displayName
+            ) {
+                continue;
+            }
+
+            const key =
+                `${entityName}.${fieldName}`;
+
+            if (merged.has(key)) {
+                continue;
+            }
+
+            merged.set(
+                key,
+                {
+                    entityName,
+                    fieldName,
+                    displayName,
+                    synonyms:
+                        Array.isArray(
+                            row?.synonyms
+                        )
+                            ? row.synonyms
+                            : []
+                }
+            );
+        }
+
+        let proposal;
+
+        try {
+            const generator =
+                new StandardMeaningAiProposalGenerator({
+                    apiKey,
+                    model:
+                        String(
+                            process.env
+                                .OPENAI_STANDARD_MEANING_MODEL ||
+                            "gpt-6-luna"
+                        ).trim()
+                });
+
+            proposal =
+                await generator.generate({
+                    proposedMeaning:
+                        context.proposed_meaning,
+                    evidence:
+                        context.evidence &&
+                        typeof context.evidence ===
+                            "object"
+                            ? context.evidence
+                            : {},
+                    semanticType,
+                    standardMeanings:
+                        Array.from(
+                            merged.values()
+                        )
+                });
+        } catch (error) {
+            console.error(
+                "Standard Meaning AI proposal failed:",
+                error?.message ||
+                    "unknown error"
+            );
+
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_proposal_failed"
+            });
+        }
+
+        if (
+            proposal?.mode ===
+            "existing"
+        ) {
+            const proposalKey =
+                `${
+                    String(
+                        proposal.entityName ||
+                        ""
+                    ).trim()
+                }.${
+                    String(
+                        proposal.fieldName ||
+                        ""
+                    ).trim()
+                }`;
+
+            if (
+                !merged.has(
+                    proposalKey
+                )
+            ) {
+                console.error(
+                    "Standard Meaning AI proposed unknown existing meaning:",
+                    proposalKey
+                );
+
+                return res.status(409).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_ai_existing_meaning_not_found"
+                });
+            }
+        }
+
+        const reviewedAt =
+            new Date()
+                .toISOString();
+
+        let aiReviewResponse;
+
+        try {
+            aiReviewResponse =
+                await fetch(
+                    `${supabaseUrl}/rest/v1/rpc/risen_admin_update_standard_meaning_candidate_ai_review`,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            apikey:
+                                publishableKey,
+
+                            Authorization:
+                                `Bearer ${authentication.accessToken}`,
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                p_candidate_id:
+                                    candidateId,
+
+                                p_mode:
+                                    proposal.mode,
+
+                                p_facility_question:
+                                    proposal.mode ===
+                                        "review"
+                                        ? proposal
+                                            .facilityQuestion
+                                        : "",
+
+                                p_reviewed_at:
+                                    reviewedAt
+                            })
+                    }
+                );
+        } catch (error) {
+            console.error(
+                "Standard Meaning AI review persistence unavailable:",
+                error?.message ||
+                    "unknown error"
+            );
+
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_review_persistence_unavailable"
+            });
+        }
+
+        if (!aiReviewResponse.ok) {
+            const aiReviewErrorText =
+                await aiReviewResponse.text();
+
+            console.error(
+                "Standard Meaning AI review persistence failed:",
+                aiReviewResponse.status,
+                aiReviewErrorText
+            );
+
+            return res.status(
+                aiReviewResponse.status
+            ).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_review_persistence_failed"
+            });
+        }
+
+        const aiReviewRows =
+            await aiReviewResponse.json();
+
+        const aiReviewResult =
+            Array.isArray(aiReviewRows)
+                ? aiReviewRows[0]
+                : aiReviewRows;
+
+        if (
+            !aiReviewResult ||
+            ![
+                "updated",
+                "unchanged"
+            ].includes(
+                aiReviewResult.status
+            )
+        ) {
+            console.error(
+                "Standard Meaning AI review persistence rejected:",
+                aiReviewResult
+            );
+
+            return res.status(409).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_ai_review_persistence_rejected"
+            });
+        }
+
+        return res.json({
+            success: true,
+            proposal
         });
     }
 );

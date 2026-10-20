@@ -1,6 +1,12 @@
 begin;
 
-create or replace function public.get_voice_recording_playback(
+drop function if exists
+public.get_voice_recording_playback(
+    uuid,
+    uuid
+);
+
+create function public.get_voice_recording_playback(
     p_facility_id uuid,
     p_recording_id uuid
 )
@@ -11,7 +17,9 @@ returns table(
     storage_path text,
     duration_ms bigint,
     transcription_status text,
-    transcription_text text
+    transcription_text text,
+    ai_summary text,
+    confirmed_summary text
 )
 language plpgsql
 security definer
@@ -44,10 +52,18 @@ begin
         cr.storage_path,
         cr.duration_ms,
         cr.transcription_status,
-        cr.transcription_text
+        coalesce(
+            cl.transcript,
+            cr.transcription_text
+        ),
+        cl.ai_summary,
+        cl.confirmed_summary
     from public.communication_recordings as cr
+    join public.communication_logs as cl
+      on cl.id = cr.communication_log_id
     where cr.id = p_recording_id
       and cr.facility_id = p_facility_id
+      and cl.facility_id = p_facility_id
       and cr.upload_status = 'uploaded'
     limit 1;
 end;

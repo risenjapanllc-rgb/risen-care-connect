@@ -113,3 +113,124 @@ test(
         );
     }
 );
+
+test(
+    "does not sign storage when the recording is not found in the verified facility",
+    async () => {
+        let repositoryCall =
+            null;
+
+        let storageFetchCalled =
+            false;
+
+        const service =
+            new VoiceRecordingPlaybackService({
+                connectorTrustService: {
+                    async authenticate({
+                        connectorId,
+                        credential
+                    }) {
+                        assert.equal(
+                            connectorId,
+                            "connector-A"
+                        );
+
+                        assert.equal(
+                            credential,
+                            "credential-A"
+                        );
+
+                        return {
+                            status:
+                                "verified",
+
+                            verifiedContext: {
+                                facilityId:
+                                    "facility-A"
+                            }
+                        };
+                    }
+                },
+
+                recordingRepository: {
+                    async findByFacilityAndRecording({
+                        facilityId,
+                        recordingId
+                    }) {
+                        repositoryCall = {
+                            facilityId,
+                            recordingId
+                        };
+
+                        /*
+                         * Simulate recording-B belonging to another
+                         * facility. The facility-scoped repository/RPC
+                         * therefore returns no recording.
+                         */
+                        return null;
+                    }
+                },
+
+                supabaseUrl:
+                    "https://example.supabase.co",
+
+                apiKey:
+                    "test-api-key",
+
+                accessTokenProvider: {
+                    async getAccessToken() {
+                        throw new Error(
+                            "storage signing must not be reached"
+                        );
+                    }
+                },
+
+                async fetchImpl() {
+                    storageFetchCalled =
+                        true;
+
+                    throw new Error(
+                        "storage signing must not be reached"
+                    );
+                }
+            });
+
+        const result =
+            await service.getPlayback({
+                connectorId:
+                    "connector-A",
+
+                credential:
+                    "credential-A",
+
+                recordingId:
+                    "recording-B"
+            });
+
+        assert.deepEqual(
+            repositoryCall,
+            {
+                facilityId:
+                    "facility-A",
+
+                recordingId:
+                    "recording-B"
+            }
+        );
+
+        assert.equal(
+            result.status,
+            "not_found"
+        );
+
+        assert.equal(
+            result.errorCode,
+            "voice_recording_not_found"
+        );
+
+        assert.equal(
+            storageFetchCalled,
+            false
+        );
+    }
+);

@@ -254,7 +254,13 @@ class VoiceRecordingPlaybackTransport {
                         result.transcriptionStatus,
 
                     transcriptionText:
-                        result.transcriptionText
+                        result.transcriptionText,
+
+                    aiSummary:
+                        result.aiSummary,
+
+                    confirmedSummary:
+                        result.confirmedSummary
                 }
             };
         }

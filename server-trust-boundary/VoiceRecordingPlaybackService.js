@@ -328,7 +328,13 @@ class VoiceRecordingPlaybackService {
                 recording.transcriptionStatus,
 
             transcriptionText:
-                recording.transcriptionText
+                recording.transcriptionText,
+
+            aiSummary:
+                recording.aiSummary,
+
+            confirmedSummary:
+                recording.confirmedSummary
         };
     }
 }

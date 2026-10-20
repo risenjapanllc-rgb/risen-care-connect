@@ -176,7 +176,13 @@ class SupabaseVoiceRecordingPlaybackRepository {
                 recording.transcription_status,
 
             transcriptionText:
-                recording.transcription_text
+                recording.transcription_text,
+
+            aiSummary:
+                recording.ai_summary,
+
+            confirmedSummary:
+                recording.confirmed_summary
         };
     }
 }

@@ -127,6 +127,15 @@ function createServerTrustBoundaryApp({
     voiceSemanticAnalysisTransport,
     voiceSemanticAnalysisEndpointPath =
         "/connector/voice-semantic-analysis",
+    voiceTranscriptRevisionTransport,
+    voiceTranscriptRevisionEndpointPath =
+        "/connector/voice-transcript-revise",
+    voiceSummaryRegenerationTransport,
+    voiceSummaryRegenerationEndpointPath =
+        "/connector/voice-summary-regenerate",
+    voiceSummaryConfirmationTransport,
+    voiceSummaryConfirmationEndpointPath =
+        "/connector/voice-summary-confirm",
     diagnosticLogger,
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
@@ -1822,6 +1831,66 @@ function createServerTrustBoundaryApp({
             }
         );
     }
+
+    const registerVoiceCommunicationRevisionRoute =
+        (
+            routePath,
+            routeTransport
+        ) => {
+            if (!routeTransport) {
+                return;
+            }
+
+            app.all(
+                routePath,
+                async (req, res, next) => {
+                    try {
+                        const result =
+                            await routeTransport
+                                .handle({
+                                    method:
+                                        req.method,
+
+                                    contentType:
+                                        req.get(
+                                            "content-type"
+                                        ),
+
+                                    headers:
+                                        req.headers,
+
+                                    body:
+                                        req.body
+                                });
+
+                        return res
+                            .status(
+                                result.httpStatus
+                            )
+                            .json(
+                                result.body
+                            );
+                    } catch (error) {
+                        return next(error);
+                    }
+                }
+            );
+        };
+
+    registerVoiceCommunicationRevisionRoute(
+        voiceTranscriptRevisionEndpointPath,
+        voiceTranscriptRevisionTransport
+    );
+
+    registerVoiceCommunicationRevisionRoute(
+        voiceSummaryRegenerationEndpointPath,
+        voiceSummaryRegenerationTransport
+    );
+
+    registerVoiceCommunicationRevisionRoute(
+        voiceSummaryConfirmationEndpointPath,
+        voiceSummaryConfirmationTransport
+    );
 
     app.use(
         (

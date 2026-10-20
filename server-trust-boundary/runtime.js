@@ -260,6 +260,15 @@ const VoiceRecordingProcessingService =
 const SupabaseVoiceRecordingPlaybackRepository =
     require("./SupabaseVoiceRecordingPlaybackRepository");
 
+const SupabaseVoiceCommunicationRevisionRepository =
+    require("./SupabaseVoiceCommunicationRevisionRepository");
+
+const SupabaseVoiceCommunicationSummaryGenerator =
+    require("./SupabaseVoiceCommunicationSummaryGenerator");
+
+const VoiceCommunicationRevisionService =
+    require("./VoiceCommunicationRevisionService");
+
 const SupabaseVoiceTranscriptionSegmentRepository =
     require("./SupabaseVoiceTranscriptionSegmentRepository");
 
@@ -1109,6 +1118,29 @@ function createServerTrustBoundaryRuntime({
             accessTokenProvider
         });
 
+    const voiceCommunicationRevisionRepository =
+        new SupabaseVoiceCommunicationRevisionRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const voiceCommunicationSummaryGenerator =
+        new SupabaseVoiceCommunicationSummaryGenerator({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const voiceCommunicationRevisionService =
+        new VoiceCommunicationRevisionService({
+            connectorTrustService,
+            revisionRepository:
+                voiceCommunicationRevisionRepository,
+            summaryGenerator:
+                voiceCommunicationSummaryGenerator
+        });
+
     const voiceTranscriptionSegmentRepository =
         facilitySystemAccessTokenProvider
             ? new SupabaseVoiceTranscriptionSegmentRepository({
@@ -1256,6 +1288,8 @@ function createServerTrustBoundaryRuntime({
         voiceCommunicationEventRepository,
         voiceRecordingProcessingService,
         voiceRecordingPlaybackService,
+        voiceCommunicationRevisionRepository,
+        voiceCommunicationRevisionService,
         voiceSourceEvidenceService,
         voiceSemanticAnalysisService,
         voiceSemanticAnalysisAccessService

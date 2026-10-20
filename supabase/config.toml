@@ -2,3 +2,6 @@ project_id = "risen-care-connect"
 
 [functions.voice-transcription-worker]
 verify_jwt = false
+
+[functions.voice-communication-summary-generator]
+verify_jwt = false

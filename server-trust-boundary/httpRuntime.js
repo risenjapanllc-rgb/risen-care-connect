@@ -230,6 +230,9 @@ const VoiceRecordingPlaybackTransport =
 const VoiceSemanticAnalysisTransport =
     require("./VoiceSemanticAnalysisTransport");
 
+const VoiceCommunicationRevisionTransport =
+    require("./VoiceCommunicationRevisionTransport");
+
 const VoiceEventWebhookTransport =
     require("./VoiceEventWebhookTransport");
 
@@ -972,6 +975,45 @@ function createServerTrustBoundaryHttpRuntime({
             })
             : null;
 
+    const voiceTranscriptRevisionTransport =
+        new VoiceCommunicationRevisionTransport({
+            revisionService:
+                coreRuntime.voiceCommunicationRevisionService,
+
+            credentialTransport,
+
+            connectorIdHeader,
+
+            operation:
+                "reviseTranscript"
+        });
+
+    const voiceSummaryRegenerationTransport =
+        new VoiceCommunicationRevisionTransport({
+            revisionService:
+                coreRuntime.voiceCommunicationRevisionService,
+
+            credentialTransport,
+
+            connectorIdHeader,
+
+            operation:
+                "regenerateSummary"
+        });
+
+    const voiceSummaryConfirmationTransport =
+        new VoiceCommunicationRevisionTransport({
+            revisionService:
+                coreRuntime.voiceCommunicationRevisionService,
+
+            credentialTransport,
+
+            connectorIdHeader,
+
+            operation:
+                "confirmSummary"
+        });
+
     const voiceEventTransport =
         new VoiceEventWebhookTransport({
             webhookSignatureVerifier:
@@ -1097,6 +1139,15 @@ function createServerTrustBoundaryHttpRuntime({
             voiceSemanticAnalysisTransport,
             voiceSemanticAnalysisEndpointPath:
                 "/connector/voice-semantic-analysis",
+            voiceTranscriptRevisionTransport,
+            voiceTranscriptRevisionEndpointPath:
+                "/connector/voice-transcript-revise",
+            voiceSummaryRegenerationTransport,
+            voiceSummaryRegenerationEndpointPath:
+                "/connector/voice-summary-regenerate",
+            voiceSummaryConfirmationTransport,
+            voiceSummaryConfirmationEndpointPath:
+                "/connector/voice-summary-confirm",
             diagnosticLogger,
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",

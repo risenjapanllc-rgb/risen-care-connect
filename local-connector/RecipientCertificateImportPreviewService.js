@@ -152,11 +152,44 @@ class RecipientCertificateImportPreviewService {
                 );
             }
 
+            const semanticContract =
+                this.semanticPlanner.semanticContract;
+
+            if (
+                !semanticContract ||
+                typeof semanticContract
+                    .listSupportedSemanticTargets !==
+                    "function"
+            ) {
+                throw new Error(
+                    "Recipient certificate semantic target authority is unavailable"
+                );
+            }
+
+            const supportedSemanticTargets =
+                new Set(
+                    semanticContract
+                        .listSupportedSemanticTargets()
+                );
+
+            const governedMappings =
+                humanConfirmedMappings.filter(
+                    mapping => {
+                        const semanticKey =
+                            mapping.standardEntityName.trim() +
+                            "." +
+                            mapping.standardFieldName.trim();
+
+                        return supportedSemanticTargets
+                            .has(semanticKey);
+                    }
+                );
+
             semanticPlan =
                 this.semanticPlanner.build({
                     sourceEntities,
                     fieldMappings:
-                        humanConfirmedMappings
+                        governedMappings
                 });
         }
 
@@ -324,11 +357,14 @@ class RecipientCertificateImportPreviewService {
                 identifierDigest: group.identifierDigest,
                 residentId: existingResidentId,
                 displayName:
-                    group.identifierType === "name" &&
-                    typeof group.identifierValue === "string" &&
-                    group.identifierValue.trim()
-                        ? group.identifierValue.trim()
-                        : null,
+                    typeof group.sourceName === "string" &&
+                    group.sourceName.trim()
+                        ? group.sourceName.trim()
+                        : group.identifierType === "name" &&
+                          typeof group.identifierValue === "string" &&
+                          group.identifierValue.trim()
+                            ? group.identifierValue.trim()
+                            : null,
                 existingResidentConfirmed:
                     Boolean(existingResidentId),
                 admissionDecision:
@@ -392,7 +428,9 @@ class RecipientCertificateImportPreviewService {
                 (
                     item.resolution !== "planned_new" ||
                     (
-                        item.identifierType === "name" &&
+                        ["user_code", "name"].includes(
+                            item.identifierType
+                        ) &&
                         typeof item.displayName === "string" &&
                         item.displayName.trim()
                     )

@@ -31,6 +31,55 @@ function isPlainObject(
 }
 
 
+function isValidVoiceLocation(
+    location
+) {
+    if (
+        !isPlainObject(
+            location
+        )
+    ) {
+        return false;
+    }
+
+    const keys =
+        Object.keys(
+            location
+        );
+
+    if (
+        keys.length !== 3 ||
+        !keys.includes(
+            "segmentIndex"
+        ) ||
+        !keys.includes(
+            "startMs"
+        ) ||
+        !keys.includes(
+            "endMs"
+        )
+    ) {
+        return false;
+    }
+
+    return (
+        Number.isInteger(
+            location.segmentIndex
+        ) &&
+        location.segmentIndex >= 0 &&
+        Number.isInteger(
+            location.startMs
+        ) &&
+        location.startMs >= 0 &&
+        Number.isInteger(
+            location.endMs
+        ) &&
+        location.endMs >=
+            location.startMs
+    );
+}
+
+
 class SourceEvidenceLocatorContract {
     static validate(
         locator
@@ -83,6 +132,19 @@ class SourceEvidenceLocatorContract {
             !locator
                 .rawEvidence
                 .trim()
+        ) {
+            return {
+                status:
+                    "invalid"
+            };
+        }
+
+        if (
+            locator.sourceType ===
+                "voice" &&
+            !isValidVoiceLocation(
+                locator.location
+            )
         ) {
             return {
                 status:

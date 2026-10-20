@@ -30,6 +30,9 @@ const SupabaseConnectorCredentialVerifierBackend =
 const SupabaseConnectorTrustAuthProvider =
     require("./SupabaseConnectorTrustAuthProvider");
 
+const SupabaseFacilitySystemAuthProvider =
+    require("./SupabaseFacilitySystemAuthProvider");
+
 const SupabaseResidentRepository =
     require("./SupabaseResidentRepository");
 
@@ -257,6 +260,21 @@ const VoiceRecordingProcessingService =
 const SupabaseVoiceRecordingPlaybackRepository =
     require("./SupabaseVoiceRecordingPlaybackRepository");
 
+const SupabaseVoiceTranscriptionSegmentRepository =
+    require("./SupabaseVoiceTranscriptionSegmentRepository");
+
+const VoiceSourceEvidenceLocatorBuilder =
+    require("./VoiceSourceEvidenceLocatorBuilder");
+
+const VoiceSourceEvidenceService =
+    require("./VoiceSourceEvidenceService");
+
+const VoiceSemanticAnalysisService =
+    require("./VoiceSemanticAnalysisService");
+
+const VoiceSemanticAnalysisAccessService =
+    require("./VoiceSemanticAnalysisAccessService");
+
 const VoiceRecordingPlaybackService =
     require("./VoiceRecordingPlaybackService");
 
@@ -290,6 +308,9 @@ const RecordIdentityResolver =
 
 const RecordChangeResolver =
     require("../server-domain/record/RecordChangeResolver");
+
+const SemanticAnalysisGenerator =
+    require("./SemanticAnalysisGenerator");
 
 const SemanticRecordValidator =
     require("../server-domain/semantic/SemanticRecordValidator");
@@ -358,7 +379,10 @@ function createServerTrustBoundaryRuntime({
     supabaseUrl,
     apiKey,
     connectorTrustEmail,
-    connectorTrustPassword
+    connectorTrustPassword,
+    facilitySystemEmail,
+    facilitySystemPassword,
+    openAiApiKey
 } = {}) {
     const accessTokenProvider =
         new SupabaseConnectorTrustAuthProvider({
@@ -367,6 +391,21 @@ function createServerTrustBoundaryRuntime({
             email: connectorTrustEmail,
             password: connectorTrustPassword
         });
+
+    const facilitySystemAccessTokenProvider =
+        typeof facilitySystemEmail === "string" &&
+        facilitySystemEmail.trim() &&
+        typeof facilitySystemPassword === "string" &&
+        facilitySystemPassword.trim()
+            ? new SupabaseFacilitySystemAuthProvider({
+                supabaseUrl,
+                apiKey,
+                email:
+                    facilitySystemEmail,
+                password:
+                    facilitySystemPassword
+            })
+            : null;
 
     const connectorRegistrationRepository =
         new SupabaseConnectorRegistrationRepository({
@@ -397,6 +436,15 @@ function createServerTrustBoundaryRuntime({
             connectorRegistrationVerifier,
             connectorCredentialVerifier
         });
+
+    const semanticAnalysisGenerator =
+        typeof openAiApiKey === "string" &&
+        openAiApiKey.trim()
+            ? new SemanticAnalysisGenerator({
+                apiKey:
+                    openAiApiKey
+            })
+            : null;
 
     const residentRepository =
         new SupabaseResidentRepository({
@@ -1061,6 +1109,48 @@ function createServerTrustBoundaryRuntime({
             accessTokenProvider
         });
 
+    const voiceTranscriptionSegmentRepository =
+        facilitySystemAccessTokenProvider
+            ? new SupabaseVoiceTranscriptionSegmentRepository({
+                supabaseUrl,
+                apiKey,
+                accessTokenProvider:
+                    facilitySystemAccessTokenProvider
+            })
+            : null;
+
+    const voiceSourceEvidenceLocatorBuilder =
+        new VoiceSourceEvidenceLocatorBuilder();
+
+    const voiceSourceEvidenceService =
+        voiceTranscriptionSegmentRepository
+            ? new VoiceSourceEvidenceService({
+                segmentRepository:
+                    voiceTranscriptionSegmentRepository,
+                locatorBuilder:
+                    voiceSourceEvidenceLocatorBuilder
+            })
+            : null;
+
+    const voiceSemanticAnalysisService =
+        semanticAnalysisGenerator &&
+        voiceSourceEvidenceService
+            ? new VoiceSemanticAnalysisService({
+                sourceEvidenceService:
+                    voiceSourceEvidenceService,
+                semanticAnalysisGenerator
+            })
+            : null;
+
+    const voiceSemanticAnalysisAccessService =
+        voiceSemanticAnalysisService
+            ? new VoiceSemanticAnalysisAccessService({
+                connectorTrustService,
+                semanticAnalysisService:
+                    voiceSemanticAnalysisService
+            })
+            : null;
+
     const voiceRecordingPlaybackService =
         new VoiceRecordingPlaybackService({
             connectorTrustService,
@@ -1120,6 +1210,7 @@ function createServerTrustBoundaryRuntime({
      * 共通のConnectorCredentialTransportを注入して生成する。
      */
     return {
+        semanticAnalysisGenerator,
         serverTrustBoundaryIngestionService,
         sourceDocumentIngestionService,
         sourceFieldMappingIngestionService,
@@ -1164,7 +1255,10 @@ function createServerTrustBoundaryRuntime({
         voiceCommunicationLogRepository,
         voiceCommunicationEventRepository,
         voiceRecordingProcessingService,
-        voiceRecordingPlaybackService
+        voiceRecordingPlaybackService,
+        voiceSourceEvidenceService,
+        voiceSemanticAnalysisService,
+        voiceSemanticAnalysisAccessService
     };
 }
 

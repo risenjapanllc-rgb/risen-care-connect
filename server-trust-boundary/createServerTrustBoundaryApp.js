@@ -124,6 +124,9 @@ function createServerTrustBoundaryApp({
     voiceRecordingPlaybackTransport,
     voiceRecordingPlaybackEndpointPath =
         "/connector/voice-recording-playback",
+    voiceSemanticAnalysisTransport,
+    voiceSemanticAnalysisEndpointPath =
+        "/connector/voice-semantic-analysis",
     diagnosticLogger,
     jsonBodyLimit = "100kb",
     sourceDocumentJsonBodyLimit =
@@ -1753,6 +1756,43 @@ function createServerTrustBoundaryApp({
                 try {
                     const result =
                         await voiceRecordingPlaybackTransport
+                            .handle({
+                                method:
+                                    req.method,
+
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+
+                                headers:
+                                    req.headers,
+
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (voiceSemanticAnalysisTransport) {
+        app.all(
+            voiceSemanticAnalysisEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await voiceSemanticAnalysisTransport
                             .handle({
                                 method:
                                     req.method,

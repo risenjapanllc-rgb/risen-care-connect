@@ -104,11 +104,14 @@ test(
                 "voice-recording-1",
 
             location: {
-                transcriptStart:
-                    18.2,
+                segmentIndex:
+                    0,
 
-                transcriptEnd:
-                    21.6
+                startMs:
+                    18200,
+
+                endMs:
+                    21600
             },
 
             rawEvidence:
@@ -126,6 +129,109 @@ test(
                 .status,
             "valid"
         );
+    }
+);
+
+
+test(
+    "rejects legacy voice transcript coordinates",
+    () => {
+        const locator = {
+            sourceType:
+                "voice",
+
+            documentReference:
+                "voice-recording-legacy",
+
+            location: {
+                transcriptStart:
+                    18.2,
+
+                transcriptEnd:
+                    21.6
+            },
+
+            rawEvidence:
+                "昼食は半分でした。"
+        };
+
+        assert.equal(
+            SourceEvidenceLocatorContract
+                .validate(
+                    locator
+                )
+                .status,
+            "invalid"
+        );
+    }
+);
+
+
+test(
+    "rejects invalid trusted voice segment coordinates",
+    () => {
+        for (const location of [
+            {
+                segmentIndex:
+                    -1,
+                startMs:
+                    0,
+                endMs:
+                    1000
+            },
+            {
+                segmentIndex:
+                    0.5,
+                startMs:
+                    0,
+                endMs:
+                    1000
+            },
+            {
+                segmentIndex:
+                    0,
+                startMs:
+                    -1,
+                endMs:
+                    1000
+            },
+            {
+                segmentIndex:
+                    0,
+                startMs:
+                    2000,
+                endMs:
+                    1000
+            },
+            {
+                segmentIndex:
+                    0,
+                startMs:
+                    0,
+                endMs:
+                    1000,
+                transcriptStart:
+                    0
+            }
+        ]) {
+            assert.equal(
+                SourceEvidenceLocatorContract
+                    .validate({
+                        sourceType:
+                            "voice",
+
+                        documentReference:
+                            "voice-recording-invalid",
+
+                        location,
+
+                        rawEvidence:
+                            "test"
+                    })
+                    .status,
+                "invalid"
+            );
+        }
     }
 );
 
@@ -233,11 +339,14 @@ test(
                 "voice-1",
 
             location: {
-                transcriptStart:
+                segmentIndex:
                     0,
 
-                transcriptEnd:
-                    1
+                startMs:
+                    0,
+
+                endMs:
+                    1000
             },
 
             rawEvidence:

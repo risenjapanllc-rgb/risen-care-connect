@@ -227,6 +227,9 @@ const VoiceRecordingWebhookTransport =
 const VoiceRecordingPlaybackTransport =
     require("./VoiceRecordingPlaybackTransport");
 
+const VoiceSemanticAnalysisTransport =
+    require("./VoiceSemanticAnalysisTransport");
+
 const VoiceEventWebhookTransport =
     require("./VoiceEventWebhookTransport");
 
@@ -246,6 +249,9 @@ function createServerTrustBoundaryHttpRuntime({
     apiKey,
     connectorTrustEmail,
     connectorTrustPassword,
+    facilitySystemEmail,
+    facilitySystemPassword,
+    openAiApiKey,
     vonageApiSignatureSecret,
     vonageVoiceRecordingEnabled =
         false,
@@ -310,7 +316,10 @@ function createServerTrustBoundaryHttpRuntime({
             supabaseUrl,
             apiKey,
             connectorTrustEmail,
-            connectorTrustPassword
+            connectorTrustPassword,
+            facilitySystemEmail,
+            facilitySystemPassword,
+            openAiApiKey
         });
 
     const httpAdapter =
@@ -949,6 +958,20 @@ function createServerTrustBoundaryHttpRuntime({
             connectorIdHeader
         });
 
+    const voiceSemanticAnalysisTransport =
+        coreRuntime
+            .voiceSemanticAnalysisAccessService
+            ? new VoiceSemanticAnalysisTransport({
+                analysisAccessService:
+                    coreRuntime
+                        .voiceSemanticAnalysisAccessService,
+
+                credentialTransport,
+
+                connectorIdHeader
+            })
+            : null;
+
     const voiceEventTransport =
         new VoiceEventWebhookTransport({
             webhookSignatureVerifier:
@@ -1071,6 +1094,9 @@ function createServerTrustBoundaryHttpRuntime({
             voiceRecordingPlaybackTransport,
             voiceRecordingPlaybackEndpointPath:
                 "/connector/voice-recording-playback",
+            voiceSemanticAnalysisTransport,
+            voiceSemanticAnalysisEndpointPath:
+                "/connector/voice-semantic-analysis",
             diagnosticLogger,
             sourceFieldInterpretationEndpointPath:
                 "/connector/source-field-interpretations",

@@ -185,6 +185,24 @@ function resolveServerTrustBoundaryConfig(
                 env
             ),
 
+        facilitySystemEmail:
+            requireEnv(
+                "RISENCARE_SYSTEM_EMAIL",
+                env
+            ),
+
+        facilitySystemPassword:
+            requireEnv(
+                "RISENCARE_SYSTEM_PASSWORD",
+                env
+            ),
+
+        openAiApiKey:
+            requireEnv(
+                "OPENAI_API_KEY",
+                env
+            ),
+
         vonageApiSignatureSecret:
             requireEnv(
                 "VONAGE_API_SIGNATURE_SECRET",
@@ -223,6 +241,12 @@ function startServerTrustBoundary({
                 config.connectorTrustEmail,
             connectorTrustPassword:
                 config.connectorTrustPassword,
+            facilitySystemEmail:
+                config.facilitySystemEmail,
+            facilitySystemPassword:
+                config.facilitySystemPassword,
+            openAiApiKey:
+                config.openAiApiKey,
             vonageApiSignatureSecret:
                 config.vonageApiSignatureSecret,
             vonageVoiceRecordingEnabled:

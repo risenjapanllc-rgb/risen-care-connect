@@ -325,6 +325,239 @@ async function transcribeRecording(
   return transcriptionText;
 }
 
+async function extractTrustedSegments(
+  audio: ArrayBuffer,
+  mimeType: string,
+): Promise<Array<{
+  segment_index: number;
+  start_ms: number;
+  end_ms: number;
+  transcript_text: string;
+}>> {
+  const openAiApiKey =
+    requireEnv("OPENAI_API_KEY");
+
+  const sourceMimeType =
+    String(mimeType || "")
+      .trim()
+      .toLowerCase();
+
+  if (
+    ![
+      "audio/wave",
+      "audio/wav",
+      "audio/x-wav",
+    ].includes(sourceMimeType)
+  ) {
+    throw new Error(
+      "unsupported transcription audio MIME type",
+    );
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "file",
+    new Blob(
+      [audio],
+      {
+        type: "audio/wav",
+      },
+    ),
+    "recording.wav",
+  );
+
+  formData.append(
+    "model",
+    "whisper-1",
+  );
+
+  formData.append(
+    "response_format",
+    "verbose_json",
+  );
+
+  formData.append(
+    "timestamp_granularities[]",
+    "segment",
+  );
+
+  const response =
+    await fetch(
+      "https://api.openai.com/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            `Bearer ${openAiApiKey}`,
+        },
+        body: formData,
+      },
+    );
+
+  const responseText =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `OpenAI segment transcription failed: ${response.status} ${responseText}`,
+    );
+  }
+
+  let body: unknown;
+
+  try {
+    body =
+      JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      "OpenAI segment transcription response was not valid JSON",
+    );
+  }
+
+  if (
+    !body ||
+    typeof body !== "object" ||
+    !("segments" in body) ||
+    !Array.isArray(body.segments)
+  ) {
+    throw new Error(
+      "OpenAI segment transcription did not return segments",
+    );
+  }
+
+  const trustedSegments: Array<{
+    segment_index: number;
+    start_ms: number;
+    end_ms: number;
+    transcript_text: string;
+  }> = [];
+
+  for (const segment of body.segments) {
+    if (
+      !segment ||
+      typeof segment !== "object"
+    ) {
+      throw new Error(
+        "OpenAI segment transcription returned invalid segment",
+      );
+    }
+
+    const start =
+      "start" in segment &&
+      typeof segment.start === "number"
+        ? segment.start
+        : Number.NaN;
+
+    const end =
+      "end" in segment &&
+      typeof segment.end === "number"
+        ? segment.end
+        : Number.NaN;
+
+    const transcriptText =
+      "text" in segment &&
+      typeof segment.text === "string"
+        ? segment.text.trim()
+        : "";
+
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start < 0 ||
+      end < start
+    ) {
+      throw new Error(
+        "OpenAI segment transcription returned invalid timestamps",
+      );
+    }
+
+    /*
+     * Empty segments carry no usable semantic evidence.
+     * Ignore them and preserve contiguous trusted indexes.
+     */
+    if (!transcriptText) {
+      continue;
+    }
+
+    trustedSegments.push({
+      segment_index:
+        trustedSegments.length,
+
+      start_ms:
+        Math.round(
+          start * 1000,
+        ),
+
+      end_ms:
+        Math.round(
+          end * 1000,
+        ),
+
+      transcript_text:
+        transcriptText,
+    });
+  }
+
+  return trustedSegments;
+}
+
+
+async function persistVoiceTranscriptionSegments(
+  supabaseUrl: string,
+  publishableKey: string,
+  accessToken: string,
+  recording: Recording,
+  segments: Array<{
+    segment_index: number;
+    start_ms: number;
+    end_ms: number;
+    transcript_text: string;
+  }>,
+): Promise<void> {
+  if (segments.length === 0) {
+    return;
+  }
+
+  const response =
+    await fetch(
+      `${supabaseUrl}/rest/v1/rpc/persist_voice_transcription_segments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          apikey:
+            publishableKey,
+
+          Authorization:
+            `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          p_facility_id:
+            recording.facility_id,
+
+          p_recording_id:
+            recording.id,
+
+          p_segments:
+            segments,
+        }),
+      },
+    );
+
+  const text =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `persist voice transcription segments RPC failed: ${response.status} ${text}`,
+    );
+  }
+}
+
 async function completeRecording(
   supabaseUrl: string,
   publishableKey: string,
@@ -548,6 +781,34 @@ const transcriptionText =
         recording,
         transcriptionText,
       );
+
+      /*
+       * Trusted timestamp provenance is additive.
+       * Its failure must never roll back a successfully
+       * completed primary transcription.
+       */
+      try {
+        const trustedSegments =
+          await extractTrustedSegments(
+            audio,
+            recording.mime_type,
+          );
+
+        await persistVoiceTranscriptionSegments(
+          supabaseUrl,
+          publishableKey,
+          accessToken,
+          recording,
+          trustedSegments,
+        );
+      } catch (provenanceError) {
+        console.error(
+          "Voice transcription provenance failed",
+          provenanceError instanceof Error
+            ? provenanceError.message
+            : String(provenanceError),
+        );
+      }
 
       return jsonResponse({
         status: "completed",

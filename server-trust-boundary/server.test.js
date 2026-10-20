@@ -47,6 +47,12 @@ function validEnv(overrides = {}) {
             "connector@example.local",
         SUPABASE_CONNECTOR_TRUST_PASSWORD:
             "test-password",
+        RISENCARE_SYSTEM_EMAIL:
+            "risencare-system@risencare.local",
+        RISENCARE_SYSTEM_PASSWORD:
+            "test-system-password",
+        OPENAI_API_KEY:
+            "test-openai-key",
         VONAGE_API_SIGNATURE_SECRET:
             "test-signature-secret",
         VONAGE_VOICE_EVENT_URL:
@@ -91,6 +97,95 @@ test("missing required trust configuration fails closed", () => {
         /Missing required environment variable/
     );
 });
+
+test("facility system credentials are required", () => {
+    const missingEmail =
+        validEnv();
+
+    delete missingEmail.RISENCARE_SYSTEM_EMAIL;
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                missingEmail
+            ),
+        /Missing required environment variable: RISENCARE_SYSTEM_EMAIL/
+    );
+
+    const missingPassword =
+        validEnv();
+
+    delete missingPassword.RISENCARE_SYSTEM_PASSWORD;
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                missingPassword
+            ),
+        /Missing required environment variable: RISENCARE_SYSTEM_PASSWORD/
+    );
+});
+
+
+test("OpenAI API key is required and passed to runtime factory", () => {
+    const missingEnv =
+        validEnv();
+
+    delete missingEnv.OPENAI_API_KEY;
+
+    assert.throws(
+        () =>
+            resolveServerTrustBoundaryConfig(
+                missingEnv
+            ),
+        /Missing required environment variable: OPENAI_API_KEY/
+    );
+
+    let receivedConfig;
+
+    const fakeApp = {
+        get() {},
+        listen() {
+            return {
+                on() {}
+            };
+        }
+    };
+
+    startServerTrustBoundary({
+        env:
+            validEnv({
+                SERVER_TRUST_BOUNDARY_PORT:
+                    "8788"
+            }),
+
+        runtimeFactory(config) {
+            receivedConfig =
+                config;
+
+            return {
+                app:
+                    fakeApp
+            };
+        }
+    });
+
+    assert.equal(
+        receivedConfig.openAiApiKey,
+        "test-openai-key"
+    );
+
+    assert.equal(
+        receivedConfig.facilitySystemEmail,
+        "risencare-system@risencare.local"
+    );
+
+    assert.equal(
+        receivedConfig.facilitySystemPassword,
+        "test-system-password"
+    );
+});
+
 
 test("configuration failure occurs before runtime construction or listen", () => {
     let runtimeFactoryCalled =

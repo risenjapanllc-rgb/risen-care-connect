@@ -243,6 +243,24 @@ const VoiceEventWebhookTransport =
     require("./VoiceEventWebhookTransport");
 
 
+const ConnectorActivationTransport =
+    require("./ConnectorActivationTransport");
+
+const ConnectorActivationService =
+    require("./ConnectorActivationService");
+
+const ConnectorCredentialGenerator =
+    require("./ConnectorCredentialGenerator");
+
+const ConnectorCredentialHasher =
+    require("./ConnectorCredentialHasher");
+
+const SupabaseConnectorActivationRepository =
+    require("./SupabaseConnectorActivationRepository");
+
+const SupabaseConnectorActivationTokenVerifier =
+    require("./SupabaseConnectorActivationTokenVerifier");
+
 const {
     createServerTrustBoundaryApp
 } = require("./createServerTrustBoundaryApp");
@@ -1047,10 +1065,47 @@ function createServerTrustBoundaryHttpRuntime({
             diagnosticLogger
         });
 
+    const connectorActivationRepository =
+        new SupabaseConnectorActivationRepository({
+            supabaseUrl,
+            apiKey,
+            authProvider:
+                coreRuntime.accessTokenProvider
+        });
+
+    const connectorActivationService =
+        new ConnectorActivationService({
+            credentialGenerator:
+                new ConnectorCredentialGenerator(),
+            credentialHasher:
+                new ConnectorCredentialHasher(),
+            registrationRepository:
+                connectorActivationRepository
+        });
+
+    const connectorActivationTokenVerifier =
+        new SupabaseConnectorActivationTokenVerifier({
+            supabaseUrl,
+            apiKey,
+            authProvider:
+                coreRuntime.accessTokenProvider
+        });
+
+    const connectorActivationTransport =
+        new ConnectorActivationTransport({
+            activationTokenVerifier:
+                connectorActivationTokenVerifier,
+            activationService:
+                connectorActivationService
+        });
+
     const app =
         createServerTrustBoundaryApp({
             transport,
             endpointPath,
+            connectorActivationTransport,
+            connectorActivationEndpointPath:
+                "/connector/activate",
             sourceDocumentTransport,
             sourceDocumentEndpointPath:
                 "/connector/source-documents",

@@ -15,6 +15,9 @@ const express = require("express");
 function createServerTrustBoundaryApp({
     transport,
     endpointPath = "/connector/ingest",
+    connectorActivationTransport,
+    connectorActivationEndpointPath =
+        "/connector/activate",
     sourceDocumentTransport,
     sourceDocumentEndpointPath =
         "/connector/source-documents",
@@ -2083,6 +2086,38 @@ function createServerTrustBoundaryApp({
                                 req.get("content-type"),
                             headers:
                                 req.headers,
+                            body:
+                                req.body
+                        });
+
+                    return res
+                        .status(result.httpStatus)
+                        .json(result.body);
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (connectorActivationTransport) {
+        if (
+            typeof connectorActivationTransport.handle !==
+                "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete connectorActivationTransport"
+            );
+        }
+
+        app.all(
+            connectorActivationEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await connectorActivationTransport.handle({
+                            method:
+                                req.method,
                             body:
                                 req.body
                         });

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+    <title>Semanticワークスペース | RISEN CARE</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            background: #f5f7fa;
+            color: #1f2937;
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+        }
+
+        .workspace {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .workspace-header {
+            padding: 18px 24px;
+            background: #ffffff;
+            border-bottom: 1px solid #dfe4ea;
+        }
+
+        .workspace-header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .workspace-header p {
+            margin: 6px 0 0;
+            color: #667085;
+            font-size: 14px;
+        }
+
+        .workspace-grid {
+            --left-pane-width: 57.5%;
+
+            flex: 1;
+            display: grid;
+            grid-template-columns:
+                minmax(360px, var(--left-pane-width))
+                10px
+                minmax(360px, 1fr);
+            gap: 6px;
+            padding: 12px;
+            min-height: 0;
+        }
+
+        .workspace-panel {
+            min-width: 0;
+            min-height: 0;
+            background: #ffffff;
+            border: 1px solid #dfe4ea;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .workspace-panel-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fafafa;
+        }
+
+        .workspace-panel-header strong {
+            display: block;
+            font-size: 15px;
+        }
+
+        .workspace-panel-header span {
+            display: block;
+            margin-top: 3px;
+            color: #667085;
+            font-size: 12px;
+        }
+
+        .workspace-frame {
+            width: 100%;
+            flex: 1;
+            min-height: 760px;
+            border: 0;
+            background: #ffffff;
+        }
+
+        .workspace-divider {
+            position: relative;
+            min-width: 10px;
+            cursor: col-resize;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .workspace-divider::before {
+            content: "";
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: 50%;
+            width: 2px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            transform: translateX(-50%);
+            transition:
+                width 0.15s ease,
+                background 0.15s ease;
+        }
+
+        .workspace-divider::after {
+            content: "↔";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border: 1px solid #d7dee8;
+            border-radius: 999px;
+            color: #64748b;
+            background: #ffffff;
+            box-shadow:
+                0 4px 14px rgba(15, 23, 42, 0.10);
+            font-size: 13px;
+            font-weight: 700;
+            transform:
+                translate(-50%, -50%);
+        }
+
+        .workspace-divider:hover::before,
+        .workspace.is-resizing
+        .workspace-divider::before {
+            width: 4px;
+            background: #0d9488;
+        }
+
+        .workspace.is-resizing {
+            cursor: col-resize;
+            user-select: none;
+        }
+
+        .workspace.is-resizing
+        .workspace-frame {
+            pointer-events: none;
+        }
+
+        @media (max-width: 1100px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .workspace-divider {
+                display: none;
+            }
+
+            .workspace-frame {
+                min-height: 850px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="workspace">
+        <header class="workspace-header">
+            <h1>Semanticワークスペース</h1>
+            <p>
+                Evidence形成とMeaning審査を、
+                役割を分けたまま一つの画面で確認します。
+            </p>
+        </header>
+
+        <div class="workspace-grid">
+            <section class="workspace-panel">
+                <div class="workspace-panel-header">
+                    <strong>Evidence・意味確認</strong>
+                    <span>
+                        原本解析、施設回答、意味候補の確認
+                    </span>
+                </div>
+
+                <iframe
+                    class="workspace-frame"
+                    src="/semantic-registration.html?workspace=1"
+                    title="Semantic Evidence"
+                ></iframe>
+            </section>
+
+            <div
+                class="workspace-divider"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="EvidenceとMeaning審査の表示幅を調整"
+                tabindex="0"
+            ></div>
+
+            <section class="workspace-panel">
+                <div class="workspace-panel-header">
+                    <strong>Meaning審査・Authority</strong>
+                    <span>
+                        AI判断、管理者補足、Formal Meaning承認
+                    </span>
+                </div>
+
+                <iframe
+                    class="workspace-frame"
+                    src="/semantic-admin.html?workspace=1"
+                    title="Semantic Meaning Review"
+                ></iframe>
+            </section>
+        </div>
+    </main>
+    <script>
+        const evidenceFrame =
+            document.querySelector(
+                'iframe[title="Semantic Evidence"]'
+            );
+
+        const adminFrame =
+            document.querySelector(
+                'iframe[title="Semantic Meaning Review"]'
+            );
+
+        const workspace =
+            document.querySelector(
+                ".workspace"
+            );
+
+        const workspaceGrid =
+            document.querySelector(
+                ".workspace-grid"
+            );
+
+        const workspaceDivider =
+            document.querySelector(
+                ".workspace-divider"
+            );
+
+        const paneStorageKey =
+            "risen-semantic-workspace-left-pane";
+
+        function setPaneWidth(percent) {
+            if (!workspaceGrid) {
+                return;
+            }
+
+            const safePercent =
+                Math.min(
+                    72,
+                    Math.max(
+                        28,
+                        Number(percent) || 57.5
+                    )
+                );
+
+            workspaceGrid.style.setProperty(
+                "--left-pane-width",
+                `${safePercent}%`
+            );
+
+            try {
+                window.localStorage.setItem(
+                    paneStorageKey,
+                    String(safePercent)
+                );
+            } catch {
+                // Storage unavailable: visual resize still works.
+            }
+        }
+
+        try {
+            const storedPaneWidth =
+                Number(
+                    window.localStorage.getItem(
+                        paneStorageKey
+                    )
+                );
+
+            if (
+                Number.isFinite(
+                    storedPaneWidth
+                )
+            ) {
+                setPaneWidth(
+                    storedPaneWidth
+                );
+            }
+        } catch {
+            // Storage unavailable: use default width.
+        }
+
+        if (
+            workspaceGrid &&
+            workspaceDivider
+        ) {
+            workspaceDivider.addEventListener(
+                "pointerdown",
+                event => {
+                    if (
+                        window.matchMedia(
+                            "(max-width: 1100px)"
+                        ).matches
+                    ) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    workspace?.classList.add(
+                        "is-resizing"
+                    );
+
+                    workspaceDivider
+                        .setPointerCapture(
+                            event.pointerId
+                        );
+                }
+            );
+
+            workspaceDivider.addEventListener(
+                "pointermove",
+                event => {
+                    if (
+                        !workspace
+                            ?.classList
+                            .contains(
+                                "is-resizing"
+                            )
+                    ) {
+                        return;
+                    }
+
+                    const rect =
+                        workspaceGrid
+                            .getBoundingClientRect();
+
+                    const percentage =
+                        (
+                            (
+                                event.clientX -
+                                rect.left
+                            ) /
+                            rect.width
+                        ) *
+                        100;
+
+                    setPaneWidth(
+                        percentage
+                    );
+                }
+            );
+
+            const stopResize =
+                event => {
+                    if (
+                        !workspace
+                            ?.classList
+                            .contains(
+                                "is-resizing"
+                            )
+                    ) {
+                        return;
+                    }
+
+                    workspace.classList.remove(
+                        "is-resizing"
+                    );
+
+                    if (
+                        workspaceDivider
+                            .hasPointerCapture(
+                                event.pointerId
+                            )
+                    ) {
+                        workspaceDivider
+                            .releasePointerCapture(
+                                event.pointerId
+                            );
+                    }
+                };
+
+            workspaceDivider.addEventListener(
+                "pointerup",
+                stopResize
+            );
+
+            workspaceDivider.addEventListener(
+                "pointercancel",
+                stopResize
+            );
+
+            workspaceDivider.addEventListener(
+                "keydown",
+                event => {
+                    if (
+                        ![
+                            "ArrowLeft",
+                            "ArrowRight"
+                        ].includes(
+                            event.key
+                        )
+                    ) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    const current =
+                        parseFloat(
+                            getComputedStyle(
+                                workspaceGrid
+                            )
+                                .getPropertyValue(
+                                    "--left-pane-width"
+                                )
+                        ) ||
+                        57.5;
+
+                    setPaneWidth(
+                        current +
+                        (
+                            event.key ===
+                                "ArrowRight"
+                                ? 2
+                                : -2
+                        )
+                    );
+                }
+            );
+        }
+
+        window.addEventListener(
+            "message",
+            event => {
+                if (
+                    event.origin !==
+                        window.location.origin
+                ) {
+                    return;
+                }
+
+                if (
+                    event.source ===
+                        evidenceFrame?.contentWindow &&
+                    event.data?.type ===
+                        "risen-semantic-focus-candidate"
+                ) {
+                    const sourceFieldKey =
+                        String(
+                            event.data
+                                ?.sourceFieldKey ||
+                            ""
+                        ).trim();
+
+                    if (!sourceFieldKey) {
+                        return;
+                    }
+
+                    adminFrame
+                        ?.contentWindow
+                        ?.postMessage(
+                            {
+                                type:
+                                    "risen-semantic-focus-candidate",
+                                sourceFieldKey
+                            },
+                            window.location.origin
+                        );
+
+                    return;
+                }
+
+                if (
+                    event.source ===
+                        adminFrame?.contentWindow &&
+                    event.data?.type ===
+                        "risen-semantic-authority-accepted"
+                ) {
+                    const sourceFieldKey =
+                        String(
+                            event.data
+                                ?.sourceFieldKey ||
+                            ""
+                        ).trim();
+
+                    if (!sourceFieldKey) {
+                        return;
+                    }
+
+                    evidenceFrame
+                        ?.contentWindow
+                        ?.postMessage(
+                            {
+                                type:
+                                    "risen-semantic-authority-accepted",
+                                sourceFieldKey,
+                                candidateId:
+                                    event.data
+                                        ?.candidateId ||
+                                    "",
+                                meaningId:
+                                    event.data
+                                        ?.meaningId ||
+                                    ""
+                            },
+                            window.location.origin
+                        );
+                }
+            }
+        );
+    </script>
+</body>
+</html>

@@ -111,6 +111,17 @@
         loginButton.hidden =
             true;
 
+        const loginSection =
+            document.getElementById(
+                "login-section"
+            );
+
+        loginSection
+            ?.classList
+            .add(
+                "is-authenticated"
+            );
+
         setLoginStatus(
             "Semantic管理者としてログイン中"
         );
@@ -361,6 +372,18 @@
                 "article"
             );
 
+        article.dataset.templateFieldKey =
+            String(
+                candidate.templateFieldKey ||
+                ""
+            ).trim();
+
+        article.dataset.candidateId =
+            String(
+                candidate.candidateId ||
+                ""
+            ).trim();
+
         const heading =
             document.createElement(
                 "h3"
@@ -402,6 +425,151 @@
             return article;
         }
 
+        const evidence =
+            candidate.evidence &&
+            typeof candidate.evidence === "object" &&
+            !Array.isArray(
+                candidate.evidence
+            )
+                ? candidate.evidence
+                : {};
+
+        const sourceLabel =
+            String(
+                evidence.sourceLabel ||
+                candidate.templateFieldKey ||
+                ""
+            ).trim();
+
+        const staffClarification =
+            String(
+                evidence.staffClarification ||
+                ""
+            ).trim();
+
+        const sampleValues =
+            Array.isArray(
+                evidence.sampleValues
+            )
+                ? evidence.sampleValues
+                    .map(value =>
+                        String(
+                            value ?? ""
+                        ).trim()
+                    )
+                    .filter(Boolean)
+                    .slice(0, 5)
+                : [];
+
+        const neighboringFields =
+            Array.isArray(
+                evidence.neighboringFields
+            )
+                ? evidence.neighboringFields
+                    .map(value =>
+                        String(
+                            value ?? ""
+                        ).trim()
+                    )
+                    .filter(Boolean)
+                    .slice(0, 10)
+                : [];
+
+        const evidencePanel =
+            document.createElement(
+                "div"
+            );
+
+        evidencePanel.className =
+            "review-evidence-panel";
+
+        const evidenceTitle =
+            document.createElement(
+                "div"
+            );
+
+        evidenceTitle.className =
+            "review-evidence-title";
+
+        evidenceTitle.textContent =
+            "審査Evidence";
+
+        evidencePanel.append(
+            evidenceTitle
+        );
+
+        function appendEvidenceRow(
+            labelText,
+            valueText,
+            emphasis = false
+        ) {
+            if (!valueText) {
+                return;
+            }
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+            row.className =
+                emphasis
+                    ? "review-evidence-row review-evidence-important"
+                    : "review-evidence-row";
+
+            const label =
+                document.createElement(
+                    "span"
+                );
+
+            label.className =
+                "review-evidence-label";
+
+            label.textContent =
+                labelText;
+
+            const value =
+                document.createElement(
+                    "div"
+                );
+
+            value.className =
+                "review-evidence-value";
+
+            value.textContent =
+                valueText;
+
+            row.append(
+                label,
+                value
+            );
+
+            evidencePanel.append(
+                row
+            );
+        }
+
+        appendEvidenceRow(
+            "施設からの補足",
+            staffClarification,
+            true
+        );
+
+        appendEvidenceRow(
+            "原本項目",
+            sourceLabel
+        );
+
+        appendEvidenceRow(
+            "原本の値",
+            sampleValues.join(" / ")
+        );
+
+        appendEvidenceRow(
+            "周辺項目",
+            neighboringFields.join(" / ")
+        );
+
         const entity =
             createInput(
                 "entityName"
@@ -440,7 +608,134 @@
         proposalStatus.textContent =
             "AIがMeaning候補を整理しています...";
 
-        async function loadAiProposal() {
+        const adminInterpretationPanel =
+            document.createElement(
+                "div"
+            );
+
+        adminInterpretationPanel.className =
+            "admin-interpretation-panel";
+
+        const adminInterpretationTitle =
+            document.createElement(
+                "div"
+            );
+
+        adminInterpretationTitle.className =
+            "admin-interpretation-title";
+
+        adminInterpretationTitle.textContent =
+            "管理者側で意味を補正";
+
+        const adminInterpretationHelp =
+            document.createElement(
+                "p"
+            );
+
+        adminInterpretationHelp.className =
+            "admin-interpretation-help";
+
+        adminInterpretationHelp.textContent =
+            "施設の回答は変更せず、管理者側の解釈を別Evidenceとして保存してAIに再判定させます。";
+
+        const savedAdminInterpretation =
+            String(
+                evidence
+                    .risenAdminInterpretation ||
+                ""
+            ).trim();
+
+        const currentAdminInterpretation =
+            document.createElement(
+                "div"
+            );
+
+        currentAdminInterpretation.className =
+            "admin-interpretation-current";
+
+        currentAdminInterpretation.style.display =
+            savedAdminInterpretation
+                ? "block"
+                : "none";
+
+        const currentAdminInterpretationLabel =
+            document.createElement(
+                "div"
+            );
+
+        currentAdminInterpretationLabel.textContent =
+            "現在の管理者補足";
+
+        currentAdminInterpretationLabel.style.fontWeight =
+            "700";
+
+        const currentAdminInterpretationText =
+            document.createElement(
+                "div"
+            );
+
+        currentAdminInterpretationText.className =
+            "admin-interpretation-current-text";
+
+        currentAdminInterpretationText.textContent =
+            savedAdminInterpretation;
+
+        currentAdminInterpretation.append(
+            currentAdminInterpretationLabel,
+            currentAdminInterpretationText
+        );
+
+        const adminInterpretationInput =
+            document.createElement(
+                "textarea"
+            );
+
+        adminInterpretationInput.className =
+            "admin-interpretation-input";
+
+        adminInterpretationInput.rows =
+            3;
+
+        adminInterpretationInput.placeholder =
+            "例：名称だけでなく番号が入る場合もある";
+
+        adminInterpretationInput.value =
+            "";
+
+        const adminReevaluateButton =
+            document.createElement(
+                "button"
+            );
+
+        adminReevaluateButton.type =
+            "button";
+
+        adminReevaluateButton.className =
+            "secondary-button";
+
+        adminReevaluateButton.textContent =
+            "AI再判定";
+
+        const adminInterpretationStatus =
+            document.createElement(
+                "p"
+            );
+
+        adminInterpretationStatus.className =
+            "admin-interpretation-status";
+
+        adminInterpretationPanel.append(
+            adminInterpretationTitle,
+            adminInterpretationHelp,
+            currentAdminInterpretation,
+            adminInterpretationInput,
+            adminReevaluateButton,
+            adminInterpretationStatus
+        );
+
+        async function loadAiProposal({
+            adminInterpretation = ""
+        } = {}) {
             try {
                 const response =
                     await fetch(
@@ -449,9 +744,17 @@
                             method:
                                 "POST",
                             headers: {
+                                "Content-Type":
+                                    "application/json",
+
                                 Authorization:
                                     `Bearer ${accessToken}`
-                            }
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    adminInterpretation
+                                })
                         }
                     );
 
@@ -474,6 +777,33 @@
                 const proposal =
                     body.proposal;
 
+                if (
+                    String(
+                        adminInterpretation ||
+                        ""
+                    ).trim()
+                ) {
+                    evidence.risenAdminInterpretation =
+                        String(
+                            adminInterpretation
+                        ).trim();
+
+                    currentAdminInterpretationText
+                        .textContent =
+                        evidence.risenAdminInterpretation;
+
+                    currentAdminInterpretation
+                        .style.display =
+                        "block";
+
+                    adminInterpretationInput.value =
+                        "";
+
+                    adminInterpretationStatus
+                        .textContent =
+                        "意味補正を保存し、AIで再判定しました。";
+                }
+
                 const mode =
                     String(
                         proposal.mode || ""
@@ -489,6 +819,11 @@
                         proposal.confidence || ""
                     ).trim();
 
+                const facilityQuestion =
+                    String(
+                        proposal.facilityQuestion || ""
+                    ).trim();
+
                 if (
                     typeof proposal.semanticType ===
                         "string"
@@ -501,6 +836,9 @@
                     mode === "existing" ||
                     mode === "new"
                 ) {
+                    button.disabled =
+                        false;
+
                     entity.input.value =
                         proposal.entityName || "";
 
@@ -554,20 +892,83 @@
                     return;
                 }
 
+                button.disabled =
+                    true;
+
                 proposalStatus.textContent =
-                    `AI判断：保留${
+                    [
+                        "AI判断：保留",
                         reason
-                            ? `\n判断理由：${reason}`
+                            ? `判断理由：${reason}`
+                            : "",
+                        facilityQuestion
+                            ? `施設への確認事項：${facilityQuestion}`
                             : ""
-                    }`;
+                    ]
+                        .filter(Boolean)
+                        .join("\n");
 
                 proposalStatus.style.whiteSpace =
                     "pre-line";
             } catch {
+                button.disabled =
+                    true;
+
                 proposalStatus.textContent =
                     "AI提案を取得できません";
             }
         }
+
+        adminReevaluateButton
+            .addEventListener(
+                "click",
+                async () => {
+                    const interpretation =
+                        String(
+                            adminInterpretationInput
+                                .value ||
+                            ""
+                        ).trim();
+
+                    if (!interpretation) {
+                        adminInterpretationStatus
+                            .textContent =
+                            "管理者側の意味補正を入力してください。";
+
+                        adminInterpretationInput
+                            .focus();
+
+                        return;
+                    }
+
+                    adminReevaluateButton
+                        .disabled =
+                        true;
+
+                    adminReevaluateButton
+                        .textContent =
+                        "再判定中...";
+
+                    adminInterpretationStatus
+                        .textContent =
+                        "";
+
+                    try {
+                        await loadAiProposal({
+                            adminInterpretation:
+                                interpretation
+                        });
+                    } finally {
+                        adminReevaluateButton
+                            .disabled =
+                            false;
+
+                        adminReevaluateButton
+                            .textContent =
+                            "AI再判定";
+                    }
+                }
+            );
 
         const button =
             document.createElement(
@@ -576,6 +977,9 @@
 
         button.textContent =
             "Meaningを承認";
+
+        button.disabled =
+            true;
 
         const result =
             document.createElement(
@@ -640,6 +1044,36 @@
                     result.textContent =
                         `${body.status} / ${body.meaningId || "-"}`;
 
+                    if (
+                        window.parent &&
+                        window.parent !== window
+                    ) {
+                        window.parent.postMessage(
+                            {
+                                type:
+                                    "risen-semantic-authority-accepted",
+                                sourceFieldKey:
+                                    String(
+                                        candidate
+                                            .templateFieldKey ||
+                                        ""
+                                    ).trim(),
+                                candidateId:
+                                    String(
+                                        candidate
+                                            .candidateId ||
+                                        ""
+                                    ).trim(),
+                                meaningId:
+                                    String(
+                                        body.meaningId ||
+                                        ""
+                                    ).trim()
+                            },
+                            window.location.origin
+                        );
+                    }
+
                     await loadCandidates();
                 } finally {
                     button.disabled =
@@ -671,7 +1105,9 @@
         );
 
         article.append(
+            evidencePanel,
             proposalStatus,
+            adminInterpretationPanel,
             technicalDetails,
             button,
             result
@@ -681,6 +1117,75 @@
 
         return article;
     }
+
+
+    window.addEventListener(
+        "message",
+        event => {
+            if (
+                event.origin !==
+                    window.location.origin
+            ) {
+                return;
+            }
+
+            if (
+                event.data?.type !==
+                    "risen-semantic-focus-candidate"
+            ) {
+                return;
+            }
+
+            const sourceFieldKey =
+                String(
+                    event.data
+                        ?.sourceFieldKey ||
+                    ""
+                ).trim();
+
+            if (!sourceFieldKey) {
+                return;
+            }
+
+            const target =
+                Array.from(
+                    candidateList
+                        .querySelectorAll(
+                            "article[data-template-field-key]"
+                        )
+                )
+                    .find(article =>
+                        String(
+                            article.dataset
+                                .templateFieldKey ||
+                            ""
+                        ).trim() ===
+                        sourceFieldKey
+                    );
+
+            if (!target) {
+                return;
+            }
+
+            target.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+
+            target.classList.add(
+                "workspace-focus-candidate"
+            );
+
+            window.setTimeout(
+                () => {
+                    target.classList.remove(
+                        "workspace-focus-candidate"
+                    );
+                },
+                2400
+            );
+        }
+    );
 
 
     loginButton.addEventListener(

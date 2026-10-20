@@ -7,6 +7,18 @@
         content="width=device-width, initial-scale=1.0"
     >
     <title>Semantic登録 | RISEN CARE Connect</title>
+
+    <script>
+        if (
+            new URLSearchParams(
+                window.location.search
+            ).get("workspace") === "1"
+        ) {
+            document.documentElement
+                .classList
+                .add("workspace-embed");
+        }
+    </script>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/style.css">
 
@@ -19,6 +31,15 @@
 
         .semantic-registration-header {
             margin-bottom: 28px;
+        }
+
+        .workspace-embed .semantic-registration-header {
+            display: none;
+        }
+
+        .workspace-embed .semantic-registration-page {
+            max-width: none;
+            padding-top: 20px;
         }
 
         .semantic-registration-header h1 {
@@ -83,6 +104,46 @@
             font-size: 28px;
             font-weight: 700;
             margin-top: 4px;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--registered {
+            border-color: #bbf7d0;
+            background: #f0fdf4;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--registered
+        .semantic-summary-number {
+            color: #15803d;
+            font-size: 32px;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--review {
+            border-color: #fde68a;
+            background: #fffbeb;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--review
+        .semantic-summary-number {
+            color: #b45309;
+            font-size: 32px;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--secondary {
+            padding: 12px 14px;
+            color: #667085;
+            background: #fafafa;
+        }
+
+        .workspace-embed
+        .semantic-summary-card--secondary
+        .semantic-summary-number {
+            font-size: 22px;
+            color: #475467;
         }
 
         .semantic-toolbar {
@@ -524,6 +585,25 @@
             font-weight: 500 !important;
         }
 
+        .workspace-selected-field > td {
+            background: #f0f9ff !important;
+        }
+
+        .workspace-selected-field > td:first-child {
+            box-shadow:
+                inset 4px 0 0 #0d9488;
+        }
+
+        .workspace-authority-updated > td {
+            background: #ecfdf5 !important;
+            box-shadow:
+                inset 0 2px 0 rgba(20, 184, 166, 0.35),
+                inset 0 -2px 0 rgba(20, 184, 166, 0.35);
+            transition:
+                background 0.2s ease,
+                box-shadow 0.2s ease;
+        }
+
         .semantic-confirm-review-candidate-button {
             display: none !important;
         }
@@ -597,7 +677,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--registered">
                     <span>登録済み</span>
                     <strong
                         id="semanticRegisteredCount"
@@ -605,7 +685,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--secondary">
                     <span>RISEN判定済み</span>
                     <strong
                         id="semanticExactCount"
@@ -613,7 +693,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--secondary">
                     <span>RISEN推定</span>
                     <strong
                         id="semanticAliasCount"
@@ -621,7 +701,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--secondary">
                     <span>行Semantic判定あり</span>
                     <strong
                         id="semanticRowFieldCount"
@@ -629,7 +709,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--secondary">
                     <span>原本値なし</span>
                     <strong
                         id="semanticEmptyCount"
@@ -637,7 +717,7 @@
                     >0</strong>
                 </div>
 
-                <div class="semantic-summary-card">
+                <div class="semantic-summary-card semantic-summary-card--review">
                     <span>未決定</span>
                     <strong
                         id="semanticReviewCount"
@@ -740,6 +820,7 @@
     </main>
 
     <script src="/js/common.js"></script>
+    <script src="/js/standard-field-mapping.js?v=20261015-common-semantic-1"></script>
     <script src="/js/semantic-candidate-signal-adapter.js"></script>
     <script src="/js/semantic-candidate-resolver.js"></script>
     <script src="/js/semantic-review-model.js"></script>

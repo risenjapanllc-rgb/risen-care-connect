@@ -99,6 +99,7 @@ function normalizeSemanticLabel(value) {
         .trim()
         .replaceAll("（", "(")
         .replaceAll("）", ")")
+        .replace(/^\((.*)\)$/, "$1")
         .replaceAll("　", " ")
         .replace(/\s+/g, "")
         .toLowerCase();
@@ -449,101 +450,52 @@ async function loadContextCandidates(
 
 
 function findMeaningCandidates(label) {
-    const normalized =
-        normalizeSemanticLabel(
-            label
-        );
+    const matches =
+        window.RisenStandardFieldMapping
+            ?.findStandardFieldCandidates(
+                label,
+                semanticStandardFields
+            ) || [];
 
-    if (!normalized) {
-        return [];
-    }
+    return matches
+        .map(field => {
+            const entityName =
+                String(
+                    field?.entity_name || ""
+                ).trim();
 
-    const matches = [];
+            const fieldName =
+                String(
+                    field?.field_name || ""
+                ).trim();
 
-    for (
-        const field
-        of semanticStandardFields
-    ) {
-        const meaning =
-            [
-                field?.entity_name,
-                field?.field_name
-            ]
-                .filter(Boolean)
-                .join(".");
+            if (!entityName || !fieldName) {
+                return null;
+            }
 
-        if (!meaning) {
-            continue;
-        }
+            const semanticMeaning =
+                `${entityName}.${fieldName}`;
 
-        const displayName =
-            String(
-                field?.display_name ||
-                ""
-            ).trim();
-
-        if (
-            normalizeSemanticLabel(
-                displayName
-            ) === normalized
-        ) {
-            matches.push({
-                semanticMeaning:
-                    meaning,
+            return {
+                semanticMeaning,
+                displayName:
+                    String(
+                        field?.display_name ||
+                        semanticMeaning
+                    ).trim(),
                 matchType:
                     "exact",
                 matchedLabel:
-                    displayName
-            });
-
-            continue;
-        }
-
-        const synonyms =
-            Array.isArray(
-                field?.synonyms
-            )
-                ? field.synonyms
-                : [];
-
-        const synonym =
-            synonyms.find(item =>
-                normalizeSemanticLabel(
-                    item
-                ) === normalized
-            );
-
-        if (synonym) {
-            matches.push({
-                semanticMeaning:
-                    meaning,
-                matchType:
-                    "alias",
-                matchedLabel:
-                    synonym
-            });
-        }
-    }
-
-    const unique = new Map();
-
-    for (const item of matches) {
-        if (
-            !unique.has(
-                item.semanticMeaning
-            )
-        ) {
-            unique.set(
-                item.semanticMeaning,
-                item
-            );
-        }
-    }
-
-    return [
-        ...unique.values()
-    ];
+                    String(
+                        field?.display_name ||
+                        label ||
+                        ""
+                    ).trim()
+            };
+        })
+        .filter(Boolean);
 }
+
 
 function resolveFields(
     fieldDefinitions
@@ -1992,9 +1944,35 @@ function renderMeaningEditor(item) {
                                 item.sourceFieldKey
                             )
                             ?.evidence
-                            ?.staffClarification
-                            ? "さらに補足"
-                            : "追加の補足"
+                            ?.aiReview
+                            ?.mode === "review" &&
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.facilityQuestion
+                            ? (
+                                semanticStandardMeaningCandidates
+                                    .get(
+                                        item.sourceFieldKey
+                                    )
+                                    ?.evidence
+                                    ?.staffClarification
+                                    ? "確認への回答を更新"
+                                    : "確認への回答"
+                            )
+                            : (
+                                semanticStandardMeaningCandidates
+                                    .get(
+                                        item.sourceFieldKey
+                                    )
+                                    ?.evidence
+                                    ?.staffClarification
+                                    ? "さらに補足"
+                                    : "追加の補足"
+                            )
                     }
                 </label>
 
@@ -2054,8 +2032,42 @@ function renderMeaningEditor(item) {
                     class="
                         semantic-standard-meaning-clarification-input
                     "
-                    placeholder="例：この項目は、この事業所の利用開始日を表します"
-                    aria-label="追加の補足"
+                    placeholder="${
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.mode === "review" &&
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.facilityQuestion
+                            ? "例：名称です／番号です／両方入ることがあります"
+                            : "例：この項目は、この事業所の利用開始日を表します"
+                    }"
+                    aria-label="${
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.mode === "review" &&
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.facilityQuestion
+                            ? "確認への回答"
+                            : "追加の補足"
+                    }"
                     value=""
                     style="
                         display: block;
@@ -2086,9 +2098,35 @@ function renderMeaningEditor(item) {
                                 item.sourceFieldKey
                             )
                             ?.evidence
-                            ?.staffClarification
-                            ? "補足を更新する"
-                            : "補足をRISENへ送る"
+                            ?.aiReview
+                            ?.mode === "review" &&
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.facilityQuestion
+                            ? (
+                                semanticStandardMeaningCandidates
+                                    .get(
+                                        item.sourceFieldKey
+                                    )
+                                    ?.evidence
+                                    ?.staffClarification
+                                    ? "回答を更新する"
+                                    : "回答をRISENへ送る"
+                            )
+                            : (
+                                semanticStandardMeaningCandidates
+                                    .get(
+                                        item.sourceFieldKey
+                                    )
+                                    ?.evidence
+                                    ?.staffClarification
+                                    ? "補足を更新する"
+                                    : "補足をRISENへ送る"
+                            )
                     }
                 </button>
 
@@ -2109,7 +2147,24 @@ function renderMeaningEditor(item) {
                         margin: 6px 0 0;
                     "
                 >
-                    分かる範囲を自然な言葉で入力してください。
+                    ${
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.mode === "review" &&
+                        semanticStandardMeaningCandidates
+                            .get(
+                                item.sourceFieldKey
+                            )
+                            ?.evidence
+                            ?.aiReview
+                            ?.facilityQuestion
+                            ? "質問に対して、分かる範囲を自然な言葉で入力してください。"
+                            : "分かる範囲を自然な言葉で入力してください。"
+                    }
                     Semanticコード等の入力は不要です。
                 </p>
             </div>
@@ -2325,6 +2380,27 @@ async function submitStandardMeaningClarification(
             ".semantic-standard-meaning-clarification-input"
         );
 
+    const candidate =
+        semanticStandardMeaningCandidates
+            .get(
+                sourceFieldKey
+            );
+
+    const questionMode =
+        candidate
+            ?.evidence
+            ?.aiReview
+            ?.mode === "review" &&
+        Boolean(
+            String(
+                candidate
+                    ?.evidence
+                    ?.aiReview
+                    ?.facilityQuestion ||
+                ""
+            ).trim()
+        );
+
     const staffClarification =
         String(
             input?.value || ""
@@ -2332,7 +2408,9 @@ async function submitStandardMeaningClarification(
 
     if (!staffClarification) {
         setStatus(
-            "追加の補足を入力してください。",
+            questionMode
+                ? "確認への回答を入力してください。"
+                : "追加の補足を入力してください。",
             "error"
         );
 
@@ -2408,7 +2486,9 @@ async function submitStandardMeaningClarification(
 
         button.disabled = false;
         button.textContent =
-            "補足を更新する";
+            questionMode
+                ? "回答を更新する"
+                : "補足を更新する";
 
         if (input) {
             input.value = "";
@@ -2502,11 +2582,15 @@ async function submitStandardMeaningClarification(
 
         if (localStatus) {
             localStatus.textContent =
-                "✓ 補足を更新しました";
+                questionMode
+                    ? "✓ 回答を送信しました"
+                    : "✓ 補足を更新しました";
         }
 
         setStatus(
-            `${item.label} の補足をRISENへ送信しました。`,
+            questionMode
+                ? `${item.label} の回答をRISENへ送信しました。`
+                : `${item.label} の補足をRISENへ送信しました。`,
             "success"
         );
     } catch (error) {
@@ -2514,7 +2598,9 @@ async function submitStandardMeaningClarification(
 
         button.disabled = false;
         button.textContent =
-            "補足をRISENへ送る";
+            questionMode
+                ? "回答をRISENへ送る"
+                : "補足をRISENへ送る";
 
         setStatus(
             error?.message ||
@@ -2920,7 +3006,11 @@ function renderFields() {
         visible
             .map(item => {
                 return `
-                    <tr>
+                    <tr
+                        data-source-field-key="${escapeHtml(
+                            item.sourceFieldKey
+                        )}"
+                    >
                         <td>
                             <strong>
                                 ${escapeHtml(
@@ -2952,6 +3042,64 @@ function renderFields() {
                 `;
             })
             .join("");
+
+    fieldsBody
+        .querySelectorAll(
+            "tr[data-source-field-key]"
+        )
+        .forEach(row => {
+            row.addEventListener(
+                "click",
+                event => {
+                    if (
+                        event.target.closest(
+                            "button, input, select, textarea, a"
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const sourceFieldKey =
+                        String(
+                            row.dataset
+                                .sourceFieldKey ||
+                            ""
+                        ).trim();
+
+                    if (!sourceFieldKey) {
+                        return;
+                    }
+
+                    fieldsBody
+                        .querySelectorAll(
+                            "tr.workspace-selected-field"
+                        )
+                        .forEach(item =>
+                            item.classList.remove(
+                                "workspace-selected-field"
+                            )
+                        );
+
+                    row.classList.add(
+                        "workspace-selected-field"
+                    );
+
+                    if (
+                        window.parent &&
+                        window.parent !== window
+                    ) {
+                        window.parent.postMessage(
+                            {
+                                type:
+                                    "risen-semantic-focus-candidate",
+                                sourceFieldKey
+                            },
+                            window.location.origin
+                        );
+                    }
+                }
+            );
+        });
 
     fieldsBody
         .querySelectorAll(
@@ -4282,6 +4430,36 @@ async function registerSemanticTemplate() {
         registerButton.textContent =
             "書式登録済み ✓";
 
+        let returnToImportButton =
+            document.getElementById(
+                "returnToImportButton"
+            );
+
+        if (!returnToImportButton) {
+            returnToImportButton =
+                document.createElement("a");
+
+            returnToImportButton.id =
+                "returnToImportButton";
+
+            returnToImportButton.href =
+                "local-connector.html";
+
+            returnToImportButton.className =
+                "secondary-button";
+
+            returnToImportButton.textContent =
+                "← ファイル取込に戻る";
+
+            returnToImportButton.style.marginLeft =
+                "12px";
+
+            registerButton.insertAdjacentElement(
+                "afterend",
+                returnToImportButton
+            );
+        }
+
         const sourceStatusText =
             sourceDocumentBound
                 ? "原本紐付け済み"
@@ -4424,6 +4602,116 @@ async function analyzeSelectedFile() {
             !fileSelect.value;
     }
 }
+
+window.addEventListener(
+    "message",
+    async event => {
+        if (
+            event.origin !==
+                window.location.origin ||
+            event.source !==
+                window.parent ||
+            event.data?.type !==
+                "risen-semantic-authority-accepted"
+        ) {
+            return;
+        }
+
+        const sourceFieldKey =
+            String(
+                event.data
+                    ?.sourceFieldKey ||
+                ""
+            ).trim();
+
+        if (
+            !sourceFieldKey ||
+            !semanticCurrentAnalysis ||
+            !Array.isArray(
+                semanticCurrentFieldDefinitions
+            ) ||
+            semanticCurrentFieldDefinitions
+                .length === 0
+        ) {
+            return;
+        }
+
+        try {
+            await loadPersistedMappings(
+                semanticCurrentAnalysis
+            );
+
+            semanticResolvedFields =
+                resolveFields(
+                    semanticCurrentFieldDefinitions
+                );
+
+            renderSummary();
+            renderFields();
+
+            const targetRow =
+                Array.from(
+                    fieldsBody.querySelectorAll(
+                        "tr[data-source-field-key]"
+                    )
+                )
+                    .find(row =>
+                        String(
+                            row.dataset
+                                .sourceFieldKey ||
+                            ""
+                        ).trim() ===
+                        sourceFieldKey
+                    );
+
+            if (targetRow) {
+                targetRow.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+
+                targetRow.classList.add(
+                    "workspace-authority-updated"
+                );
+
+                window.setTimeout(
+                    () => {
+                        targetRow.classList.remove(
+                            "workspace-authority-updated"
+                        );
+                    },
+                    2400
+                );
+            }
+
+            const resolvedItem =
+                semanticResolvedFields.find(
+                    item =>
+                        item?.sourceFieldKey ===
+                            sourceFieldKey
+                );
+
+            setStatus(
+                `${
+                    resolvedItem?.label ||
+                    sourceFieldKey
+                } のMeaning承認を反映しました。`,
+                "success"
+            );
+        } catch (error) {
+            console.error(
+                "Semantic Authority refresh failed",
+                error
+            );
+
+            setStatus(
+                "Meaning承認後の表示更新に失敗しました。再読込してください。",
+                "error"
+            );
+        }
+    }
+);
+
 
 function bindFilters() {
     document

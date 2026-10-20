@@ -478,6 +478,18 @@ app.get(
 );
 
 app.get(
+    "/semantic-workspace.html",
+    (req, res) => {
+        return res.sendFile(
+            path.join(
+                __dirname,
+                "semantic-workspace.html"
+            )
+        );
+    }
+);
+
+app.get(
     "/connect",
     (req, res) => {
         res.setHeader(
@@ -2770,6 +2782,105 @@ app.post(
                 errorCode:
                     "standard_meaning_ai_proposal_unavailable"
             });
+        }
+
+        const adminInterpretation =
+            String(
+                req.body
+                    ?.adminInterpretation ||
+                ""
+            ).trim();
+
+        if (adminInterpretation) {
+            let interpretationResponse;
+
+            try {
+                interpretationResponse =
+                    await fetch(
+                        `${supabaseUrl}/rest/v1/rpc/risen_admin_update_standard_meaning_candidate_interpretation`,
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                apikey:
+                                    publishableKey,
+
+                                Authorization:
+                                    `Bearer ${authentication.accessToken}`,
+
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    p_candidate_id:
+                                        candidateId,
+
+                                    p_interpretation:
+                                        adminInterpretation,
+
+                                    p_interpreted_at:
+                                        new Date()
+                                            .toISOString()
+                                })
+                        }
+                    );
+            } catch {
+                return res.status(503).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_admin_interpretation_unavailable"
+                });
+            }
+
+            if (!interpretationResponse.ok) {
+                const interpretationErrorText =
+                    await interpretationResponse
+                        .text();
+
+                console.error(
+                    "Standard Meaning admin interpretation failed:",
+                    interpretationResponse.status,
+                    interpretationErrorText
+                );
+
+                return res.status(
+                    interpretationResponse.status
+                ).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_admin_interpretation_failed"
+                });
+            }
+
+            const interpretationRows =
+                await interpretationResponse
+                    .json();
+
+            const interpretationResult =
+                Array.isArray(
+                    interpretationRows
+                )
+                    ? interpretationRows[0]
+                    : interpretationRows;
+
+            if (
+                !interpretationResult ||
+                ![
+                    "updated",
+                    "unchanged"
+                ].includes(
+                    interpretationResult.status
+                )
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    errorCode:
+                        "standard_meaning_admin_interpretation_rejected"
+                });
+            }
         }
 
         let contextResponse;

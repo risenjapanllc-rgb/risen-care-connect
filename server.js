@@ -28,6 +28,11 @@ const StandardMeaningAiProposalGenerator =
         "./server-trust-boundary/StandardMeaningAiProposalGenerator"
     );
 
+const StandardMeaningFieldInterpretationGenerator =
+    require(
+        "./server-trust-boundary/StandardMeaningFieldInterpretationGenerator"
+    );
+
 require("dotenv").config();
 
 const app = express();
@@ -1764,6 +1769,104 @@ app.get("/api/standard-fields", async (req, res) => {
     }
 });
 
+
+
+app.post(
+    "/api/semantic/field-interpretation",
+    async (req, res) => {
+        const apiKey =
+            String(
+                process.env.OPENAI_API_KEY ||
+                ""
+            ).trim();
+
+        if (!apiKey) {
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_field_interpretation_unavailable"
+            });
+        }
+
+        const sourceLabel =
+            String(
+                req.body?.sourceLabel ||
+                ""
+            ).trim();
+
+        if (!sourceLabel) {
+            return res.status(422).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_field_interpretation_invalid"
+            });
+        }
+
+        const evidence =
+            req.body?.evidence &&
+            typeof req.body.evidence ===
+                "object" &&
+            !Array.isArray(
+                req.body.evidence
+            )
+                ? req.body.evidence
+                : {};
+
+        try {
+            const generator =
+                new StandardMeaningFieldInterpretationGenerator({
+                    apiKey,
+
+                    model:
+                        String(
+                            process.env
+                                .OPENAI_STANDARD_MEANING_INTERPRETATION_MODEL ||
+                            process.env
+                                .OPENAI_STANDARD_MEANING_MODEL ||
+                            "gpt-6-luna"
+                        ).trim()
+                });
+
+            const interpretation =
+                await generator.generate({
+                    sourceLabel,
+
+                    sourceDocumentName:
+                        String(
+                            req.body
+                                ?.sourceDocumentName ||
+                            ""
+                        ).trim(),
+
+                    documentType:
+                        String(
+                            req.body
+                                ?.documentType ||
+                            ""
+                        ).trim(),
+
+                    evidence
+                });
+
+            return res.json({
+                success: true,
+                interpretation
+            });
+        } catch (error) {
+            console.error(
+                "Standard Meaning field interpretation failed:",
+                error?.message ||
+                    "unknown error"
+            );
+
+            return res.status(503).json({
+                success: false,
+                errorCode:
+                    "standard_meaning_field_interpretation_failed"
+            });
+        }
+    }
+);
 
 
 app.post("/api/context-resolution", (req, res) => {

@@ -117,6 +117,9 @@ const RecipientCertificateExecutionService =
 const LocalImportExecutionService =
     require("./LocalImportExecutionService");
 
+const SourceTemplateAuthorityFieldMappingService =
+    require("./SourceTemplateAuthorityFieldMappingService");
+
 const RegisteredFileSourceAdapter =
     require("./RegisteredFileSourceAdapter");
 const LocalSourceDocumentIngestionService =
@@ -314,6 +317,71 @@ async function createSourceFieldMappingIngestionService({
         authorizationScheme,
         connectorIdHeader,
         fetchImpl
+    });
+}
+
+async function createSourceTemplateAuthorityFieldMappingService({
+    databasePath,
+    configPath,
+    semanticRegistrationEndpoint,
+    fieldMappingEndpoint,
+    interpretationEndpoint,
+    credential,
+    authorizationScheme,
+    connectorIdHeader =
+        "x-risen-connector-id",
+    fetchImpl = globalThis.fetch
+} = {}) {
+    const localConnectorService =
+        createService({
+            databasePath,
+            configPath
+        });
+
+    const connectorId =
+        await localConnectorService
+            .getConnectorId();
+
+    const semanticRegistrationClient =
+        new SemanticRegistrationHttpClient({
+            serverTrustBoundaryEndpoint:
+                semanticRegistrationEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const sourceFieldMappingClient =
+        new SourceFieldMappingHttpClient({
+            endpoint:
+                fieldMappingEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    const sourceFieldInterpretationClient =
+        new SourceFieldInterpretationHttpClient({
+            endpoint:
+                interpretationEndpoint,
+            connectorId,
+            credential,
+            authorizationScheme,
+            connectorIdHeader,
+            timeoutMs: 60000,
+            fetchImpl
+        });
+
+    return new SourceTemplateAuthorityFieldMappingService({
+        semanticRegistrationClient,
+        sourceFieldMappingClient,
+        sourceFieldInterpretationClient
     });
 }
 
@@ -1548,6 +1616,7 @@ module.exports = {
     createIngestionService,
     createSourceDocumentIngestionService,
     createSourceFieldMappingIngestionService,
+    createSourceTemplateAuthorityFieldMappingService,
     createSemanticRegistrationClient,
     listDocumentSemanticTargets,
     listSemanticProjectionContracts,

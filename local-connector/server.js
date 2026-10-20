@@ -76,6 +76,7 @@ const connectorActivationClient =
 let localConnectorIngestionServicePromise = null;
 let sourceDocumentIngestionServicePromise = null;
 let sourceFieldMappingIngestionServicePromise = null;
+let sourceTemplateAuthorityFieldMappingServicePromise = null;
 let sourceFieldInterpretationIngestionServicePromise = null;
 let residentCandidateServicePromise = null;
 let sourceResidentLinkClientPromise = null;
@@ -504,6 +505,97 @@ app.locals.getSourceFieldMappingIngestionService =
         }
 
         return await sourceFieldMappingIngestionServicePromise;
+    };
+
+app.locals.getSourceTemplateAuthorityFieldMappingService =
+    async () => {
+        if (
+            !sourceTemplateAuthorityFieldMappingServicePromise
+        ) {
+            sourceTemplateAuthorityFieldMappingServicePromise =
+                LocalConnectorCompositionRoot
+                    .createSourceTemplateAuthorityFieldMappingService({
+                        semanticRegistrationEndpoint:
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT,
+
+                        fieldMappingEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_MAPPING_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-field-mappings";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+
+                        interpretationEndpoint:
+                            process.env
+                                .RISEN_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            process.env
+                                .RISEN_SERVER_TRUST_BOUNDARY_SOURCE_FIELD_INTERPRETATION_ENDPOINT ||
+                            (() => {
+                                const semanticEndpoint =
+                                    process.env
+                                        .RISEN_SERVER_TRUST_BOUNDARY_ENDPOINT;
+
+                                if (!semanticEndpoint) {
+                                    return undefined;
+                                }
+
+                                const url =
+                                    new URL(
+                                        semanticEndpoint
+                                    );
+
+                                url.pathname =
+                                    "/connector/source-field-interpretations";
+                                url.search = "";
+                                url.hash = "";
+
+                                return url.toString();
+                            })(),
+
+                        credential:
+                            await connectorCredentialProvider
+                                .getCredential(),
+
+                        authorizationScheme:
+                            process.env
+                                .RISEN_CONNECTOR_AUTHORIZATION_SCHEME ||
+                            "RISEN-Connector",
+
+                        connectorIdHeader:
+                            process.env
+                                .RISEN_CONNECTOR_ID_HEADER ||
+                            "x-risen-connector-id"
+                    })
+                    .catch(error => {
+                        sourceTemplateAuthorityFieldMappingServicePromise =
+                            null;
+
+                        throw error;
+                    });
+        }
+
+        return await sourceTemplateAuthorityFieldMappingServicePromise;
     };
 
 app.locals.getSemanticRegistrationClient =
@@ -2020,6 +2112,125 @@ app.get(
                 message:
                     "項目確認状態の取得に失敗しました"
             });
+        }
+    }
+);
+
+app.post(
+    "/source-template-authority-field-mappings/apply",
+    async (req, res) => {
+        try {
+            const input =
+                req.body &&
+                typeof req.body === "object" &&
+                !Array.isArray(req.body)
+                    ? req.body
+                    : {};
+
+            const templateId =
+                typeof input.templateId === "string"
+                    ? input.templateId.trim()
+                    : "";
+
+            const sourceDocumentKey =
+                typeof input.sourceDocumentKey === "string"
+                    ? input.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof input.sourceUpdatedAt === "string"
+                    ? input.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSize =
+                input.sourceSize;
+
+            const fieldDefinitions =
+                Array.isArray(
+                    input.fieldDefinitions
+                )
+                    ? input.fieldDefinitions
+                    : null;
+
+            if (
+                !templateId ||
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(sourceUpdatedAt)
+                ) ||
+                !Number.isSafeInteger(sourceSize) ||
+                sourceSize < 0 ||
+                !fieldDefinitions
+            ) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "Semantic Authority適用条件が不正です"
+                    });
+            }
+
+            const service =
+                await app.locals
+                    .getSourceTemplateAuthorityFieldMappingService();
+
+            const result =
+                await service.apply({
+                    templateId,
+                    sourceDocumentKey,
+                    sourceUpdatedAt:
+                        new Date(
+                            sourceUpdatedAt
+                        ).toISOString(),
+                    sourceSize,
+                    fieldDefinitions
+                });
+
+            return res
+                .status(200)
+                .json({
+                    success: true,
+                    ...result
+                });
+        } catch (error) {
+            if (
+                error?.code ===
+                "connector_trust_denied"
+            ) {
+                return res
+                    .status(401)
+                    .json({
+                        success: false,
+                        message:
+                            "Connector認証に失敗しました"
+                    });
+            }
+
+            if (error instanceof TypeError) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            error.message
+                    });
+            }
+
+            console.error(
+                "Template Semantic Authority apply failed:",
+                error
+            );
+
+            return res
+                .status(503)
+                .json({
+                    success: false,
+                    message:
+                        error?.message ||
+                        "Semantic Authorityを原本へ適用できませんでした"
+                });
         }
     }
 );

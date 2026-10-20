@@ -120,6 +120,12 @@ const SupabaseSourceDocumentTemplateBindingPersistenceRepository =
 const SourceDocumentTemplateBindingIngestionService =
     require("./SourceDocumentTemplateBindingIngestionService");
 
+const SupabaseSourceDocumentTemplateBindingQueryRepository =
+    require("./SupabaseSourceDocumentTemplateBindingQueryRepository");
+
+const SourceDocumentTemplateBindingQueryService =
+    require("./SourceDocumentTemplateBindingQueryService");
+
 const SupabaseSourceFieldMappingQueryRepository =
     require("./SupabaseSourceFieldMappingQueryRepository");
 
@@ -792,6 +798,20 @@ function createServerTrustBoundaryRuntime({
                 sourceDocumentTemplateBindingPersistenceRepository
         });
 
+    const sourceDocumentTemplateBindingQueryRepository =
+        new SupabaseSourceDocumentTemplateBindingQueryRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const sourceDocumentTemplateBindingQueryService =
+        new SourceDocumentTemplateBindingQueryService({
+            connectorTrustService,
+            queryRepository:
+                sourceDocumentTemplateBindingQueryRepository
+        });
+
     const sourceFieldMappingQueryRepository =
         new SupabaseSourceFieldMappingQueryRepository({
             supabaseUrl,
@@ -1254,6 +1274,7 @@ function createServerTrustBoundaryRuntime({
         documentSemanticTargetQueryService,
         semanticProjectionContractQueryService,
         sourceDocumentTemplateBindingIngestionService,
+        sourceDocumentTemplateBindingQueryService,
         sourceFieldInterpretationIngestionService,
         sourceFieldInterpretationQueryService,
         connectorResidentCandidateService,

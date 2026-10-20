@@ -41,6 +41,7 @@ function createServerTrustBoundaryApp({
     semanticProjectionContractEndpointPath =
         "/connector/semantic-projection-contracts",
     sourceDocumentTemplateBindingTransport,
+    sourceDocumentTemplateBindingQueryTransport,
     sourceDocumentTemplateBindingEndpointPath =
         "/connector/source-document-template-bindings",
     sourceFieldInterpretationTransport,
@@ -550,6 +551,36 @@ function createServerTrustBoundaryApp({
                                     req.headers,
                                 body:
                                     req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (sourceDocumentTemplateBindingQueryTransport) {
+        app.get(
+            sourceDocumentTemplateBindingEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await sourceDocumentTemplateBindingQueryTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                headers:
+                                    req.headers,
+                                query:
+                                    req.query
                             });
 
                     return res

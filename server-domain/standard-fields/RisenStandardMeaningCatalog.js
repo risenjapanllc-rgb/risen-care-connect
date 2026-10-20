@@ -84,6 +84,7 @@ const STANDARD_MEANINGS = Object.freeze([
         synonyms: Object.freeze([
             "E-mail",
             "Email",
+            "メール",
             "メールアドレス",
             "email"
         ])

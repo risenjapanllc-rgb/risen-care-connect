@@ -1262,6 +1262,7 @@ function createServerTrustBoundaryRuntime({
      * 共通のConnectorCredentialTransportを注入して生成する。
      */
     return {
+        accessTokenProvider,
         semanticAnalysisGenerator,
         serverTrustBoundaryIngestionService,
         sourceDocumentIngestionService,

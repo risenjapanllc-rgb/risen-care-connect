@@ -183,6 +183,21 @@ class SourceResidentCandidateResolver {
             sourceFieldKey
         } = resolvedIdentityMapping;
 
+        const nameMappings =
+            humanConfirmedMappings.filter(
+                mapping =>
+                    mapping &&
+                    mapping.standardEntityName === "user" &&
+                    mapping.standardFieldName === "name" &&
+                    typeof mapping.sourceFieldKey === "string" &&
+                    mapping.sourceFieldKey.trim()
+            );
+
+        const sourceNameFieldKey =
+            nameMappings.length === 1
+                ? nameMappings[0].sourceFieldKey.trim()
+                : null;
+
         const identifierMapping =
             mappingResult.mappings.find(
                 mapping =>
@@ -267,7 +282,8 @@ class SourceResidentCandidateResolver {
                 group = {
                     identifierValue,
                     sourceEntityCount: 0,
-                    sourceEntityKeys: []
+                    sourceEntityKeys: [],
+                    sourceNames: new Set()
                 };
                 grouped.set(
                     identifierValue,
@@ -276,6 +292,24 @@ class SourceResidentCandidateResolver {
             }
 
             group.sourceEntityCount += 1;
+
+            if (sourceNameFieldKey) {
+                const rawSourceName =
+                    entity?.valuesBySourceFieldKey?.[
+                        sourceNameFieldKey
+                    ];
+
+                const sourceName =
+                    typeof rawSourceName === "string"
+                        ? rawSourceName.trim()
+                        : "";
+
+                if (sourceName) {
+                    group.sourceNames.add(
+                        sourceName
+                    );
+                }
+            }
 
             if (
                 typeof entity?.sourceEntityKey !== "string" ||
@@ -324,6 +358,9 @@ class SourceResidentCandidateResolver {
                     )
                     .digest("hex");
 
+            const distinctSourceNames =
+                [...group.sourceNames];
+
             groups.push({
                 identifierType,
                 identifierDigest,
@@ -331,6 +368,12 @@ class SourceResidentCandidateResolver {
                     identifierType === "name"
                         ? group.identifierValue
                         : null,
+                sourceName:
+                    distinctSourceNames.length === 1
+                        ? distinctSourceNames[0]
+                        : identifierType === "name"
+                            ? group.identifierValue
+                            : null,
                 sourceEntityCount:
                     group.sourceEntityCount,
                 sourceEntityKeys:

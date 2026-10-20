@@ -873,3 +873,84 @@ test("candidate groups preserve source entity keys for trusted semantic linkage"
         2
     );
 });
+
+test("keeps confirmed user_code as identity while exposing confirmed user.name for display", async () => {
+    const { resolver, calls } =
+        createResolver({
+            mappings: [
+                {
+                    sourceFieldKey:
+                        "sheet:0:column:0",
+                    standardEntityName:
+                        "user",
+                    standardFieldName:
+                        "user_code"
+                },
+                {
+                    sourceFieldKey:
+                        "sheet:0:column:1",
+                    standardEntityName:
+                        "user",
+                    standardFieldName:
+                        "name"
+                }
+            ],
+            sourceEntities: [
+                {
+                    sourceEntityKey:
+                        "sheet:0:row:2",
+                    valuesBySourceFieldKey: {
+                        "sheet:0:column:0":
+                            "1022",
+                        "sheet:0:column:1":
+                            " 北海翔太 "
+                    }
+                }
+            ],
+            candidates: []
+        });
+
+    const result =
+        await resolver.findCandidateGroups({
+            sourceDocumentKey:
+                "opaque-document-1",
+            sourceUpdatedAt:
+                "2026-10-15T00:00:00.000Z",
+            sourceSize:
+                12345
+        });
+
+    assert.deepStrictEqual(
+        calls.candidateLookup,
+        [
+            {
+                userCode: "1022"
+            }
+        ]
+    );
+
+    assert.equal(
+        result.identifierType,
+        "user_code"
+    );
+
+    assert.equal(
+        result.groups.length,
+        1
+    );
+
+    assert.equal(
+        result.groups[0].identifierValue,
+        null
+    );
+
+    assert.equal(
+        result.groups[0].sourceName,
+        "北海翔太"
+    );
+
+    assert.equal(
+        result.groups[0].status,
+        "not_found"
+    );
+});

@@ -350,24 +350,81 @@ test("semantic conflict result fails closed without counting processed", async (
     assert.strictEqual(atomicCalls.length, 1);
 });
 
-test("planned new user_code fails closed before atomic write", async () => {
+test("planned new user_code is persisted through atomic write", async () => {
     const { service, atomicCalls } =
-        createService();
+        createService({
+            mappings: [],
+            atomicResult: {
+                status: "created",
+                residentId: "resident-new",
+                recordId: "record-new",
+                residentCreated: true
+            }
+        });
 
-    const result = await service.execute(
-        createPlan([
-            createEntry({
-                resolution: "planned_new",
-                residentId: null,
-                identifierType: "user_code",
-                displayName: null,
-                residentProfileComparison: null
-            })
-        ])
+    const entry =
+        createEntry({
+            resolution: "planned_new",
+            residentId: null,
+            identifierType: "user_code",
+            displayName: null,
+            residentProfileComparison: null,
+            persistenceContract: {
+                semanticType:
+                    "recipient_certificate",
+                logicalSlot:
+                    "primary",
+                semanticContent: {
+                    "user.name":
+                        "新規 利用者",
+                    "user.user_code":
+                        "1022",
+                    "recipient_certificate.certificate_number":
+                        "RC-1022"
+                },
+                contentHash:
+                    HASH_B,
+                canonicalizationVersion:
+                    "risen-recipient-certificate-canonicalization-2",
+                expectedContentHash:
+                    null
+            }
+        });
+
+    const result =
+        await service.execute(
+            createPlan([entry])
+        );
+
+    assert.strictEqual(
+        result.status,
+        "completed"
     );
 
-    assert.strictEqual(result.status, "invalid");
-    assert.strictEqual(atomicCalls.length, 0);
+    assert.strictEqual(
+        result.residentsCreated,
+        1
+    );
+
+    assert.strictEqual(
+        atomicCalls.length,
+        1
+    );
+
+    assert.strictEqual(
+        atomicCalls[0].identifierType,
+        "user_code"
+    );
+
+    assert.strictEqual(
+        atomicCalls[0].residentProfile.user_code,
+        "1022"
+    );
+
+    assert.strictEqual(
+        atomicCalls[0].residentProfile.name,
+        "新規 利用者"
+    );
 });
 
 test("atomic write receives exact source snapshot and semantic contract", async () => {

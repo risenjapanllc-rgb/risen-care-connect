@@ -371,8 +371,8 @@ class RecipientCertificateExecutionService {
 
         if (
             entry.resolution === "planned_new" &&
+            entry.identifierType === "name" &&
             (
-                entry.identifierType !== "name" ||
                 typeof entry.displayName !== "string" ||
                 !entry.displayName.trim()
             )

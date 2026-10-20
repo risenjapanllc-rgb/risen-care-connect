@@ -1434,3 +1434,168 @@ test("normalizeRegisteredCsv exposes aggregated row semantic summary", async () 
     }
   );
 });
+
+test(
+  "normalizeRegisteredWord exposes Word key-value fields through the common semantic contract",
+  async () => {
+    const service =
+      new LocalConnectorService({
+        wordReader: {
+          async read() {
+            return {
+              text:
+                "日勤日誌\n入院\nなし\n外泊\nなし",
+
+              html: [
+                "<table>",
+                "<tr>",
+                "<th>入院</th>",
+                "<th>なし</th>",
+                "</tr>",
+                "<tr>",
+                "<th>外泊</th>",
+                "<th>なし</th>",
+                "</tr>",
+                "</table>"
+              ].join(""),
+
+              messages: []
+            };
+          }
+        },
+
+        documentTypeDetector: {
+          detect() {
+            return {
+              type:
+                "daily_log",
+              confidence:
+                "high"
+            };
+          }
+        },
+
+        documentSemanticExtractor: {
+          extract() {
+            return {
+              documentSummary: {
+                value:
+                  "synthetic word document"
+              }
+            };
+          }
+        },
+
+        sourceMeaningInterpreter: {
+          interpret() {
+            return {
+              meanings: {}
+            };
+          }
+        }
+      });
+
+    service._resolveRegisteredFileDetails =
+      async () => ({
+        filePath:
+          "/test/facility.docx",
+
+        fileName:
+          "facility.docx",
+
+        relativePath:
+          "facility.docx",
+
+        extension:
+          ".docx",
+
+        size: 123,
+
+        updatedAt:
+          "2026-10-20T00:00:00.000Z"
+      });
+
+    const result =
+      await service.normalizeRegisteredWord(
+        "facility.docx"
+      );
+
+    assert.deepStrictEqual(
+      result.extracted.fieldDefinitions.map(
+        field =>
+          field.headerLabel
+      ),
+      [
+        "入院",
+        "外泊"
+      ]
+    );
+
+    assert.deepStrictEqual(
+      result.extracted.fieldDefinitions.map(
+        field =>
+          field.sourceFieldKey
+      ),
+      [
+        "word:table:0:row:0",
+        "word:table:0:row:1"
+      ]
+    );
+
+    assert.strictEqual(
+      result.extracted.sourceEntities.length,
+      1
+    );
+
+    assert.deepStrictEqual(
+      result.extracted.sourceEntities[0]
+        .valuesBySourceFieldKey,
+      {
+        "word:table:0:row:0":
+          "なし",
+
+        "word:table:0:row:1":
+          "なし"
+      }
+    );
+
+    assert.ok(
+      Array.isArray(
+        result.extracted.semanticEvidence
+      )
+    );
+
+    assert.deepStrictEqual(
+      result.extracted.semanticEvidence.map(
+        evidence =>
+          evidence.headerLabel
+      ),
+      [
+        "入院",
+        "外泊"
+      ]
+    );
+
+    assert.deepStrictEqual(
+      result.extracted.semanticEvidence[0]
+        .sampleValues,
+      [
+        "なし"
+      ]
+    );
+
+    assert.strictEqual(
+      result.extracted
+        .documentSemanticEvidence
+        .sourceType,
+      "word"
+    );
+
+    assert.strictEqual(
+      result.extracted
+        .documentSemanticEvidence
+        .documentType,
+      "daily_log"
+    );
+  }
+);

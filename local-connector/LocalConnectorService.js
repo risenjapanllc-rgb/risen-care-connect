@@ -11,6 +11,8 @@ const DocumentNormalizer = require('./DocumentNormalizer');
 const DocumentSemanticExtractor = require('./DocumentSemanticExtractor');
 const SourceMeaningInterpreter = require('./SourceMeaningInterpreter');
 const SourceFieldExtractor = require('./SourceFieldExtractor');
+const WordSourceStructureExtractor =
+    require('./WordSourceStructureExtractor');
 const SemanticEvidenceBuilder = require('./SemanticEvidenceBuilder');
 const RowSemanticResolver =
     require('../server-domain/row-semantic/RowSemanticResolver');
@@ -63,6 +65,10 @@ class LocalConnectorService {
         this.sourceFieldExtractor =
             options.sourceFieldExtractor ||
             new SourceFieldExtractor();
+
+        this.wordSourceStructureExtractor =
+            options.wordSourceStructureExtractor ||
+            new WordSourceStructureExtractor();
 
         this.semanticEvidenceBuilder =
             options.semanticEvidenceBuilder ||
@@ -682,7 +688,57 @@ class LocalConnectorService {
                 standardDocument
             );
 
+        const wordStructure =
+            this.wordSourceStructureExtractor
+                .extractKeyValueContractsFromMammothHtml(
+                    typeof document.html === 'string'
+                        ? document.html
+                        : ''
+                );
+
+        const fieldDefinitions =
+            Array.isArray(
+                wordStructure?.fieldDefinitions
+            )
+                ? wordStructure.fieldDefinitions
+                : [];
+
+        const sourceEntities =
+            Array.isArray(
+                wordStructure?.sourceEntities
+            )
+                ? wordStructure.sourceEntities
+                : [];
+
+        const sourceFields =
+            Array.isArray(
+                wordStructure?.sourceFields
+            )
+                ? wordStructure.sourceFields
+                : [];
+
+        const interpretedSourceFields =
+            sourceFields.map(record => ({
+                ...record,
+                meanings:
+                    this.sourceMeaningInterpreter.interpret(
+                        record.fields
+                    ).meanings
+            }));
+
         const semanticEvidence =
+            this.semanticEvidenceBuilder
+                .buildForTabular({
+                    fieldDefinitions,
+                    sourceFields:
+                        interpretedSourceFields,
+                    sourceType:
+                        standardDocument.sourceType,
+                    documentType:
+                        standardDocument.documentType
+                });
+
+        const documentSemanticEvidence =
             this.semanticEvidenceBuilder
                 .buildForWord({
                     text:
@@ -695,7 +751,12 @@ class LocalConnectorService {
             ...standardDocument,
             extracted: {
                 ...extracted,
-                semanticEvidence
+                fieldDefinitions,
+                sourceEntities,
+                sourceFields:
+                    interpretedSourceFields,
+                semanticEvidence,
+                documentSemanticEvidence
             }
         };
     }

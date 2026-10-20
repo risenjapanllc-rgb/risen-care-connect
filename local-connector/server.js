@@ -4,6 +4,8 @@ const path = require('path');
 const LocalConnectorCompositionRoot = require('./LocalConnectorCompositionRoot');
 const LocalConnectorRuntimeContract =
     require("./LocalConnectorRuntimeContract");
+const MultiProjectionExecutionCoordinator =
+    require("./MultiProjectionExecutionCoordinator");
 
 const {
     createConnectorCredentialProvider
@@ -450,6 +452,29 @@ app.locals.getRecipientCertificateImportExecutionService =
 
         return await recipientCertificateImportExecutionServicePromise;
     };
+
+app.locals.getMultiProjectionExecutionCoordinator =
+    async () => {
+        const [
+            supportRecordExecutionService,
+            recipientCertificateExecutionService
+        ] =
+            await Promise.all([
+                app.locals.getImportExecutionService(),
+                app.locals
+                    .getRecipientCertificateImportExecutionService()
+            ]);
+
+        return new MultiProjectionExecutionCoordinator({
+            executors: {
+                support_record:
+                    supportRecordExecutionService,
+                recipient_certificate:
+                    recipientCertificateExecutionService
+            }
+        });
+    };
+
 
 app.locals.getSourceFieldMappingIngestionService =
     async () => {

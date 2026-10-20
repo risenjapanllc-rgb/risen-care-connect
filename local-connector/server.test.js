@@ -5825,3 +5825,108 @@ test("POST /import-preview fails closed as runtime unavailable when runtime cont
             originalConfirmedDocumentTypeService;
     }
 });
+
+test(
+    "multi projection coordinator reuses existing execution service getters",
+    async () => {
+        const originalSupport =
+            app.locals.getImportExecutionService;
+        const originalRecipient =
+            app.locals
+                .getRecipientCertificateImportExecutionService;
+
+        const supportCalls = [];
+        const recipientCalls = [];
+
+        const supportExecutor = {
+            async execute(input) {
+                supportCalls.push(input);
+
+                return {
+                    status: "completed"
+                };
+            }
+        };
+
+        const recipientExecutor = {
+            async execute(input) {
+                recipientCalls.push(input);
+
+                return {
+                    status: "completed"
+                };
+            }
+        };
+
+        app.locals.getImportExecutionService =
+            async () => supportExecutor;
+
+        app.locals
+            .getRecipientCertificateImportExecutionService =
+            async () => recipientExecutor;
+
+        try {
+            const coordinator =
+                await app.locals
+                    .getMultiProjectionExecutionCoordinator();
+
+            const result =
+                await coordinator.execute({
+                    sourceDocumentKey:
+                        "doc-multi-1",
+                    sourceUpdatedAt:
+                        "2026-10-15T00:00:00.000Z",
+                    sourceSize:
+                        123,
+                    projections: [
+                        {
+                            semanticType:
+                                "support_record",
+                            expectedFingerprint:
+                                "a".repeat(64)
+                        },
+                        {
+                            semanticType:
+                                "recipient_certificate",
+                            expectedFingerprint:
+                                "b".repeat(64)
+                        }
+                    ]
+                });
+
+            assert.strictEqual(
+                result.status,
+                "completed"
+            );
+
+            assert.strictEqual(
+                supportCalls.length,
+                1
+            );
+
+            assert.strictEqual(
+                recipientCalls.length,
+                1
+            );
+
+            assert.strictEqual(
+                supportCalls[0]
+                    .expectedFingerprint,
+                "a".repeat(64)
+            );
+
+            assert.strictEqual(
+                recipientCalls[0]
+                    .expectedFingerprint,
+                "b".repeat(64)
+            );
+        } finally {
+            app.locals.getImportExecutionService =
+                originalSupport;
+
+            app.locals
+                .getRecipientCertificateImportExecutionService =
+                originalRecipient;
+        }
+    }
+);

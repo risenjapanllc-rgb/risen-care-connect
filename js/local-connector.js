@@ -1389,6 +1389,191 @@ function selectFile(filePath) {
     }
 }
 
+async function applyPersistedTemplateAuthority(
+    analysis
+) {
+    if (
+        !analysis ||
+        typeof analysis.sourceDocumentKey !==
+            "string" ||
+        !analysis.sourceDocumentKey.trim() ||
+        typeof analysis.sourceUpdatedAt !==
+            "string" ||
+        !analysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(
+            Date.parse(
+                analysis.sourceUpdatedAt
+            )
+        ) ||
+        !Number.isSafeInteger(
+            analysis.sourceSize
+        ) ||
+        analysis.sourceSize < 0
+    ) {
+        return {
+            status: "not_applicable"
+        };
+    }
+
+    const fieldDefinitions =
+        Array.isArray(
+            analysis.extracted
+                ?.fieldDefinitions
+        )
+            ? analysis.extracted
+                .fieldDefinitions
+            : [];
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                analysis
+                    .sourceDocumentKey
+                    .trim(),
+
+            sourceUpdatedAt:
+                new Date(
+                    analysis.sourceUpdatedAt
+                ).toISOString(),
+
+            sourceSize:
+                String(
+                    analysis.sourceSize
+                )
+        });
+
+    const bindingResponse =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-document-template-bindings?${params}`
+        );
+
+    let bindingResult = null;
+
+    try {
+        bindingResult =
+            await bindingResponse.json();
+    } catch {
+        bindingResult = null;
+    }
+
+    if (
+        !bindingResponse.ok ||
+        !bindingResult ||
+        bindingResult.success !== true
+    ) {
+        throw new Error(
+            bindingResult?.message ||
+            "登録済み書式を確認できませんでした"
+        );
+    }
+
+    if (
+        bindingResult.status ===
+            "not_found"
+    ) {
+        return {
+            status: "not_found"
+        };
+    }
+
+    const templateId =
+        typeof bindingResult
+            .binding?.templateId ===
+            "string"
+            ? bindingResult
+                .binding
+                .templateId
+                .trim()
+            : "";
+
+    if (
+        bindingResult.status !==
+            "found" ||
+        !templateId
+    ) {
+        throw new Error(
+            "登録済み書式の情報が不正です"
+        );
+    }
+
+    const applyResponse =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-template-authority-field-mappings/apply`,
+            {
+                method: "POST",
+
+                headers: {
+                    "content-type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+                        templateId,
+
+                        sourceDocumentKey:
+                            analysis
+                                .sourceDocumentKey
+                                .trim(),
+
+                        sourceUpdatedAt:
+                            new Date(
+                                analysis
+                                    .sourceUpdatedAt
+                            ).toISOString(),
+
+                        sourceSize:
+                            analysis.sourceSize,
+
+                        fieldDefinitions
+                    })
+            }
+        );
+
+    let applyResult = null;
+
+    try {
+        applyResult =
+            await applyResponse.json();
+    } catch {
+        applyResult = null;
+    }
+
+    if (
+        !applyResponse.ok ||
+        !applyResult ||
+        applyResult.success !== true ||
+        applyResult.status !==
+            "applied"
+    ) {
+        throw new Error(
+            applyResult?.message ||
+            "登録済みSemantic Authorityを適用できませんでした"
+        );
+    }
+
+    return {
+        status: "applied",
+        templateId,
+        authorityCount:
+            Number.isSafeInteger(
+                applyResult.authorityCount
+            )
+                ? applyResult
+                    .authorityCount
+                : null,
+
+        appliedCount:
+            Number.isSafeInteger(
+                applyResult.appliedCount
+            )
+                ? applyResult
+                    .appliedCount
+                : null
+    };
+}
+
+
 async function loadPersistedSourceFieldMappings(
     analysis
 ) {
@@ -1762,6 +1947,29 @@ async function analyzeFile(filePath) {
         } catch (error) {
             console.warn(
                 "保存済みの原本レコードIDを復元できませんでした:",
+                error.message
+            );
+        }
+
+        try {
+            const templateAuthorityState =
+                await applyPersistedTemplateAuthority(
+                    result
+                );
+
+            if (
+                templateAuthorityState
+                    .status ===
+                    "applied"
+            ) {
+                console.info(
+                    "登録済みSemantic Authorityを適用しました:",
+                    templateAuthorityState
+                );
+            }
+        } catch (error) {
+            console.warn(
+                "登録済みSemantic Authorityを適用できませんでした:",
                 error.message
             );
         }

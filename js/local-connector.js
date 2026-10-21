@@ -6450,6 +6450,28 @@ async function renderResidentLinking() {
                 `
             : "";
 
+    const bulkConfirmResidentGroups =
+        candidateResult.groups.filter(group => {
+            if (
+                group.status !== "matched" ||
+                !Array.isArray(group.candidates) ||
+                group.candidates.length !== 1
+            ) {
+                return false;
+            }
+
+            const key =
+                createSourceResidentMappingKey(
+                    group.identifierType,
+                    group.identifierDigest
+                );
+
+            const mapping =
+                sourceResidentMappings.get(key) || null;
+
+            return mapping == null;
+        });
+
     const residentIdentifierLabel =
         candidateResult.identifierType === "user_code"
             ? "利用者コード"
@@ -6494,6 +6516,36 @@ async function renderResidentLinking() {
                             保留：${admissionSummary.deferred}件 /
                             未確認：${admissionSummary.undecided}件
                         </p>
+                    </div>
+                `
+                : ""
+        }
+        ${
+            bulkConfirmResidentGroups.length > 0
+                ? `
+                    <div style="
+                        margin-top: 12px;
+                        padding: 12px;
+                        border: 1px solid #98a2b3;
+                        border-radius: 8px;
+                        background: #ffffff;
+                    ">
+                        <strong>
+                            既存登録済み利用者との紐付け
+                        </strong>
+                        <p class="form-help">
+                            RISEN CAREに登録済みの利用者
+                            ${bulkConfirmResidentGroups.length}名と、
+                            利用者コードが一致しています。
+                            問題がなければ、まとめて紐付けを確定できます。
+                        </p>
+                        <button
+                            class="primary-button"
+                            type="button"
+                            data-resident-mapping-bulk-confirm
+                        >
+                            既存登録済み${bulkConfirmResidentGroups.length}名との紐付けを確定
+                        </button>
                     </div>
                 `
                 : ""
@@ -7576,6 +7628,134 @@ residentLinkingList?.addEventListener(
 
             setStatus(
                 `利用者登録判断の保存に失敗しました: ${error.message}`,
+                "error"
+            );
+        }
+    }
+);
+
+residentLinkingSummary?.addEventListener(
+    "click",
+    async event => {
+        const button =
+            event.target.closest(
+                "[data-resident-mapping-bulk-confirm]"
+            );
+
+        if (!button) {
+            return;
+        }
+
+        const snapshot =
+            getResidentLinkingSnapshot();
+
+        const targets =
+            [...residentCandidateGroups.values()]
+                .filter(group => {
+                    if (
+                        group.status !== "matched" ||
+                        !Array.isArray(group.candidates) ||
+                        group.candidates.length !== 1
+                    ) {
+                        return false;
+                    }
+
+                    const key =
+                        createSourceResidentMappingKey(
+                            group.identifierType,
+                            group.identifierDigest
+                        );
+
+                    const mapping =
+                        sourceResidentMappings.get(key) || null;
+
+                    return mapping == null;
+                });
+
+        if (targets.length === 0) {
+            await renderResidentLinking();
+
+            setStatus(
+                "まとめて確認する利用者はありません。",
+                "success"
+            );
+            return;
+        }
+
+        confirmedImportPreviewFingerprint = null;
+        confirmedImportPreview = null;
+        button.disabled = true;
+
+        setStatus(
+            `${targets.length}名の利用者紐付けを確認しています...`
+        );
+
+        let savedCount = 0;
+
+        try {
+            for (const group of targets) {
+                const candidate =
+                    group.candidates[0];
+
+                const residentId =
+                    typeof candidate?.residentId === "string"
+                        ? candidate.residentId.trim()
+                        : "";
+
+                if (!residentId) {
+                    throw new Error(
+                        "一意一致候補の利用者IDを確認できません"
+                    );
+                }
+
+                await persistSourceResidentMapping({
+                    snapshot,
+                    identifierType:
+                        group.identifierType,
+                    identifierDigest:
+                        group.identifierDigest,
+                    mappingStatus:
+                        "confirmed",
+                    residentId
+                });
+
+                const key =
+                    createSourceResidentMappingKey(
+                        group.identifierType,
+                        group.identifierDigest
+                    );
+
+                sourceResidentMappings.set(
+                    key,
+                    {
+                        identifierType:
+                            group.identifierType,
+                        identifierDigest:
+                            group.identifierDigest,
+                        mappingStatus:
+                            "confirmed",
+                        residentId
+                    }
+                );
+
+                savedCount += 1;
+
+                setStatus(
+                    `${savedCount} / ${targets.length}名の利用者紐付けを確認中...`
+                );
+            }
+
+            await renderResidentLinking();
+
+            setStatus(
+                `${savedCount}名の利用者紐付けを確認しました。`,
+                "success"
+            );
+        } catch (error) {
+            await renderResidentLinking();
+
+            setStatus(
+                `${savedCount}件を保存した後に処理を停止しました: ${error.message}`,
                 "error"
             );
         }

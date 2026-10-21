@@ -191,6 +191,7 @@ function createSemanticPreparationService({
 async function createIngestionService({
     databasePath,
     configPath,
+    sourceAdapter,
     endpoint,
     credential,
     authorizationScheme,
@@ -226,7 +227,12 @@ async function createIngestionService({
 
     const standardizationPipeline =
         new LocalConnectorStandardizationPipeline({
-            localConnectorService
+            localConnectorService,
+            ...(sourceAdapter
+                ? {
+                    sourceAdapter
+                }
+                : {})
         });
 
     return new LocalConnectorIngestionService({

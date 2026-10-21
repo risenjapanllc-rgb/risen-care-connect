@@ -594,3 +594,98 @@ test("creates source field interpretation ingestion client from local connector 
         );
     }
 });
+
+test(
+    "creates ingestion service with injected source adapter",
+    async () => {
+        const tempDir =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "risen-ingestion-source-adapter-"
+                )
+            );
+
+        const databasePath =
+            path.join(
+                tempDir,
+                "registry.sqlite"
+            );
+
+        const configPath =
+            path.join(
+                tempDir,
+                ".local-connector-config.json"
+            );
+
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                connectorId:
+                    "11111111-2222-4333-8444-555555555555"
+            })
+        );
+
+        const sourceAdapter = {
+            async observe() {
+                return {
+                    sourceDocumentKey:
+                        "injected-source-key"
+                };
+            },
+
+            async acquireRaw() {
+                return {
+                    sourceType:
+                        "mysql",
+                    source: {
+                        fileName:
+                            "resident-support.mysql",
+                        updatedAt:
+                            null
+                    },
+                    document: {
+                        raw: true
+                    }
+                };
+            }
+        };
+
+        try {
+            const ingestionService =
+                await LocalConnectorCompositionRoot
+                    .createIngestionService({
+                        databasePath,
+                        configPath,
+                        sourceAdapter,
+                        endpoint:
+                            "https://backend.example/connector/ingest",
+                        credential:
+                            "test-credential",
+                        authorizationScheme:
+                            "RISEN-Connector",
+                        fetchImpl:
+                            async () => {
+                                throw new Error(
+                                    "network should not be called during composition"
+                                );
+                            }
+                    });
+
+            assert.strictEqual(
+                ingestionService
+                    .standardizationPipeline
+                    .sourceAdapter,
+                sourceAdapter
+            );
+        } finally {
+            fs.rmSync(
+                tempDir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

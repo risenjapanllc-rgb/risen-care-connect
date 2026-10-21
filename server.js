@@ -3085,14 +3085,6 @@ app.post(
                 ""
             ).trim();
 
-        if (!semanticType) {
-            return res.status(409).json({
-                success: false,
-                errorCode:
-                    "standard_meaning_ai_proposal_semantic_type_ambiguous"
-            });
-        }
-
         const {
             listStandardMeanings
         } = require(
@@ -3168,6 +3160,122 @@ app.post(
                 success: false,
                 errorCode:
                     "standard_meaning_catalog_unavailable"
+            });
+        }
+
+        let projectionContractRows = [];
+
+        try {
+            const projectionContractsResponse =
+                await fetch(
+                    `${supabaseUrl}/rest/v1/rpc/list_semantic_projection_contracts`,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            apikey:
+                                publishableKey,
+
+                            Authorization:
+                                `Bearer ${authentication.accessToken}`,
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({})
+                    }
+                );
+
+            if (
+                !projectionContractsResponse.ok
+            ) {
+                const errorText =
+                    await projectionContractsResponse
+                        .text();
+
+                console.error(
+                    "Standard Meaning projection contract catalog failed:",
+                    projectionContractsResponse.status,
+                    errorText
+                );
+
+                return res.status(503).json({
+                    success:
+                        false,
+
+                    errorCode:
+                        "standard_meaning_projection_contract_catalog_unavailable"
+                });
+            }
+
+            projectionContractRows =
+                await projectionContractsResponse
+                    .json();
+
+            if (
+                !Array.isArray(
+                    projectionContractRows
+                )
+            ) {
+                console.error(
+                    "Standard Meaning projection contract catalog returned invalid result"
+                );
+
+                return res.status(503).json({
+                    success:
+                        false,
+
+                    errorCode:
+                        "standard_meaning_projection_contract_catalog_unavailable"
+                });
+            }
+        } catch (error) {
+            console.error(
+                "Standard Meaning projection contract catalog unavailable:",
+                error?.message ||
+                    "unknown error"
+            );
+
+            return res.status(503).json({
+                success:
+                    false,
+
+                errorCode:
+                    "standard_meaning_projection_contract_catalog_unavailable"
+            });
+        }
+
+        const allowedSemanticTypes =
+            Array.from(
+                new Set(
+                    projectionContractRows
+                        .map(
+                            row =>
+                                String(
+                                    row?.semantic_type ||
+                                    ""
+                                ).trim()
+                        )
+                        .filter(Boolean)
+                )
+            );
+
+        if (
+            allowedSemanticTypes.length === 0
+        ) {
+            console.error(
+                "Standard Meaning projection contract catalog was empty"
+            );
+
+            return res.status(503).json({
+                success:
+                    false,
+
+                errorCode:
+                    "standard_meaning_projection_contract_catalog_unavailable"
             });
         }
 
@@ -3269,6 +3377,9 @@ app.post(
                             ? context.evidence
                             : {},
                     semanticType,
+
+                    allowedSemanticTypes,
+
                     standardMeanings:
                         Array.from(
                             merged.values()

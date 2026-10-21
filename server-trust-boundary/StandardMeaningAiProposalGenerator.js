@@ -137,7 +137,10 @@ class StandardMeaningAiProposalGenerator {
                         )
                     : [],
             semanticType:
-                authoritativeSemanticType,
+                authoritativeSemanticType ||
+                String(
+                    proposal.semanticType || ""
+                ).trim(),
             reason:
                 String(
                     proposal.reason || ""
@@ -164,7 +167,8 @@ class StandardMeaningAiProposalGenerator {
             if (
                 !normalized.entityName ||
                 !normalized.fieldName ||
-                !normalized.displayName
+                !normalized.displayName ||
+                !normalized.semanticType
             ) {
                 throw new Error(
                     "Standard Meaning AI proposal identity was incomplete"
@@ -192,6 +196,7 @@ class StandardMeaningAiProposalGenerator {
         proposedMeaning,
         evidence = {},
         semanticType,
+        allowedSemanticTypes = [],
         standardMeanings = []
     } = {}) {
         const normalizedProposedMeaning =
@@ -204,11 +209,36 @@ class StandardMeaningAiProposalGenerator {
                 semanticType || ""
             ).trim();
 
+        const normalizedAllowedSemanticTypes =
+            Array.from(
+                new Set(
+                    Array.isArray(
+                        allowedSemanticTypes
+                    )
+                        ? allowedSemanticTypes
+                            .filter(
+                                value =>
+                                    typeof value ===
+                                        "string" &&
+                                    value.trim()
+                            )
+                            .map(
+                                value =>
+                                    value.trim()
+                            )
+                        : []
+                )
+            );
+
         if (
             !normalizedProposedMeaning ||
-            !normalizedSemanticType ||
             !Array.isArray(
                 standardMeanings
+            ) ||
+            (
+                !normalizedSemanticType &&
+                normalizedAllowedSemanticTypes
+                    .length === 0
             )
         ) {
             throw new TypeError(
@@ -294,8 +324,15 @@ class StandardMeaningAiProposalGenerator {
                                             "既存Standard Meaningを最優先で再利用してください。",
                                             "同義の既存Meaningがある場合はmode=existingにしてください。",
                                             "既存に無い場合だけmode=newを提案してください。",
+                                            "新しいMeaningを提案する場合も、existingStandardMeaningsに存在するentityName体系を最優先で再利用してください。",
+                                            "entityNameは個別項目名ではなく、既存Meaning群をまとめる意味領域として扱ってください。",
+                                            "既存entityNameで意味領域を自然に表現できる場合、新しいentityNameを作ってはいけません。",
+                                            "利用者の氏名・住所・生年月日など恒常的な基本属性はuser領域として扱い、日誌・支援記録上の状態・出来事・観察・行動は既存のsupport_record領域を優先してください。",
                                             "判断が曖昧ならmode=reviewにしてください。",
-                                            "semanticTypeは入力済みのAuthority値なので変更・推測してはいけません。",
+                                            "authoritativeSemanticTypeがある場合、そのsemanticTypeはAuthority値なので必ず保持し、変更してはいけません。",
+                                            "authoritativeSemanticTypeが空の場合、semanticTypeはallowedSemanticTypesの中からだけ選んでください。",
+                                            "allowedSemanticTypesに適切な実行契約が無い場合は、存在しないsemanticTypeを作らずmode=reviewにしてください。",
+                                            "semanticTypeは候補であり、このAI応答だけで正式Authorityとして確定してはいけません。",
                                             "帳票固有の値そのものをMeaning名にしてはいけません。",
                                             "10000や20000のようなコード値が増えても再利用できる意味構造を提案してください。",
                                             "reasonは管理者向けの判断理由です。なぜMeaningを確定できないか、またはなぜそのMeaningを提案するかだけを書いてください。",
@@ -318,7 +355,7 @@ class StandardMeaningAiProposalGenerator {
                                             "facilityQuestionにはentityName、fieldName、semanticType、canonical codeなどのFormal Meaning内部情報を含めないでください。",
                                             "modeがreview以外の場合、facilityQuestionは空文字で構いません。",
                                             "JSONオブジェクトだけを返してください。",
-                                            "キーは mode, entityName, fieldName, displayName, synonyms, reason, facilityQuestion, confidence。",
+                                            "キーは mode, entityName, fieldName, displayName, synonyms, semanticType, reason, facilityQuestion, confidence。",
                                             "confidenceはhigh, medium, lowのいずれか。"
                                         ].join("\n")
                                 },
@@ -333,8 +370,15 @@ class StandardMeaningAiProposalGenerator {
 
                                             evidence,
 
-                                            authoritativeSemanticType:
-                                                normalizedSemanticType,
+                                            ...(normalizedSemanticType
+                                                ? {
+                                                    authoritativeSemanticType:
+                                                        normalizedSemanticType
+                                                }
+                                                : {}),
+
+                                            allowedSemanticTypes:
+                                                normalizedAllowedSemanticTypes,
 
                                             existingStandardMeanings:
                                                 existingMeanings
@@ -391,10 +435,26 @@ class StandardMeaningAiProposalGenerator {
             );
         }
 
-        return this.validateProposal(
-            proposal,
-            normalizedSemanticType
-        );
+        const validated =
+            this.validateProposal(
+                proposal,
+                normalizedSemanticType
+            );
+
+        if (
+            !normalizedSemanticType &&
+            validated.mode !== "review" &&
+            !normalizedAllowedSemanticTypes
+                .includes(
+                    validated.semanticType
+                )
+        ) {
+            throw new Error(
+                "Standard Meaning AI semanticType was not an active projection contract"
+            );
+        }
+
+        return validated;
     }
 }
 

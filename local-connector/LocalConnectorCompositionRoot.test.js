@@ -689,3 +689,105 @@ test(
         }
     }
 );
+
+test(
+    "recipient execution composition uses injected import preview service",
+    async () => {
+        const tempDir =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "risen-recipient-execution-preview-"
+                )
+            );
+
+        const databasePath =
+            path.join(
+                tempDir,
+                "registry.sqlite"
+            );
+
+        const configPath =
+            path.join(
+                tempDir,
+                ".local-connector-config.json"
+            );
+
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                connectorId:
+                    "11111111-2222-4333-8444-555555555555"
+            })
+        );
+
+        const importPreviewService = {
+            async buildExecutionPlan() {
+                throw new Error(
+                    "preview must not run during composition"
+                );
+            }
+        };
+
+        try {
+            const service =
+                await LocalConnectorCompositionRoot
+                    .createRecipientCertificateImportExecutionService({
+                        databasePath,
+                        configPath,
+
+                        fieldMappingEndpoint:
+                            "https://backend.example/connector/source-field-mappings",
+                        interpretationEndpoint:
+                            "https://backend.example/connector/source-field-interpretations",
+                        candidateEndpoint:
+                            "https://backend.example/connector/resident-candidates",
+                        residentMappingEndpoint:
+                            "https://backend.example/connector/source-resident-mappings",
+                        admissionDecisionEndpoint:
+                            "https://backend.example/connector/resident-admission-decisions",
+                        semanticLogicalRecordEndpoint:
+                            "https://backend.example/connector/semantic-logical-records",
+                        residentProfileQueryEndpoint:
+                            "https://backend.example/connector/resident-profile-query",
+                        residentProfileEndpoint:
+                            "https://backend.example/connector/resident-profiles",
+                        residentAdmissionEndpoint:
+                            "https://backend.example/connector/resident-admissions",
+                        semanticLogicalRecordPersistenceEndpoint:
+                            "https://backend.example/connector/semantic-logical-record-persistence",
+                        recipientCertificateAtomicPersistenceEndpoint:
+                            "https://backend.example/connector/recipient-certificate-atomic",
+
+                        importPreviewService,
+
+                        credential:
+                            "test-credential",
+                        authorizationScheme:
+                            "RISEN-Connector",
+
+                        fetchImpl:
+                            async () => {
+                                throw new Error(
+                                    "network should not be called during composition"
+                                );
+                            }
+                    });
+
+            assert.strictEqual(
+                service
+                    .executionGate
+                    .importPreviewService,
+                importPreviewService
+            );
+        } finally {
+            fs.rmSync(
+                tempDir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            );
+        }
+    }
+);

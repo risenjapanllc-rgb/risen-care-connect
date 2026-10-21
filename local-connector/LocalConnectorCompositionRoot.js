@@ -1107,13 +1107,15 @@ async function createRecipientCertificateImportExecutionService({
     residentAdmissionEndpoint,
     semanticLogicalRecordPersistenceEndpoint,
     recipientCertificateAtomicPersistenceEndpoint,
+    importPreviewService = null,
     credential,
     authorizationScheme,
     connectorIdHeader =
         "x-risen-connector-id",
     fetchImpl = globalThis.fetch
 } = {}) {
-    const importPreviewService =
+    const resolvedImportPreviewService =
+        importPreviewService ||
         await createRecipientCertificateImportPreviewService({
             databasePath,
             configPath,
@@ -1203,7 +1205,8 @@ async function createRecipientCertificateImportExecutionService({
 
     const executionGate =
         new RecipientCertificateExecutionGate({
-            importPreviewService
+            importPreviewService:
+                resolvedImportPreviewService
         });
 
     const executionService =

@@ -15,3 +15,9 @@ secrets/
 *.key
 
 /supabase/.temp/
+
+# Generated distribution artifacts
+/dist/
+
+# Local development baselines
+/.risen-baselines/

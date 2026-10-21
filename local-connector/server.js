@@ -143,7 +143,7 @@ app.locals.getSourceDocumentIngestionService =
                             process.env
                                 .RISEN_CONNECTOR_ID_HEADER ||
                             'x-risen-connector-id',
-                        timeoutMs: 60000
+                        timeoutMs: 120000
                     })
                     .catch(error => {
                         sourceDocumentIngestionServicePromise =

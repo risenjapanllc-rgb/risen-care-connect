@@ -4966,15 +4966,30 @@ function renderResidentCandidateDetails(
             : [];
 
     const sourceName =
-        candidateResult?.identifierType === "name" &&
-        typeof candidateResult.identifierValue ===
-            "string"
-            ? candidateResult.identifierValue.trim()
-            : "";
+        typeof candidateResult?.sourceName === "string" &&
+        candidateResult.sourceName.trim()
+            ? candidateResult.sourceName.trim()
+            : candidateResult?.identifierType === "name" &&
+                typeof candidateResult.identifierValue ===
+                    "string"
+                ? candidateResult.identifierValue.trim()
+                : "";
 
     if (
         mapping?.mappingStatus === "confirmed"
     ) {
+        const confirmedResidentId =
+            typeof mapping.residentId === "string"
+                ? mapping.residentId.trim()
+                : "";
+
+        const confirmedCandidate =
+            candidates.find(candidate =>
+                typeof candidate?.residentId === "string" &&
+                candidate.residentId.trim() ===
+                    confirmedResidentId
+            ) || null;
+
         return `
             ${
                 sourceName
@@ -4988,7 +5003,47 @@ function renderResidentCandidateDetails(
                     `
                     : ""
             }
-            ${renderResidentMappingState(mapping)}
+            <strong>候補が1件見つかりました</strong>
+            <p class="form-help">
+                人が確認した利用者との紐付けを保存済みです。
+            </p>
+            <div
+                style="
+                    margin-top: 10px;
+                    padding: 10px;
+                    border: 1px solid #e1e7f0;
+                    border-radius: 8px;
+                "
+            >
+                ${
+                    confirmedCandidate
+                        ? `
+                            <p style="margin: 0 0 8px;">
+                                <strong>
+                                    ${escapeHtml(
+                                        confirmedCandidate.name ||
+                                        "氏名未設定"
+                                    )}
+                                </strong>
+                                ${
+                                    confirmedCandidate.userCode
+                                        ? ` / ${escapeHtml(
+                                            confirmedCandidate.userCode
+                                        )}`
+                                        : ""
+                                }
+                            </p>
+                        `
+                        : ""
+                }
+                <button
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    ✓ この利用者に紐付け済み
+                </button>
+            </div>
         `;
     }
 
@@ -5091,7 +5146,6 @@ function renderResidentCandidateDetails(
 
     if (
         candidateResult?.status === "not_found" &&
-        candidateResult?.identifierType === "name" &&
         sourceName
     ) {
         return `

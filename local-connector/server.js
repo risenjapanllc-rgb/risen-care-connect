@@ -2032,6 +2032,149 @@ app.get(
     }
 );
 
+app.get(
+    "/source-document-template-bindings",
+    async (req, res) => {
+        try {
+            const sourceDocumentKey =
+                typeof req.query?.sourceDocumentKey ===
+                    "string"
+                    ? req.query.sourceDocumentKey.trim()
+                    : "";
+
+            const sourceUpdatedAt =
+                typeof req.query?.sourceUpdatedAt ===
+                    "string"
+                    ? req.query.sourceUpdatedAt.trim()
+                    : "";
+
+            const sourceSizeText =
+                typeof req.query?.sourceSize ===
+                    "string"
+                    ? req.query.sourceSize.trim()
+                    : "";
+
+            const sourceSize =
+                /^\d+$/.test(
+                    sourceSizeText
+                )
+                    ? Number(sourceSizeText)
+                    : Number.NaN;
+
+            if (
+                !sourceDocumentKey ||
+                !sourceUpdatedAt ||
+                Number.isNaN(
+                    Date.parse(
+                        sourceUpdatedAt
+                    )
+                ) ||
+                !Number.isSafeInteger(
+                    sourceSize
+                ) ||
+                sourceSize < 0
+            ) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "原本スナップショットが不正です"
+                    });
+            }
+
+            const client =
+                await app.locals
+                    .getSemanticRegistrationClient();
+
+            const result =
+                await client
+                    .getDocumentBinding({
+                        sourceDocumentKey,
+                        sourceUpdatedAt:
+                            new Date(
+                                sourceUpdatedAt
+                            ).toISOString(),
+                        sourceSize
+                    });
+
+            if (
+                result?.status ===
+                    "found"
+            ) {
+                return res
+                    .status(200)
+                    .json({
+                        success: true,
+                        ...result
+                    });
+            }
+
+            if (
+                result?.status ===
+                    "not_found"
+            ) {
+                return res
+                    .status(200)
+                    .json({
+                        success: true,
+                        status:
+                            "not_found",
+                        binding: null
+                    });
+            }
+
+            return res
+                .status(503)
+                .json({
+                    success: false,
+                    message:
+                        "原本の書式登録情報を取得できませんでした"
+                });
+        } catch (error) {
+            if (
+                error?.code ===
+                    "connector_trust_denied"
+            ) {
+                return res
+                    .status(401)
+                    .json({
+                        success: false,
+                        message:
+                            "Connector認証に失敗しました"
+                    });
+            }
+
+            if (
+                error?.httpStatus ===
+                    422
+            ) {
+                return res
+                    .status(422)
+                    .json({
+                        success: false,
+                        message:
+                            "原本スナップショットが不正です"
+                    });
+            }
+
+            console.error(
+                "Source document template binding query failed:",
+                error
+            );
+
+            return res
+                .status(503)
+                .json({
+                    success: false,
+                    message:
+                        error?.message ||
+                        "原本の書式登録情報を取得できませんでした"
+                });
+        }
+    }
+);
+
 registerSemanticRegistrationProxyRoute({
     path:
         "/source-document-template-bindings",

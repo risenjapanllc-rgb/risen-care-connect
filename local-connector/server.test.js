@@ -5930,3 +5930,220 @@ test(
         }
     }
 );
+test(
+    "GET /source-document-template-bindings returns current binding",
+    async () => {
+        const originalFactory =
+            app.locals.getSemanticRegistrationClient;
+
+        let receivedSourceSnapshot = null;
+
+        app.locals.getSemanticRegistrationClient =
+            async () => ({
+                async getDocumentBinding(sourceSnapshot) {
+                    receivedSourceSnapshot =
+                        sourceSnapshot;
+
+                    return {
+                        status: "found",
+                        binding: {
+                            templateId:
+                                "template-001",
+                            sourceDocumentKey:
+                                "document-key"
+                        }
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-document-template-bindings?sourceDocumentKey=document-key&sourceUpdatedAt=${encodeURIComponent("2026-09-22T00:00:00.000Z")}&sourceSize=12345`
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                receivedSourceSnapshot,
+                {
+                    sourceDocumentKey:
+                        "document-key",
+                    sourceUpdatedAt:
+                        "2026-09-22T00:00:00.000Z",
+                    sourceSize:
+                        12345
+                }
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "found",
+                    binding: {
+                        templateId:
+                            "template-001",
+                        sourceDocumentKey:
+                            "document-key"
+                    }
+                }
+            );
+        } finally {
+            app.locals.getSemanticRegistrationClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET /source-document-template-bindings returns not_found safely",
+    async () => {
+        const originalFactory =
+            app.locals.getSemanticRegistrationClient;
+
+        app.locals.getSemanticRegistrationClient =
+            async () => ({
+                async getDocumentBinding() {
+                    return {
+                        status: "not_found"
+                    };
+                }
+            });
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-document-template-bindings?sourceDocumentKey=document-key&sourceUpdatedAt=${encodeURIComponent("2026-09-22T00:00:00.000Z")}&sourceSize=12345`
+                );
+
+            assert.strictEqual(
+                response.status,
+                200
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: true,
+                    status: "not_found",
+                    binding: null
+                }
+            );
+        } finally {
+            app.locals.getSemanticRegistrationClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);
+
+test(
+    "GET /source-document-template-bindings rejects invalid source snapshot",
+    async () => {
+        const originalFactory =
+            app.locals.getSemanticRegistrationClient;
+
+        let factoryCalled = false;
+
+        app.locals.getSemanticRegistrationClient =
+            async () => {
+                factoryCalled = true;
+
+                throw new Error(
+                    "must not be called"
+                );
+            };
+
+        const server =
+            http.createServer(app);
+
+        await new Promise(
+            resolve =>
+                server.listen(
+                    0,
+                    "127.0.0.1",
+                    resolve
+                )
+        );
+
+        try {
+            const address =
+                server.address();
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:${address.port}/source-document-template-bindings`
+                );
+
+            assert.strictEqual(
+                response.status,
+                422
+            );
+
+            assert.strictEqual(
+                factoryCalled,
+                false
+            );
+
+            assert.deepStrictEqual(
+                await response.json(),
+                {
+                    success: false,
+                    message:
+                        "原本スナップショットが不正です"
+                }
+            );
+        } finally {
+            app.locals.getSemanticRegistrationClient =
+                originalFactory;
+
+            await new Promise(
+                resolve =>
+                    server.close(resolve)
+            );
+        }
+    }
+);

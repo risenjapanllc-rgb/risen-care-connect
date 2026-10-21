@@ -81,6 +81,15 @@ const SupabaseSourceTemplateFieldsPersistenceRepository =
 const SourceTemplateFieldsIngestionService =
     require("./SourceTemplateFieldsIngestionService");
 
+const WordSourceTemplateReviewedPayloadValidator =
+    require("./WordSourceTemplateReviewedPayloadValidator");
+
+const SupabaseWordSourceTemplateReviewedPersistenceRepository =
+    require("./SupabaseWordSourceTemplateReviewedPersistenceRepository");
+
+const WordSourceTemplateReviewedIngestionService =
+    require("./WordSourceTemplateReviewedIngestionService");
+
 const SourceTemplateSemanticAuthorityPayloadValidator =
     require("./SourceTemplateSemanticAuthorityPayloadValidator");
 
@@ -713,6 +722,25 @@ function createServerTrustBoundaryRuntime({
                 sourceTemplateFieldsPersistenceRepository
         });
 
+    const wordSourceTemplateReviewedPayloadValidator =
+        new WordSourceTemplateReviewedPayloadValidator();
+
+    const wordSourceTemplateReviewedPersistenceRepository =
+        new SupabaseWordSourceTemplateReviewedPersistenceRepository({
+            supabaseUrl,
+            apiKey,
+            accessTokenProvider
+        });
+
+    const wordSourceTemplateReviewedIngestionService =
+        new WordSourceTemplateReviewedIngestionService({
+            connectorTrustService,
+            payloadValidator:
+                wordSourceTemplateReviewedPayloadValidator,
+            persistenceRepository:
+                wordSourceTemplateReviewedPersistenceRepository
+        });
+
     const sourceTemplateSemanticAuthorityPayloadValidator =
         new SourceTemplateSemanticAuthorityPayloadValidator();
 
@@ -1270,6 +1298,7 @@ function createServerTrustBoundaryRuntime({
         sourceFieldMappingQueryService,
         sourceTemplateExactIngestionService,
         sourceTemplateFieldsIngestionService,
+        wordSourceTemplateReviewedIngestionService,
         sourceTemplateSemanticAuthorityIngestionService,
         standardMeaningCandidateIngestionService,
         documentSemanticTargetQueryService,

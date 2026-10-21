@@ -783,6 +783,80 @@
                 </div>
             </div>
 
+            <div
+                class="semantic-registration-footer"
+                style="
+                    margin: 24px 0 32px;
+                    padding: 22px 24px;
+                    border: 1px solid #c9dbf2;
+                    border-left: 6px solid #6f9fd8;
+                    border-radius: 14px;
+                    background: #f3f8fe;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 24px;
+                "
+            >
+                <div
+                    style="
+                        flex: 1 1 auto;
+                        min-width: 0;
+                    "
+                >
+                    <div
+                        style="
+                            margin: 0 0 8px 0;
+                            font-size: 19px;
+                            font-weight: 700;
+                            color: #234a84;
+                            line-height: 1.4;
+                        "
+                    >
+                        まず書式を登録してください
+                    </div>
+
+                    <div
+                        style="
+                            margin: 0;
+                            color: #64748b;
+                            font-size: 14px;
+                            line-height: 1.8;
+                        "
+                    >
+                        書式を登録すると、その後に各項目のAIKO解釈を確認・送信できます。
+                    </div>
+                </div>
+
+                <div
+                    style="
+                        flex: 0 0 auto;
+                        margin-left: auto;
+                    "
+                >
+                    <button
+                        id="semanticRegisterButton"
+                        class="semantic-primary-button"
+                        type="button"
+                        disabled
+                        title="この書式をSemanticテンプレートとして登録します"
+                        style="
+                            min-height: 44px !important;
+                            padding: 0 24px !important;
+                            border-color: #1f4ea3 !important;
+                            border-radius: 10px !important;
+                            background: #1f4ea3 !important;
+                            color: #ffffff !important;
+                            font-size: 15px !important;
+                            font-weight: 700 !important;
+                            white-space: nowrap !important;
+                        "
+                    >
+                        書式を登録
+                    </button>
+                </div>
+            </div>
+
             <div class="semantic-table-wrap">
                 <table class="semantic-table">
                     <thead>
@@ -805,17 +879,6 @@
                 表示する項目がありません。
             </div>
 
-            <div class="semantic-registration-footer">
-                <button
-                    id="semanticRegisterButton"
-                    class="semantic-primary-button"
-                    type="button"
-                    disabled
-                    title="この書式をSemanticテンプレートとして登録します"
-                >
-                    整理結果を保存
-                </button>
-            </div>
         </section>
     </main>
 

@@ -384,3 +384,124 @@ test(
         );
     }
 );
+
+
+test(
+    "includes previous interpretation when reanalyzing a field",
+    async () => {
+        let receivedBody = null;
+
+        const generator =
+            new StandardMeaningFieldInterpretationGenerator({
+                apiKey:
+                    "test-key",
+
+                model:
+                    "test-model",
+
+                fetchImpl:
+                    async (
+                        url,
+                        options
+                    ) => {
+                        assert.equal(
+                            url,
+                            "https://api.openai.com/v1/responses"
+                        );
+
+                        receivedBody =
+                            JSON.parse(
+                                options.body
+                            );
+
+                        return {
+                            ok: true,
+                            status: 200,
+
+                            text:
+                                async () =>
+                                    JSON.stringify({
+                                        output_text:
+                                            JSON.stringify({
+                                                mode:
+                                                    "interpreted",
+
+                                                interpretation:
+                                                    "当日時点で入院中の利用者情報を記録する項目",
+
+                                                reason:
+                                                    "前回解釈をEvidenceと照合して再評価した",
+
+                                                facilityQuestion:
+                                                    "",
+
+                                                confidence:
+                                                    "high"
+                                            })
+                                    })
+                        };
+                    }
+            });
+
+        await generator.generate({
+            sourceLabel:
+                "入院",
+
+            sourceDocumentName:
+                "日勤日誌.docx",
+
+            documentType:
+                "daily_log",
+
+            evidence: {
+                sampleValues: [
+                    "入院日と病院名"
+                ],
+
+                neighboringFields: [
+                    "外泊",
+                    "通院"
+                ]
+            },
+
+            previousInterpretation:
+                "入院に関する利用者情報を記録する項目"
+        });
+
+        const userMessage =
+            receivedBody.input.find(
+                item =>
+                    item.role === "user"
+            );
+
+        assert.ok(
+            userMessage
+        );
+
+        const userPayload =
+            JSON.parse(
+                userMessage.content
+            );
+
+        assert.equal(
+            userPayload.previousInterpretation,
+            "入院に関する利用者情報を記録する項目"
+        );
+
+        const systemMessage =
+            receivedBody.input.find(
+                item =>
+                    item.role === "system"
+            );
+
+        assert.match(
+            systemMessage.content,
+            /前回の解釈/
+        );
+
+        assert.match(
+            systemMessage.content,
+            /再評価/
+        );
+    }
+);

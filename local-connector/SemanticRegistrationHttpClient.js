@@ -302,6 +302,21 @@ class SemanticRegistrationHttpClient {
         });
     }
 
+    registerWordReviewed(
+        wordSourceTemplateReviewed
+    ) {
+        return this.post({
+            pathname:
+                "/connector/source-templates/word-reviewed",
+
+            envelopeName:
+                "wordSourceTemplateReviewed",
+
+            payload:
+                wordSourceTemplateReviewed
+        });
+    }
+
     listAuthority(templateId) {
         return this.get({
             pathname:

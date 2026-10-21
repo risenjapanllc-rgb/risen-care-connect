@@ -1927,8 +1927,18 @@ function renderMeaningEditor(item) {
                     class="
                         semantic-standard-meaning-candidate-input
                     "
-                    placeholder="分かる場合だけ、この項目が何を表すか入力"
-                    aria-label="この項目の意味"
+                    placeholder="${
+                        item?.fieldInterpretation
+                            ?.interpretation
+                            ? "AIKOの解釈に補足がある場合だけ入力"
+                            : "この項目が何を表すか入力"
+                    }"
+                    aria-label="${
+                        item?.fieldInterpretation
+                            ?.interpretation
+                            ? "AIKOの解釈への補足"
+                            : "この項目の意味"
+                    }"
                     value="${escapeHtml(
                         semanticStandardMeaningCandidates
                             .get(
@@ -1977,7 +1987,10 @@ function renderMeaningEditor(item) {
                             item.sourceFieldKey
                         )
                             ? "送信済み"
-                            : "RISENへ意味候補を送る"}
+                            : item?.fieldInterpretation
+                                ?.interpretation
+                                ? "この解釈でRISENへ送る"
+                                : "RISENへ意味候補を送る"}
                 </button>
 
                 <p
@@ -1986,7 +1999,12 @@ function renderMeaningEditor(item) {
                         margin: 6px 0 0;
                     "
                 >
-                    任意です。Semanticコードの入力は不要です。
+                    ${
+                        item?.fieldInterpretation
+                            ?.interpretation
+                            ? "補足入力は任意です。AIKOの解釈のまま送ることができます。"
+                            : "AIKOで解析するか、分かる場合だけ意味を入力してください。"
+                    }
                 </p>
             </div>
 
@@ -2363,9 +2381,19 @@ async function runFieldInterpretation(
                 .neighboringFields
             : [];
 
+    const previousInterpretation =
+        String(
+            item
+                ?.fieldInterpretation
+                ?.interpretation ||
+            ""
+        ).trim();
+
     button.disabled = true;
     button.textContent =
-        "AIKO解析中...";
+        previousInterpretation
+            ? "AIKO再評価中..."
+            : "AIKO解析中...";
 
     try {
         const response =
@@ -2406,7 +2434,15 @@ async function runFieldInterpretation(
                             evidence: {
                                 sampleValues,
                                 neighboringFields
-                            }
+                            },
+
+                            previousInterpretation:
+                                String(
+                                    item
+                                        ?.fieldInterpretation
+                                        ?.interpretation ||
+                                    ""
+                                ).trim()
                         })
                 }
             );
@@ -2432,15 +2468,39 @@ async function runFieldInterpretation(
             );
         }
 
+        const nextInterpretation =
+            String(
+                result
+                    ?.interpretation
+                    ?.interpretation ||
+                ""
+            ).trim();
+
         item.fieldInterpretation =
             result.interpretation;
 
         renderFields();
 
-        setStatus(
-            `${item.label} をAIKOが解析しました。`,
-            "success"
-        );
+        if (
+            previousInterpretation &&
+            nextInterpretation ===
+                previousInterpretation
+        ) {
+            setStatus(
+                `${item.label} をAIKOが再評価し、前回の解釈を維持しました。`,
+                "success"
+            );
+        } else if (previousInterpretation) {
+            setStatus(
+                `${item.label} をAIKOが再評価し、解釈を更新しました。`,
+                "success"
+            );
+        } else {
+            setStatus(
+                `${item.label} をAIKOが解析しました。`,
+                "success"
+            );
+        }
     } catch (error) {
         console.error(error);
 
@@ -2469,16 +2529,57 @@ async function submitStandardMeaningCandidate(
             ""
         ).trim();
 
-    if (
-        !sourceFieldKey ||
-        !semanticCurrentTemplateId
-    ) {
+
+    if (!sourceFieldKey) {
         setStatus(
-            "Meaning候補を送信できません。",
+            "Meaning候補の対象項目を確認できません。",
             "error"
         );
         return;
     }
+
+    if (!semanticCurrentTemplateId) {
+
+        try {
+            const selectedFileName =
+                String(
+                    fileSelect.value || ""
+                )
+                    .trim()
+                    .toLowerCase();
+
+            if (
+                selectedFileName.endsWith(
+                    ".docx"
+                )
+            ) {
+                await restoreCurrentWordTemplateBinding(
+                    semanticCurrentAnalysis
+                );
+            } else {
+                await restoreCurrentTemplateRegistration();
+            }
+        } catch (error) {
+            console.error(error);
+
+            setStatus(
+                error?.message ||
+                "Semantic書式を確認できません。",
+                "error"
+            );
+
+            return;
+        }
+    }
+
+    if (!semanticCurrentTemplateId) {
+        setStatus(
+            "Semantic書式を確認できません。",
+            "error"
+        );
+        return;
+    }
+
 
     const item =
         semanticResolvedFields.find(
@@ -2489,8 +2590,15 @@ async function submitStandardMeaningCandidate(
         );
 
     if (!item) {
+
+        setStatus(
+            "Meaning候補の対象項目を確認できません。",
+            "error"
+        );
+
         return;
     }
+
 
     const editor =
         button.closest(
@@ -2502,20 +2610,41 @@ async function submitStandardMeaningCandidate(
             ".semantic-standard-meaning-candidate-input"
         );
 
-    const proposedMeaning =
+    const facilitySupplement =
         String(
             input?.value || ""
         ).trim();
 
-    if (!proposedMeaning) {
+    const aiInterpretation =
+        String(
+            item
+                ?.fieldInterpretation
+                ?.interpretation ||
+            ""
+        ).trim();
+
+    if (
+        !aiInterpretation &&
+        !facilitySupplement
+    ) {
         setStatus(
-            "この項目が何を表すかを入力してください。",
+            "AIKOで解析するか、この項目の意味を入力してください。",
             "error"
         );
 
         input?.focus();
         return;
     }
+
+    const proposedMeaning =
+        aiInterpretation
+            ? (
+                facilitySupplement
+                    ? `${aiInterpretation}\n補足: ${facilitySupplement}`
+                    : aiInterpretation
+            )
+            : facilitySupplement;
+
 
     button.disabled = true;
     button.textContent =
@@ -2608,7 +2737,10 @@ async function submitStandardMeaningCandidate(
 
         button.disabled = false;
         button.textContent =
-            "RISENへ意味候補を送る";
+            item?.fieldInterpretation
+                ?.interpretation
+                ? "この解釈でRISENへ送る"
+                : "RISENへ意味候補を送る";
 
         setStatus(
             error?.message ||
@@ -3885,8 +4017,101 @@ function getRegistrationFileType() {
         return "excel";
     }
 
+    if (name.endsWith(".docx")) {
+        return "word";
+    }
+
     return null;
 }
+
+function buildWordReviewedFields(
+    fieldDefinitions
+) {
+    if (
+        !Array.isArray(fieldDefinitions) ||
+        fieldDefinitions.length === 0
+    ) {
+        throw new Error(
+            "Word書式の項目を確認できませんでした"
+        );
+    }
+
+    return fieldDefinitions.map(
+        (field, index) => {
+            const sourceFieldKey =
+                getSourceFieldKey(
+                    field,
+                    index
+                );
+
+            const match =
+                /^word:table:(\d+):row:(\d+)$/
+                    .exec(
+                        sourceFieldKey
+                    );
+
+            if (!match) {
+                throw new Error(
+                    `Word項目の構造キーが不正です: ${sourceFieldKey}`
+                );
+            }
+
+            const tableIndex =
+                Number(match[1]);
+
+            const rowIndex =
+                Number(match[2]);
+
+            if (
+                !Number.isSafeInteger(
+                    tableIndex
+                ) ||
+                tableIndex < 0 ||
+                !Number.isSafeInteger(
+                    rowIndex
+                ) ||
+                rowIndex < 0
+            ) {
+                throw new Error(
+                    `Word項目の位置情報が不正です: ${sourceFieldKey}`
+                );
+            }
+
+            const headerLabel =
+                getSourceFieldLabel(
+                    field
+                );
+
+            const normalizedHeaderLabel =
+                normalizeSemanticLabel(
+                    headerLabel
+                );
+
+            if (!normalizedHeaderLabel) {
+                throw new Error(
+                    `Word項目名を正規化できませんでした: ${sourceFieldKey}`
+                );
+            }
+
+            return {
+                templateFieldKey:
+                    sourceFieldKey,
+
+                structuralPath:
+                    sourceFieldKey,
+
+                tableIndex,
+
+                rowIndex,
+
+                headerLabel,
+
+                normalizedHeaderLabel
+            };
+        }
+    );
+}
+
 
 function getFieldCoordinates(
     field,
@@ -4230,6 +4455,124 @@ async function postSemanticRegistration(
     return result;
 }
 
+async function restoreCurrentWordTemplateBinding(
+    analysis
+) {
+    const selected =
+        String(
+            fileSelect.value || ""
+        )
+            .trim()
+            .toLowerCase();
+
+    if (!selected.endsWith(".docx")) {
+        return null;
+    }
+
+    if (
+        !analysis ||
+        typeof analysis.sourceDocumentKey !==
+            "string" ||
+        !analysis.sourceDocumentKey.trim() ||
+        typeof analysis.sourceUpdatedAt !==
+            "string" ||
+        !analysis.sourceUpdatedAt.trim() ||
+        Number.isNaN(
+            Date.parse(
+                analysis.sourceUpdatedAt
+            )
+        ) ||
+        !Number.isSafeInteger(
+            analysis.sourceSize
+        ) ||
+        analysis.sourceSize < 0
+    ) {
+        semanticCurrentTemplateId =
+            null;
+
+        return null;
+    }
+
+    const params =
+        new URLSearchParams({
+            sourceDocumentKey:
+                analysis.sourceDocumentKey
+                    .trim(),
+            sourceUpdatedAt:
+                new Date(
+                    analysis.sourceUpdatedAt
+                ).toISOString(),
+            sourceSize:
+                String(
+                    analysis.sourceSize
+                )
+        });
+
+
+    const response =
+        await fetch(
+            `${LOCAL_CONNECTOR_BASE}/source-document-template-bindings?${params}`
+        );
+
+
+    let result = null;
+
+    try {
+        result =
+            await response.json();
+    } catch {
+        result = null;
+    }
+
+
+    if (
+        !response.ok ||
+        !result ||
+        result.success !== true
+    ) {
+        throw new Error(
+            result?.message ||
+            "Word書式の登録情報を取得できませんでした"
+        );
+    }
+
+    if (
+        result.status !== "found" ||
+        !result.binding ||
+        typeof result.binding.templateId !==
+            "string" ||
+        !result.binding.templateId.trim()
+    ) {
+        semanticCurrentTemplateId =
+            null;
+
+        return null;
+    }
+
+    if (
+        result.binding.confirmedByHuman !==
+            true ||
+        result.binding.matchMethod !==
+            "confirmed_by_human"
+    ) {
+        semanticCurrentTemplateId =
+            null;
+
+        return null;
+    }
+
+    semanticCurrentTemplateId =
+        result.binding.templateId.trim();
+
+    return {
+        templateId:
+            semanticCurrentTemplateId,
+        binding:
+            result.binding
+    };
+}
+
+
 async function restoreCurrentTemplateRegistration() {
     const fileType =
         getRegistrationFileType();
@@ -4248,21 +4591,30 @@ async function restoreCurrentTemplateRegistration() {
         return null;
     }
 
+
     const canonicalStructure =
         buildCanonicalStructure(
             fileType,
             semanticCurrentFieldDefinitions
         );
 
+
     const canonicalizationVersion =
         "risen-source-template-canonicalization-1";
 
+    const canonicalJson =
+        JSON.stringify(
+            canonicalStructure
+        );
+
+
+
     const structureFingerprint =
         await sha256Hex(
-            JSON.stringify(
-                canonicalStructure
-            )
+            canonicalJson
         );
+
+
 
     const templateResult =
         await postSemanticRegistration(
@@ -4287,6 +4639,7 @@ async function restoreCurrentTemplateRegistration() {
                 canonicalStructure
             }
         );
+
 
     if (
         templateResult.status ===
@@ -4318,6 +4671,7 @@ async function restoreCurrentTemplateRegistration() {
             semanticCurrentFieldDefinitions
         );
 
+
     const fieldResult =
         await postSemanticRegistration(
             "/source-template-fields/exact",
@@ -4328,6 +4682,7 @@ async function restoreCurrentTemplateRegistration() {
                     templateFields
             }
         );
+
 
     if (
         fieldResult.status ===
@@ -4455,9 +4810,237 @@ async function registerSemanticTemplate() {
                 error
             );
 
+            if (fileType === "word") {
+                throw new Error(
+                    error?.message ||
+                    "Word原本ファイルを登録できませんでした"
+                );
+            }
+
             sourceDocumentWarning =
                 error?.message ||
                 "原本ファイルの登録を保留しました";
+        }
+
+        if (fileType === "word") {
+            const analysis =
+                semanticCurrentAnalysis;
+
+            if (
+                !analysis ||
+                typeof analysis.sourceDocumentKey !==
+                    "string" ||
+                !analysis.sourceDocumentKey.trim() ||
+                typeof analysis.sourceUpdatedAt !==
+                    "string" ||
+                !analysis.sourceUpdatedAt.trim() ||
+                Number.isNaN(
+                    Date.parse(
+                        analysis.sourceUpdatedAt
+                    )
+                ) ||
+                !Number.isSafeInteger(
+                    analysis.sourceSize
+                ) ||
+                analysis.sourceSize < 0
+            ) {
+                throw new Error(
+                    "Word原本のスナップショット情報を確認できませんでした"
+                );
+            }
+
+            const reviewedFields =
+                buildWordReviewedFields(
+                    semanticCurrentFieldDefinitions
+                );
+
+            const confirmedAt =
+                new Date()
+                    .toISOString();
+
+            const wordTemplateResult =
+                await postSemanticRegistration(
+                    "/source-templates/word-reviewed",
+                    "wordSourceTemplateReviewed",
+                    {
+                        sourceDocumentKey:
+                            analysis
+                                .sourceDocumentKey
+                                .trim(),
+
+                        sourceUpdatedAt:
+                            new Date(
+                                analysis
+                                    .sourceUpdatedAt
+                            ).toISOString(),
+
+                        sourceSize:
+                            analysis
+                                .sourceSize,
+
+                        displayName:
+                            String(
+                                fileSelect.value ||
+                                ""
+                            ).trim(),
+
+                        documentType:
+                            null,
+
+                        fields:
+                            reviewedFields,
+
+                        confirmedByHuman:
+                            true,
+
+                        confirmedAt
+                    }
+                );
+
+            if (
+                wordTemplateResult.status ===
+                "conflict"
+            ) {
+                throw new Error(
+                    "Word原本の既存書式登録と競合しています"
+                );
+            }
+
+            const templateId =
+                typeof wordTemplateResult
+                    .templateId ===
+                    "string"
+                    ? wordTemplateResult
+                        .templateId
+                        .trim()
+                    : "";
+
+            if (!templateId) {
+                throw new Error(
+                    "Word Template IDを取得できませんでした"
+                );
+            }
+
+            semanticCurrentTemplateId =
+                templateId;
+
+            const resolved =
+                semanticResolvedFields.filter(
+                    item =>
+                        typeof item
+                            .semanticMeaning ===
+                            "string" &&
+                        item.semanticMeaning
+                            .trim()
+                );
+
+            for (const item of resolved) {
+                const semanticMeaning =
+                    item.semanticMeaning.trim();
+
+                const separator =
+                    semanticMeaning.indexOf(
+                        "."
+                    );
+
+                if (
+                    separator <= 0 ||
+                    separator ===
+                        semanticMeaning.length -
+                            1
+                ) {
+                    throw new Error(
+                        `${item.label} のMeaning形式が不正です`
+                    );
+                }
+
+                const standardEntityName =
+                    semanticMeaning.slice(
+                        0,
+                        separator
+                    );
+
+                const standardFieldName =
+                    semanticMeaning.slice(
+                        separator + 1
+                    );
+
+                const authorityResult =
+                    await postSemanticRegistration(
+                        "/source-template-semantic-authority",
+                        "sourceTemplateSemanticAuthority",
+                        {
+                            templateId,
+
+                            templateFieldKey:
+                                item
+                                    .sourceFieldKey,
+
+                            interpretationStatus:
+                                "confirmed",
+
+                            mappingStatus:
+                                "mapped",
+
+                            confirmedMeaning:
+                                semanticMeaning,
+
+                            standardEntityName,
+
+                            standardFieldName,
+
+                            confirmedAt
+                        }
+                    );
+
+                if (
+                    authorityResult.status ===
+                    "conflict"
+                ) {
+                    throw new Error(
+                        `${item.label} の既存Semantic定義と競合しています`
+                    );
+                }
+            }
+
+            semanticResolvedFields =
+                semanticResolvedFields.map(
+                    item =>
+                        item.semanticMeaning
+                            ? {
+                                ...item,
+                                status:
+                                    "registered"
+                            }
+                            : item
+                );
+
+            renderSummary();
+            renderFields();
+
+            const unresolvedCount =
+                semanticResolvedFields
+                    .filter(
+                        item =>
+                            !item.semanticMeaning
+                    )
+                    .length;
+
+            registrationSucceeded =
+                true;
+
+            registerButton.textContent =
+                "書式登録済み ✓";
+
+            registerButton.title =
+                `Meaning確定 ${resolved.length}件、未決定 ${unresolvedCount}件、原本紐付け済み`;
+
+            setStatus(
+                `Word書式を登録しました。Meaning確定 ${resolved.length}件、未決定 ${unresolvedCount}件。原本紐付け済み。`,
+                "success"
+            );
+
+            return;
         }
 
         const canonicalStructure =
@@ -4863,7 +5446,24 @@ async function analyzeSelectedFile() {
         semanticCurrentFieldDefinitions =
             fieldDefinitions;
 
-        await restoreCurrentTemplateRegistration();
+        const selectedFileName =
+            String(
+                fileSelect.value || ""
+            )
+                .trim()
+                .toLowerCase();
+
+        if (
+            selectedFileName.endsWith(
+                ".docx"
+            )
+        ) {
+            await restoreCurrentWordTemplateBinding(
+                result
+            );
+        } else {
+            await restoreCurrentTemplateRegistration();
+        }
 
         await loadPersistedMappings(
             result

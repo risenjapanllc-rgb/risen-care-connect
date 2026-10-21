@@ -1861,7 +1861,14 @@ app.post(
                             ""
                         ).trim(),
 
-                    evidence
+                    evidence,
+
+                    previousInterpretation:
+                        String(
+                            req.body
+                                ?.previousInterpretation ||
+                            ""
+                        ).trim()
                 });
 
             return res.json({

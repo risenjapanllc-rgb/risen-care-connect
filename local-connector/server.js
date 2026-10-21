@@ -1825,6 +1825,15 @@ registerSemanticRegistrationProxyRoute({
 
 registerSemanticRegistrationProxyRoute({
     path:
+        "/source-templates/word-reviewed",
+    envelopeName:
+        "wordSourceTemplateReviewed",
+    clientMethod:
+        "registerWordReviewed"
+});
+
+registerSemanticRegistrationProxyRoute({
+    path:
         "/source-template-semantic-authority",
     envelopeName:
         "sourceTemplateSemanticAuthority",

@@ -43,6 +43,12 @@ const SourceTemplateFieldsHttpAdapter =
 const SourceTemplateFieldsTransport =
     require("./SourceTemplateFieldsTransport");
 
+const WordSourceTemplateReviewedHttpAdapter =
+    require("./WordSourceTemplateReviewedHttpAdapter");
+
+const WordSourceTemplateReviewedTransport =
+    require("./WordSourceTemplateReviewedTransport");
+
 const SourceTemplateSemanticAuthorityHttpAdapter =
     require("./SourceTemplateSemanticAuthorityHttpAdapter");
 
@@ -425,6 +431,22 @@ function createServerTrustBoundaryHttpRuntime({
         new SourceTemplateFieldsTransport({
             httpAdapter:
                 sourceTemplateFieldsHttpAdapter,
+            credentialTransport,
+            connectorIdHeader
+        });
+
+    const wordSourceTemplateReviewedHttpAdapter =
+        new WordSourceTemplateReviewedHttpAdapter({
+            ingestionService:
+                coreRuntime
+                    .wordSourceTemplateReviewedIngestionService,
+            diagnosticLogger
+        });
+
+    const wordSourceTemplateReviewedTransport =
+        new WordSourceTemplateReviewedTransport({
+            httpAdapter:
+                wordSourceTemplateReviewedHttpAdapter,
             credentialTransport,
             connectorIdHeader
         });
@@ -1119,6 +1141,9 @@ function createServerTrustBoundaryHttpRuntime({
             sourceTemplateFieldsTransport,
             sourceTemplateFieldsEndpointPath:
                 "/connector/source-template-fields/exact",
+            wordSourceTemplateReviewedTransport,
+            wordSourceTemplateReviewedEndpointPath:
+                "/connector/source-templates/word-reviewed",
             sourceTemplateSemanticAuthorityTransport,
             sourceTemplateSemanticAuthorityEndpointPath:
                 "/connector/source-template-semantic-authority",

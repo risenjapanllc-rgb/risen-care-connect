@@ -137,11 +137,17 @@ class StandardMeaningFieldInterpretationGenerator {
         sourceLabel,
         sourceDocumentName,
         documentType,
-        evidence = {}
+        evidence = {},
+        previousInterpretation = ""
     } = {}) {
         const normalizedSourceLabel =
             String(
                 sourceLabel || ""
+            ).trim();
+
+        const normalizedPreviousInterpretation =
+            String(
+                previousInterpretation || ""
             ).trim();
 
         if (!normalizedSourceLabel) {
@@ -190,6 +196,9 @@ class StandardMeaningFieldInterpretationGenerator {
                                         "施設職員にSemanticコードや内部データモデルを考えさせてはいけません。",
                                         "帳票固有の値や個人名をMeaningとして扱ってはいけません。",
                                         "interpretationはFormal Meaning名ではなく、原本項目の自然言語による意味説明です。",
+                                        normalizedPreviousInterpretation
+                                            ? "前回の解釈が渡された場合は、それを正解として追認せず、Evidenceに照らして独立に再評価してください。誤り、見落とし、より適切な解釈があれば修正し、妥当なら同じ結論を維持して構いません。"
+                                            : "",
                                         "JSONオブジェクトだけを返してください。"
                                     ].join("\n")
                                 },
@@ -220,7 +229,11 @@ class StandardMeaningFieldInterpretationGenerator {
                                                     evidence
                                                 )
                                                     ? evidence
-                                                    : {}
+                                                    : {},
+
+                                            previousInterpretation:
+                                                normalizedPreviousInterpretation ||
+                                                undefined
                                         })
                                 }
                             ]

@@ -31,6 +31,9 @@ function createServerTrustBoundaryApp({
     sourceTemplateFieldsTransport,
     sourceTemplateFieldsEndpointPath =
         "/connector/source-template-fields/exact",
+    wordSourceTemplateReviewedTransport,
+    wordSourceTemplateReviewedEndpointPath =
+        "/connector/source-templates/word-reviewed",
     sourceTemplateSemanticAuthorityTransport,
     sourceTemplateSemanticAuthorityEndpointPath =
         "/connector/source-template-semantic-authority",
@@ -379,6 +382,51 @@ function createServerTrustBoundaryApp({
                 try {
                     const result =
                         await sourceTemplateFieldsTransport
+                            .handle({
+                                method:
+                                    req.method,
+                                contentType:
+                                    req.get(
+                                        "content-type"
+                                    ),
+                                headers:
+                                    req.headers,
+                                body:
+                                    req.body
+                            });
+
+                    return res
+                        .status(
+                            result.httpStatus
+                        )
+                        .json(
+                            result.body
+                        );
+                } catch (error) {
+                    return next(error);
+                }
+            }
+        );
+    }
+
+    if (wordSourceTemplateReviewedTransport) {
+        if (
+            typeof wordSourceTemplateReviewedTransport
+                .handle !== "function" ||
+            typeof wordSourceTemplateReviewedTransport
+                .createErrorResponse !== "function"
+        ) {
+            throw new Error(
+                "createServerTrustBoundaryApp requires complete wordSourceTemplateReviewedTransport"
+            );
+        }
+
+        app.post(
+            wordSourceTemplateReviewedEndpointPath,
+            async (req, res, next) => {
+                try {
+                    const result =
+                        await wordSourceTemplateReviewedTransport
                             .handle({
                                 method:
                                     req.method,

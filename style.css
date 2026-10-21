@@ -2149,3 +2149,49 @@ a.data-source-card:hover {
         margin-right: 0;
     }
 }
+
+/* Semantic guidance */
+.semantic-guide-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    margin-top: 28px;
+    padding: 24px 28px;
+    border: 1px solid #d9e2ef;
+    border-radius: 16px;
+    background: #f8fbff;
+}
+
+.semantic-guide-card__content {
+    flex: 1;
+}
+
+.semantic-guide-card__content strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 18px;
+}
+
+.semantic-guide-card__content p {
+    margin: 8px 0 0;
+    line-height: 1.7;
+}
+
+.semantic-guide-card__action {
+    flex: 0 0 auto;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .semantic-guide-card {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    .semantic-guide-card__action {
+        text-align: center;
+    }
+}

@@ -33,19 +33,19 @@ function isAmbiguousIdentifierSourceName(value) {
     );
 }
 
-function findStandardFieldSuggestion(
+function findStandardFieldCandidates(
     sourceName,
     standardFields = []
 ) {
     if (!Array.isArray(standardFields)) {
-        return null;
+        return [];
     }
 
     const normalized =
         normalizeStandardFieldSourceName(sourceName);
 
     if (!normalized) {
-        return null;
+        return [];
     }
 
     const ambiguousSourceNames = new Set([
@@ -64,10 +64,10 @@ function findStandardFieldSuggestion(
         isAmbiguousIdentifierSourceName(sourceName) ||
         ambiguousSourceNames.has(normalized)
     ) {
-        return null;
+        return [];
     }
 
-    const matches = standardFields.filter(field => {
+    return standardFields.filter(field => {
         const candidates = [
             field?.field_name,
             field?.display_name,
@@ -81,12 +81,22 @@ function findStandardFieldSuggestion(
             normalized
         );
     });
+}
 
-    if (matches.length !== 1) {
-        return null;
-    }
 
-    return matches[0];
+function findStandardFieldSuggestion(
+    sourceName,
+    standardFields = []
+) {
+    const matches =
+        findStandardFieldCandidates(
+            sourceName,
+            standardFields
+        );
+
+    return matches.length === 1
+        ? matches[0]
+        : null;
 }
 
 function isSemanticTargetSupported(
@@ -184,6 +194,7 @@ function filterStandardFieldsBySemanticTargets(
 window.RisenStandardFieldMapping = {
     normalizeStandardFieldSourceName,
     isAmbiguousIdentifierSourceName,
+    findStandardFieldCandidates,
     findStandardFieldSuggestion,
     filterStandardFieldsBySemanticTargets,
     isSemanticTargetSupported,

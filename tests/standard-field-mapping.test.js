@@ -548,3 +548,75 @@ test("共通カタログ synonyms から受給者証所持状態を候補にす�
         "possession_status"
     );
 });
+test("findStandardFieldCandidates は一意候補を配列で返す", () => {
+    const mapping = loadMapping();
+
+    const result =
+        mapping.findStandardFieldCandidates(
+            "利用者氏名",
+            standardFields
+        );
+
+    assert.equal(result.length, 1);
+    assert.equal(
+        result[0].entity_name,
+        "user"
+    );
+    assert.equal(
+        result[0].field_name,
+        "name"
+    );
+});
+
+
+test("findStandardFieldCandidates は複数一致を保持する", () => {
+    const mapping = loadMapping();
+
+    const fields = [
+        {
+            entity_name: "user",
+            field_name: "example_a",
+            display_name: "A",
+            synonyms: ["共通名称"]
+        },
+        {
+            entity_name: "staff",
+            field_name: "example_b",
+            display_name: "B",
+            synonyms: ["共通名称"]
+        }
+    ];
+
+    const result =
+        mapping.findStandardFieldCandidates(
+            "共通名称",
+            fields
+        );
+
+    assert.equal(result.length, 2);
+
+    assert.deepEqual(
+        JSON.parse(
+            JSON.stringify(result)
+        ),
+        fields
+    );
+});
+
+
+test("findStandardFieldCandidates は曖昧な人物項目を候補化しない", () => {
+    const mapping = loadMapping();
+
+    const result =
+        mapping.findStandardFieldCandidates(
+            "氏名",
+            standardFields
+        );
+
+    assert.deepEqual(
+        JSON.parse(
+            JSON.stringify(result)
+        ),
+        []
+    );
+});

@@ -742,6 +742,7 @@ async function createSourceResidentCandidateResolver({
             credential,
             authorizationScheme,
             connectorIdHeader,
+            timeoutMs: 120000,
             fetchImpl
         });
 
@@ -753,6 +754,7 @@ async function createSourceResidentCandidateResolver({
             credential,
             authorizationScheme,
             connectorIdHeader,
+            timeoutMs: 120000,
             fetchImpl
         });
 
@@ -764,6 +766,7 @@ async function createSourceResidentCandidateResolver({
             credential,
             authorizationScheme,
             connectorIdHeader,
+            timeoutMs: 120000,
             fetchImpl
         });
 
@@ -1277,6 +1280,7 @@ async function createSourceResidentMappingClient({
         credential,
         authorizationScheme,
         connectorIdHeader,
+        timeoutMs: 120000,
         fetchImpl
     });
 }

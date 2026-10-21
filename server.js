@@ -829,6 +829,22 @@ content="width=device-width, initial-scale=1">
     }
 );
 
+app.get("/mysql.html", (req, res) => {
+    return res.sendFile(
+        path.join(__dirname, "mysql.html")
+    );
+});
+
+app.get("/js/mysql.js", (req, res) => {
+    return res.sendFile(
+        path.join(
+            __dirname,
+            "js",
+            "mysql.js"
+        )
+    );
+});
+
 app.get("/style.css", (req, res) => {
     return res.sendFile(
         path.join(__dirname, "style.css")

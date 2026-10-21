@@ -1787,6 +1787,137 @@ function renderMeaningEditor(item) {
             </p>
 
             <div
+                class="
+                    semantic-field-interpretation
+                "
+                style="
+                    margin-top: 14px;
+                    max-width: 720px;
+                "
+            >
+                <button
+                    type="button"
+                    class="
+                        secondary-button
+                        semantic-run-field-interpretation-button
+                    "
+                    data-source-field-key="${escapeHtml(
+                        item.sourceFieldKey
+                    )}"
+                >
+                    ${
+                        item?.fieldInterpretation
+                            ? "AIKOで再解析"
+                            : "AIKOに意味を解析してもらう"
+                    }
+                </button>
+
+                ${
+                    item?.fieldInterpretation
+                        ? `
+                            <div
+                                style="
+                                    margin-top: 12px;
+                                    padding: 12px 14px;
+                                    border:
+                                        1px solid
+                                        #dbe4ef;
+                                    border-radius: 8px;
+                                    background: #f8fafc;
+                                "
+                            >
+                                <div
+                                    style="
+                                        font-weight: 700;
+                                        margin-bottom: 6px;
+                                    "
+                                >
+                                    ${
+                                        item
+                                            .fieldInterpretation
+                                            .mode === "review"
+                                            ? "AIKOから確認したいこと"
+                                            : "AIKOの解釈"
+                                    }
+                                </div>
+
+                                ${
+                                    item
+                                        .fieldInterpretation
+                                        .interpretation
+                                        ? `
+                                            <div>
+                                                ${escapeHtml(
+                                                    item
+                                                        .fieldInterpretation
+                                                        .interpretation
+                                                )}
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
+                                ${
+                                    item
+                                        .fieldInterpretation
+                                        .mode === "review" &&
+                                    item
+                                        .fieldInterpretation
+                                        .facilityQuestion
+                                        ? `
+                                            <div
+                                                style="
+                                                    margin-top: 8px;
+                                                    font-weight: 600;
+                                                "
+                                            >
+                                                ${escapeHtml(
+                                                    item
+                                                        .fieldInterpretation
+                                                        .facilityQuestion
+                                                )}
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
+                                <div
+                                    class="form-help"
+                                    style="
+                                        margin-top: 8px;
+                                    "
+                                >
+                                    AIKO確信度:
+                                    ${
+                                        item
+                                            .fieldInterpretation
+                                            .confidence === "high"
+                                            ? "高"
+                                            : item
+                                                .fieldInterpretation
+                                                .confidence === "medium"
+                                                ? "中"
+                                                : "低"
+                                    }
+                                </div>
+                            </div>
+                        `
+                        : `
+                            <p
+                                class="form-help"
+                                style="
+                                    margin: 6px 0 0;
+                                "
+                            >
+                                原本の値と周辺項目から、
+                                AIKOがこの項目の意味を読み取ります。
+                                Formal Meaningはここでは確定しません。
+                            </p>
+                        `
+                }
+            </div>
+
+            <div
                 style="
                     margin-top: 12px;
                 "
@@ -2170,6 +2301,161 @@ function renderMeaningEditor(item) {
             </div>
         </div>
     `;
+}
+
+
+async function runFieldInterpretation(
+    button
+) {
+    const sourceFieldKey =
+        String(
+            button?.dataset
+                ?.sourceFieldKey ||
+            ""
+        ).trim();
+
+    if (!sourceFieldKey) {
+        return;
+    }
+
+    const item =
+        semanticResolvedFields.find(
+            candidate =>
+                candidate?.sourceFieldKey ===
+                sourceFieldKey
+        );
+
+    if (!item) {
+        return;
+    }
+
+    const ReviewModel =
+        window.RisenSemanticReviewModel;
+
+    const review =
+        ReviewModel
+            ? ReviewModel.toReviewItem({
+                item,
+                standardFields:
+                    semanticStandardFields,
+                analysis:
+                    semanticCurrentAnalysis
+            })
+            : null;
+
+    const sampleValues =
+        Array.isArray(
+            review?.evidence
+                ?.sampleValues
+        )
+            ? review
+                .evidence
+                .sampleValues
+            : [];
+
+    const neighboringFields =
+        Array.isArray(
+            review?.evidence
+                ?.neighboringFields
+        )
+            ? review
+                .evidence
+                .neighboringFields
+            : [];
+
+    button.disabled = true;
+    button.textContent =
+        "AIKO解析中...";
+
+    try {
+        const response =
+            await fetch(
+                "/api/semantic/field-interpretation",
+                {
+                    method:
+                        "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            sourceLabel:
+                                String(
+                                    item.label || ""
+                                ).trim(),
+
+                            sourceDocumentName:
+                                String(
+                                    fileSelect.value ||
+                                    ""
+                                ).trim(),
+
+                            documentType:
+                                String(
+                                    semanticCurrentAnalysis
+                                        ?.documentType ||
+                                    semanticCurrentAnalysis
+                                        ?.extracted
+                                        ?.documentType ||
+                                    "unknown"
+                                ).trim(),
+
+                            evidence: {
+                                sampleValues,
+                                neighboringFields
+                            }
+                        })
+                }
+            );
+
+        let result = null;
+
+        try {
+            result =
+                await response.json();
+        } catch {
+            result = null;
+        }
+
+        if (
+            !response.ok ||
+            !result ||
+            result.success !== true ||
+            !result.interpretation
+        ) {
+            throw new Error(
+                result?.message ||
+                "AIKOの項目解析に失敗しました。"
+            );
+        }
+
+        item.fieldInterpretation =
+            result.interpretation;
+
+        renderFields();
+
+        setStatus(
+            `${item.label} をAIKOが解析しました。`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+
+        button.disabled = false;
+        button.textContent =
+            item?.fieldInterpretation
+                ? "AIKOで再解析"
+                : "AIKOに意味を解析してもらう";
+
+        setStatus(
+            error?.message ||
+            "AIKOの項目解析に失敗しました。",
+            "error"
+        );
+    }
 }
 
 
@@ -3124,6 +3410,20 @@ function renderFields() {
                 "click",
                 () =>
                     confirmReviewCandidate(
+                        button
+                    )
+            );
+        });
+
+    fieldsBody
+        .querySelectorAll(
+            ".semantic-run-field-interpretation-button"
+        )
+        .forEach(button => {
+            button.addEventListener(
+                "click",
+                () =>
+                    runFieldInterpretation(
                         button
                     )
             );

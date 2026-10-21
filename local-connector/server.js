@@ -353,9 +353,14 @@ app.locals.getRecipientCertificateImportExecutionService =
                     return url.toString();
                 };
 
+            const importPreviewService =
+                await app.locals
+                    .getRecipientCertificateImportPreviewService();
+
             recipientCertificateImportExecutionServicePromise =
                 LocalConnectorCompositionRoot
                     .createRecipientCertificateImportExecutionService({
+                        importPreviewService,
                         fieldMappingEndpoint:
                             process.env
                                 .RISEN_SOURCE_FIELD_MAPPING_ENDPOINT ||

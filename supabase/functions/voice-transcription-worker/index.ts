@@ -558,6 +558,243 @@ async function persistVoiceTranscriptionSegments(
   }
 }
 
+
+async function persistCommunicationTranscript(
+  supabaseUrl: string,
+  publishableKey: string,
+  accessToken: string,
+  recording: Recording,
+  transcriptionText: string,
+): Promise<void> {
+  const response =
+    await fetch(
+      `${supabaseUrl}/rest/v1/rpc/persist_voice_communication_transcript`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: publishableKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          p_facility_id:
+            recording.facility_id,
+          p_communication_log_id:
+            recording.communication_log_id,
+          p_recording_id:
+            recording.id,
+          p_transcript:
+            transcriptionText,
+        }),
+      },
+    );
+
+  const text =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `persist transcript RPC failed: ${response.status} ${text}`,
+    );
+  }
+}
+
+
+async function generateCommunicationAiSummary(
+  transcriptionText: string,
+): Promise<string> {
+  const normalizedTranscript =
+    String(
+      transcriptionText || "",
+    ).trim();
+
+  if (!normalizedTranscript) {
+    return "";
+  }
+
+  const openAiApiKey =
+    requireEnv("OPENAI_API_KEY");
+
+  const response =
+    await fetch(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            `Bearer ${openAiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-6-luna",
+          input: [
+            {
+              role: "system",
+              content:
+                "あなたは福祉現場の通話記録を要約するアシスタントです。" +
+                "文字起こしに書かれている事実だけを使い、" +
+                "推測や情報の追加をせず、簡潔な日本語で要約してください。" +
+                "日時・依頼・連絡事項・対応内容など重要な事実を優先してください。",
+            },
+            {
+              role: "user",
+              content:
+                normalizedTranscript,
+            },
+          ],
+        }),
+      },
+    );
+
+  const responseText =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `OpenAI summary failed: ${response.status} ${responseText}`,
+    );
+  }
+
+  let body: unknown;
+
+  try {
+    body =
+      JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      "OpenAI summary response was not valid JSON",
+    );
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    "output_text" in body &&
+    typeof body.output_text === "string"
+  ) {
+    return body.output_text.trim();
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    "output" in body &&
+    Array.isArray(body.output)
+  ) {
+    for (const item of body.output) {
+      if (
+        !item ||
+        typeof item !== "object" ||
+        !("content" in item) ||
+        !Array.isArray(item.content)
+      ) {
+        continue;
+      }
+
+      for (const content of item.content) {
+        if (
+          content &&
+          typeof content === "object" &&
+          "type" in content &&
+          content.type === "output_text" &&
+          "text" in content &&
+          typeof content.text === "string"
+        ) {
+          const summary =
+            content.text.trim();
+
+          if (summary) {
+            return summary;
+          }
+        }
+      }
+    }
+  }
+
+  throw new Error(
+    "OpenAI summary text was not returned",
+  );
+}
+
+
+async function persistCommunicationAiSummaryIfTranscriptMatches(
+  supabaseUrl: string,
+  publishableKey: string,
+  accessToken: string,
+  recording: Recording,
+  sourceTranscript: string,
+  aiSummary: string,
+): Promise<boolean> {
+  const sourceTranscriptText =
+    String(
+      sourceTranscript || "",
+    );
+
+  const normalizedSummary =
+    String(
+      aiSummary || "",
+    ).trim();
+
+  if (
+    !sourceTranscriptText.trim() ||
+    !normalizedSummary
+  ) {
+    return false;
+  }
+
+  const response =
+    await fetch(
+      `${supabaseUrl}/rest/v1/rpc/persist_voice_communication_ai_summary_if_transcript_matches`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: publishableKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          p_facility_id:
+            recording.facility_id,
+          p_communication_log_id:
+            recording.communication_log_id,
+          p_source_transcript:
+            sourceTranscriptText,
+          p_ai_summary:
+            normalizedSummary,
+        }),
+      },
+    );
+
+  const responseText =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `persist AI summary CAS RPC failed: ${response.status} ${responseText}`,
+    );
+  }
+
+  let result: unknown;
+
+  try {
+    result =
+      JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      "persist AI summary CAS RPC returned invalid JSON",
+    );
+  }
+
+  if (typeof result !== "boolean") {
+    throw new Error(
+      "persist AI summary CAS RPC returned invalid result",
+    );
+  }
+
+  return result;
+}
+
+
 async function completeRecording(
   supabaseUrl: string,
   publishableKey: string,
@@ -807,6 +1044,46 @@ const transcriptionText =
           provenanceError instanceof Error
             ? provenanceError.message
             : String(provenanceError),
+        );
+      }
+
+      try {
+        await persistCommunicationTranscript(
+          supabaseUrl,
+          publishableKey,
+          accessToken,
+          recording,
+          transcriptionText,
+        );
+
+        const aiSummary =
+          await generateCommunicationAiSummary(
+            transcriptionText,
+          );
+
+        if (aiSummary) {
+          const summaryPersisted =
+            await persistCommunicationAiSummaryIfTranscriptMatches(
+              supabaseUrl,
+              publishableKey,
+              accessToken,
+              recording,
+              transcriptionText,
+              aiSummary,
+            );
+
+          if (!summaryPersisted) {
+            console.warn(
+              "Voice AI summary skipped because transcript changed",
+            );
+          }
+        }
+      } catch (enrichmentError) {
+        console.error(
+          "Voice transcription enrichment failed",
+          enrichmentError instanceof Error
+            ? enrichmentError.message
+            : String(enrichmentError),
         );
       }
 

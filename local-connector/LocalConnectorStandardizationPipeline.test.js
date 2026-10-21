@@ -428,3 +428,47 @@ test(
         );
     }
 );
+
+test(
+    "processRegisteredFile forwards supplied observation without observing again",
+    async () => {
+        const {
+            pipeline,
+            calls
+        } =
+            createPipeline();
+
+        const observation = {
+            sourceDocumentKey:
+                "trusted-observation-key"
+        };
+
+        const result =
+            await pipeline.processRegisteredFile(
+                "record.docx",
+                {
+                    observation
+                }
+            );
+
+        assert.strictEqual(
+            result.source.sourceDocumentKey,
+            "trusted-observation-key"
+        );
+
+        assert.strictEqual(
+            result.source.relativePath,
+            "record.docx"
+        );
+
+        assert.strictEqual(
+            calls.includes("observe"),
+            false
+        );
+
+        assert.strictEqual(
+            calls.includes("acquireRaw"),
+            true
+        );
+    }
+);

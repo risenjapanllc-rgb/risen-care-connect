@@ -898,3 +898,118 @@ test(
         );
     }
 );
+
+test(
+    "ingestRegisteredFile forwards options to standardization pipeline",
+    async () => {
+        const calls = [];
+
+        const options = {
+            observation: {
+                sourceDocumentKey:
+                    "trusted-observation-key"
+            }
+        };
+
+        const standardDocument = {
+            sourceType:
+                "word",
+            documentType:
+                "support_record",
+            source: {
+                fileName:
+                    "record.docx",
+                updatedAt:
+                    "2026-10-21T00:00:00.000Z"
+            },
+            extracted: {}
+        };
+
+        const service =
+            new LocalConnectorIngestionService({
+                standardizationPipeline: {
+                    async processSource(
+                        sourceReference,
+                        receivedOptions
+                    ) {
+                        calls.push({
+                            sourceReference,
+                            receivedOptions
+                        });
+
+                        return {
+                            source: {
+                                sourceDocumentKey:
+                                    "trusted-observation-key"
+                            },
+                            validation: {
+                                valid: true,
+                                issues: []
+                            },
+                            quality: {
+                                acceptable: true,
+                                signals: []
+                            },
+                            standardDocument
+                        };
+                    }
+                },
+
+                payloadBuilder: {
+                    build() {
+                        return {
+                            payload: true
+                        };
+                    }
+                },
+
+                semanticRecordBuilder: {
+                    build() {
+                        return [
+                            {
+                                semantic: true
+                            }
+                        ];
+                    }
+                },
+
+                httpClient: {
+                    async ingest() {
+                        return {
+                            status:
+                                "matched"
+                        };
+                    }
+                }
+            });
+
+        const result =
+            await service.ingestRegisteredFile(
+                "record.docx",
+                options
+            );
+
+        assert.strictEqual(
+            calls.length,
+            1
+        );
+
+        assert.strictEqual(
+            calls[0].sourceReference,
+            "record.docx"
+        );
+
+        assert.strictEqual(
+            calls[0].receivedOptions,
+            options
+        );
+
+        assert.deepStrictEqual(
+            result,
+            {
+                status:
+                    "matched"
+            }
+        );
+    }
+);

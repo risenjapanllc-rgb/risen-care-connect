@@ -85,7 +85,10 @@ class LocalConnectorIngestionService {
             httpClient;
     }
 
-    async ingestSource(sourceReference) {
+    async ingestSource(
+        sourceReference,
+        options = {}
+    ) {
         const processSource =
             typeof this.standardizationPipeline
                 .processSource === "function"
@@ -100,7 +103,8 @@ class LocalConnectorIngestionService {
 
         const pipelineResult =
             await processSource(
-                sourceReference
+                sourceReference,
+                options
             );
 
         if (
@@ -181,9 +185,13 @@ class LocalConnectorIngestionService {
             semanticRecords
         });
     }
-    async ingestRegisteredFile(fileName) {
+    async ingestRegisteredFile(
+        fileName,
+        options = {}
+    ) {
         return await this.ingestSource(
-            fileName
+            fileName,
+            options
         );
     }
 }
